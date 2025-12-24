@@ -63,9 +63,17 @@ export async function getQrCode({ idInstance, apiTokenInstance }) {
     );
 
     // Format de réponse Green-API: { "type": "qrCode", "message": "data:image/png;base64,..." }
+    // Ou parfois juste une string base64 directe
+    let qrCodeData = response.message || response.qrCode || response;
+
+    // Si la réponse est juste la string base64 sans préfixe, l'ajouter
+    if (typeof qrCodeData === 'string' && !qrCodeData.startsWith('data:image')) {
+      qrCodeData = `data:image/png;base64,${qrCodeData}`;
+    }
+
     return {
-      qrCode: response.message || response.qrCode,
-      type: response.type,
+      qrCode: qrCodeData,
+      type: response.type || 'qrCode',
       expiresIn: GREENAPI_CONFIG.qr.expirationMs
     };
   } catch (error) {
