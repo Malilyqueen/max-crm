@@ -53,6 +53,7 @@ import automationMvp1Router from './routes/automationMvp1.js';
 import tenantGoalsRouter from './routes/tenantGoals.js';
 import testWhatsappStubRouter from './routes/test-whatsapp-stub.js';
 import actionsApiRouter from './routes/actions-api.js';
+import waInstanceRouter from './routes/wa-instance.js';
 
 process.on('unhandledRejection', (reason)=> console.error('[FATAL] UnhandledRejection:', reason));
 process.on('uncaughtException', (err)=> { console.error('[FATAL] UncaughtException:', err); process.exit(1); });
@@ -61,6 +62,7 @@ process.on('SIGTERM', ()=> { console.log('[EXIT] SIGTERM'); process.exit(0); });
 
 const app = express();
 app.use(express.json());
+app.use(express.urlencoded({ extended: true })); // ⚡ Support Twilio webhooks (application/x-www-form-urlencoded)
 // Allow custom headers for UI
 app.use(cors({
   origin: [
@@ -110,6 +112,10 @@ app.use('/api/whatsapp', whatsappMessagesRouter); // API CRUD messages WhatsApp
 app.use('/api/tenant/goals', tenantGoalsRouter); // Routes tenant goals (mémoire longue durée)
 app.use('/api/test', testWhatsappStubRouter); // 🧪 Endpoint de test WhatsApp stub (sans dépendre de Twilio Live)
 app.use('/api/action-layer', actionsApiRouter); // 🎯 Action Layer - Endpoints pour tester les actions CRM manuellement (AVANT headers middleware)
+app.use('/api/wa', waInstanceRouter); // 📱 Green-API WhatsApp Instance Management (AVANT headers middleware)
+
+// Sanity ping (AVANT headers middleware pour Cloudflare healthcheck)
+app.get('/api/ping', (req, res) => res.json({ ok: true, pong: true }));
 
 app.use(headers);
 app.use((req,res,next)=>{ res.setHeader('Content-Type','application/json; charset=utf-8'); next(); });
@@ -146,9 +152,6 @@ app.use('/api', (req,res,next)=>{ res.type('application/json'); next(); });
 app.use("/api", resolveTenant(), leadRoutes);
 app.use("/api", resolveTenant(), tagsRoutes);
 app.use("/api", resolveTenant(), triggerRoutes);
-
-// Sanity ping
-app.get('/api/ping', (req, res) => res.json({ ok: true, pong: true }));
 
 // P0: actions sans aucun appel Espo
 app.post('/api/actions/updateLead', checkModeWrite, async (req, res) => {
