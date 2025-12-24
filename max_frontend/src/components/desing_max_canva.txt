@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>M.A.X. — Copilote IA CRM</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Palette premium et micro-animations */
+    :root{
+      --bg1:#0b1020; /* navy profond */
+      --bg2:#151a33; /* bleu nuit */
+      --pri:#7c9bff; /* indigo doux */
+      --pri-2:#a2b6ff;
+      --acc:#22d3ee; /* cyan */
+      --ok:#34d399; /* vert */
+      --warn:#fbbf24; /* ambre */
+      --err:#f87171; /* rouge doux */
+      --glass: rgba(255,255,255,0.06);
+      --stroke: rgba(255,255,255,0.12);
+      --muted: rgba(255,255,255,0.6);
+    }
+    .glass {
+      background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04));
+      border: 1px solid var(--stroke);
+      box-shadow: 0 12px 30px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.05);
+      backdrop-filter: blur(10px);
+    }
+    .btn {
+      transition: transform .08s ease, opacity .2s ease, box-shadow .2s ease;
+    }
+    .btn:active { transform: translateY(1px) scale(0.99); }
+    .chip {
+      background: linear-gradient(180deg, rgba(124,155,255,0.18), rgba(124,155,255,0.10));
+      border: 1px solid rgba(124,155,255,0.35);
+    }
+    .fade-in { animation: fade .25s ease; }
+    @keyframes fade { from {opacity:0; transform: translateY(4px);} to {opacity:1; transform: translateY(0);} }
+    .scroll-smooth::-webkit-scrollbar{ height:8px; width:8px;}
+    .scroll-smooth::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:999px;}
+    .grad-bg{
+      background:
+        radial-gradient(1200px 600px at -10% -20%, rgba(124,155,255,0.18), transparent 60%),
+        radial-gradient(1000px 500px at 110% 10%, rgba(34,211,238,0.12), transparent 60%),
+        linear-gradient(180deg, var(--bg1), var(--bg2));
+    }
+    .tag { border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.06); }
+    .pill { border: 1px solid rgba(255,255,255,0.20); background: rgba(255,255,255,0.08); }
+    .shadow-focus { box-shadow: 0 0 0 3px rgba(124,155,255,0.35); }
+  </style>
+</head>
+<body class="min-h-screen grad-bg text-white antialiased selection:bg-indigo-400/30 selection:text-white">
+
+  <!-- App Wrapper -->
+  <div class="max-w-[1400px] mx-auto p-4 md:p-6 lg:p-8">
+    <!-- Top Bar -->
+    <header class="glass rounded-2xl px-4 md:px-6 py-3 md:py-4 flex items-center justify-between gap-4">
+      <div class="flex items-center gap-3 md:gap-4">
+        <div class="h-10 w-10 rounded-xl grid place-items-center bg-gradient-to-br from-indigo-400/80 to-cyan-300/80 text-slate-900 font-black">
+          M
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-lg md:text-xl font-semibold tracking-tight">M.A.X.</h1>
+            <span class="pill text-xs px-2 py-0.5 rounded-full text-indigo-200">Copilote IA CRM</span>
+          </div>
+          <p class="text-xs md:text-sm text-white/60">Analyse. Propose. Exécute. Connecté à EspoCRM + n8n.</p>
+        </div>
+      </div>
+
+      <div class="flex-1 max-w-xl hidden md:flex items-center gap-2">
+        <div class="relative flex-1">
+          <input id="globalSearch" type="search" placeholder="Rechercher un lead, une tâche, un deal…"
+            class="w-full glass rounded-xl py-2.5 pl-10 pr-3 text-sm outline-none focus:shadow-focus"
+          />
+          <svg class="w-5 h-5 absolute left-3 top-2.5 text-white/50" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+            <circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4.3-4.3"></path>
+          </svg>
+        </div>
+        <button id="quickNewBtn" class="btn glass rounded-xl px-3 py-2 text-sm hover:bg-white/10">+ Nouveau</button>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button id="openHelp" class="btn glass rounded-xl px-3 py-2 text-sm hover:bg-white/10">Centre d’aide</button>
+        <div class="h-9 w-9 rounded-xl grid place-items-center bg-white/10">👩‍💼</div>
+      </div>
+    </header>
+
+    <div class="grid grid-cols-12 gap-4 md:gap-6 mt-4 md:mt-6">
+      <!-- Sidebar -->
+      <aside class="glass rounded-2xl col-span-12 lg:col-span-3 p-4 md:p-5 space-y-6">
+        <div>
+          <p class="text-xs uppercase tracking-wider text-white/50 mb-3">Navigation</p>
+          <nav class="grid gap-2">
+            <button data-tab="chat" class="tab-btn btn flex items-center justify-between w-full glass rounded-xl px-3 py-2.5 hover:bg-white/10">
+              <span class="flex items-center gap-2">
+                💬 <span>Chat</span>
+              </span>
+              <span class="tag text-xs rounded-md px-2 py-0.5">IA</span>
+            </button>
+            <button data-tab="leads" class="tab-btn btn flex items-center justify-between w-full rounded-xl px-3 py-2.5 hover:bg-white/10">
+              <span class="flex items-center gap-2">
+                🧲 <span>Leads</span>
+              </span>
+              <span id="leadCount" class="tag text-xs rounded-md px-2 py-0.5">0</span>
+            </button>
+            <button data-tab="tasks" class="tab-btn btn flex items-center justify-between w-full rounded-xl px-3 py-2.5 hover:bg-white/10">
+              <span class="flex items-center gap-2">
+                ✅ <span>Tâches</span>
+              </span>
+              <span id="taskCount" class="tag text-xs rounded-md px-2 py-0.5">0</span>
+            </button>
+            <button data-tab="deals" class="tab-btn btn flex items-center justify-between w-full rounded-xl px-3 py-2.5 hover:bg-white/10">
+              <span class="flex items-center gap-2">
+                💼 <span>Deals</span>
+              </span>
+              <span id="dealCount" class="tag text-xs rounded-md px-2 py-0.5">0</span>
+            </button>
+          </nav>
+        </div>
+
+        <div>
+          <p class="text-xs uppercase tracking-wider text-white/50 mb-3">Contextes</p>
+          <div id="contextChips" class="flex flex-wrap gap-2">
+            <!-- Dynamique -->
+          </div>
+        </div>
+
+        <div class="space-y-3">
+          <p class="text-xs uppercase tracking-wider text-white/50">Raccourcis</p>
+          <div class="grid gap-2">
+            <button id="suggestNextBest" class="btn rounded-xl px-3 py-2 glass hover:bg-white/10 text-left">
+              ✨ Proposer la prochaine meilleure action
+            </button>
+            <button id="runWorkflow" class="btn rounded-xl px-3 py-2 glass hover:bg-white/10 text-left">
+              ⚙️ Lancer un scénario n8n (démo)
+            </button>
+            <a href="https://www.espocrm.com/documentation/" target="_blank" rel="noopener noreferrer"
+               class="btn rounded-xl px-3 py-2 glass hover:bg-white/10 text-left">
+              📘 Docs EspoCRM
+            </a>
+            <a href="https://docs.n8n.io/" target="_blank" rel="noopener noreferrer"
+               class="btn rounded-xl px-3 py-2 glass hover:bg-white/10 text-left">
+              🔗 Docs n8n
+            </a>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Main -->
+      <main class="col-span-12 lg:col-span-9 grid grid-cols-12 gap-4 md:gap-6">
+        <!-- Chat Panel -->
+        <section id="view-chat" class="col-span-12 grid grid-cols-12 gap-4 md:gap-6">
+          <div class="glass rounded-2xl p-4 md:p-6 col-span-12 xl:col-span-7 flex flex-col h-[70vh]">
+            <div class="flex items-center justify-between mb-3">
+              <h2 class="text-lg font-semibold">Chat intelligent</h2>
+              <div class="flex items-center gap-2">
+                <span class="tag text-xs rounded-md px-2 py-0.5">Contexte CRM actif</span>
+                <span class="tag text-xs rounded-md px-2 py-0.5 text-emerald-300">Prêt</span>
+              </div>
+            </div>
+
+            <div id="chatArea" class="flex-1 overflow-y-auto scroll-smooth space-y-4 pr-1">
+              <!-- Messages dynamiques -->
+            </div>
+
+            <!-- Quick Suggestions -->
+            <div id="chatTips" class="mt-3 flex flex-wrap gap-2">
+              <button class="chip rounded-full text-sm px-3 py-1.5 btn">Résume mes leads chauds</button>
+              <button class="chip rounded-full text-sm px-3 py-1.5 btn">Planifie 3 relances</button>
+              <button class="chip rounded-full text-sm px-3 py-1.5 btn">Analyse des pertes de deals</button>
+              <button class="chip rounded-full text-sm px-3 py-1.5 btn">Écris un email de suivi</button>
+            </div>
+
+            <!-- Input -->
+            <form id="chatForm" class="mt-3 flex items-end gap-2" autocomplete="off">
+              <div class="flex-1 relative">
+                <textarea id="chatInput" rows="1" placeholder="Parlez à M.A.X. — demandez, analysez, déléguez…"
+                  class="w-full glass rounded-2xl px-4 py-3 pr-10 text-sm outline-none resize-none leading-6 focus:shadow-focus"
+                ></textarea>
+                <button id="micBtn" type="button" class="absolute right-2.5 bottom-2.5 text-white/60 hover:text-white/90">🎙️</button>
+              </div>
+              <button class="btn rounded-2xl px-4 py-3 bg-gradient-to-br from-indigo-400 to-cyan-300 text-slate-900 font-semibold hover:opacity-90">
+                Envoyer
+              </button>
+            </form>
+          </div>
+
+          <!-- Context & Actions -->
+          <div class="glass rounded-2xl p-4 md:p-6 col-span-12 xl:col-span-5 h-[70vh] flex flex-col">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-lg font-semibold">Actions M.A.X.</h3>
+              <button id="clearContext" class="btn text-sm pill px-3 py-1.5 rounded-lg hover:bg-white/15">Réinitialiser</button>
+            </div>
+
+            <div id="smartActions" class="space-y-3 overflow-y-auto scroll-smooth pr-1 flex-1">
+              <!-- Actions contextuelles dynamiques -->
+            </div>
+
+            <div class="mt-3">
+              <p class="text-xs text-white/60 mb-2">Exécution</p>
+              <div class="flex gap-2">
+                <button id="simulateSendEmails" class="btn pill px-3 py-2 rounded-lg hover:bg-white/15">📨 Envoyer 5 emails</button>
+                <button id="simulateCreateTasks" class="btn pill px-3 py-2 rounded-lg hover:bg-white/15">🗓️ Créer des tâches</button>
+                <button id="simulateSyncEspo" class="btn pill px-3 py-2 rounded-lg hover:bg-white/15">🔄 Sync EspoCRM</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Leads View -->
+        <section id="view-leads" class="col-span-12 hidden">
+          <div class="glass rounded-2xl p-4 md:p-6">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+              <h2 class="text-lg font-semibold">Leads</h2>
+              <div class="flex items-center gap-2">
+                <input id="leadFilter" placeholder="Filtrer…" class="glass rounded-xl px-3 py-2 text-sm outline-none focus:shadow-focus" />
+                <select id="leadStage" class="glass rounded-xl px-3 py-2 text-sm outline-none focus:shadow-focus">
+                  <option value="">Tous les statuts</option>
+                  <option>Nouvel</option>
+                  <option>Contacté</option>
+                  <option>Qualifié</option>
+                </select>
+                <button id="addLead" class="btn pill px-3 py-2 rounded-lg hover:bg-white/15">+ Ajouter</button>
+              </div>
+            </div>
+
+            <div class="overflow-x-auto scroll-smooth">
+              <table class="min-w-full text-sm">
+                <thead>
+                  <tr class="text-white/60">
+                    <th class="text-left font-medium py-2">Nom</th>
+                    <th class="text-left font-medium py-2">Entreprise</th>
+                    <th class="text-left font-medium py-2">Valeur</th>
+                    <th class="text-left font-medium py-2">Statut</th>
+                    <th class="text-left font-medium py-2">Prochaine action</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="leadRows" class="align-top">
+                  <!-- Lignes dynamiques -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- Tasks View -->
+        <section id="view-tasks" class="col-span-12 hidden">
+          <div class="glass rounded-2xl p-4 md:p-6">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+              <h2 class="text-lg font-semibold">Tâches</h2>
+              <div class="flex items-center gap-2">
+                <select id="taskFilter" class="glass rounded-xl px-3 py-2 text-sm outline-none focus:shadow-focus">
+                  <option value="">Toutes</option>
+                  <option value="today">Aujourd’hui</option>
+                  <option value="overdue">En retard</option>
+                  <option value="done">Terminées</option>
+                </select>
+                <button id="addTask" class="btn pill px-3 py-2 rounded-lg hover:bg-white/15">+ Nouvelle tâche</button>
+              </div>
+            </div>
+
+            <ul id="taskList" class="grid gap-2">
+              <!-- Tâches dynamiques -->
+            </ul>
+          </div>
+        </section>
+
+        <!-- Deals View -->
+        <section id="view-deals" class="col-span-12 hidden">
+          <div class="glass rounded-2xl p-4 md:p-6">
+            <div class="flex items-center justify-between mb-4">
+              <h2 class="text-lg font-semibold">Deals</h2>
+              <button id="addDeal" class="btn pill px-3 py-2 rounded-lg hover:bg-white/15">+ Nouveau deal</button>
+            </div>
+            <div class="grid md:grid-cols-3 gap-4">
+              <div>
+                <div class="flex items-center justify-between mb-2">
+                  <h3 class="text-sm uppercase tracking-wide text-white/60">Prospection</h3>
+                  <span id="colProspectCount" class="tag text-xs rounded-md px-2 py-0.5">0</span>
+                </div>
+                <div id="colProspect" class="min-h-[200px] glass rounded-xl p-3 space-y-2">
+                  <!-- Cards -->
+                </div>
+              </div>
+              <div>
+                <div class="flex items-center justify-between mb-2">
+                  <h3 class="text-sm uppercase tracking-wide text-white/60">Négociation</h3>
+                  <span id="colNegCount" class="tag text-xs rounded-md px-2 py-0.5">0</span>
+                </div>
+                <div id="colNeg" class="min-h-[200px] glass rounded-xl p-3 space-y-2">
+                </div>
+              </div>
+              <div>
+                <div class="flex items-center justify-between mb-2">
+                  <h3 class="text-sm uppercase tracking-wide text-white/60">Gagné</h3>
+                  <span id="colWonCount" class="tag text-xs rounded-md px-2 py-0.5">0</span>
+                </div>
+                <div id="colWon" class="min-h-[200px] glass rounded-xl p-3 space-y-2">
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <!-- Toasts -->
+  <div id="toasts" class="fixed bottom-4 right-4 space-y-2 z-50"></div>
+
+  <!-- Modal (Démo) -->
+  <div id="modal" class="hidden fixed inset-0 z-40">
+    <div class="absolute inset-0 bg-black/60"></div>
+    <div class="relative max-w-lg mx-auto mt-24 glass rounded-2xl p-5">
+      <div class="flex items-start justify-between gap-2">
+        <div>
+          <h3 id="modalTitle" class="text-lg font-semibold">Titre</h3>
+          <p id="modalDesc" class="text-white/70 text-sm">Description</p>
+        </div>
+        <button id="modalClose" class="btn pill px-3 py-2 rounded-lg hover:bg-white/15">Fermer</button>
+      </div>
+      <form id="modalForm" class="mt-4 grid gap-3">
+        <input id="modalInput1" placeholder="Nom" class="glass rounded-xl px-3 py-2 text-sm outline-none focus:shadow-focus" />
+        <input id="modalInput2" placeholder="Détail" class="glass rounded-xl px-3 py-2 text-sm outline-none focus:shadow-focus" />
+        <div class="flex justify-end gap-2">
+          <button type="button" id="modalCancel" class="btn pill px-3 py-2 rounded-lg hover:bg-white/15">Annuler</button>
+          <button class="btn rounded-xl px-4 py-2 bg-gradient-to-br from-indigo-400 to-cyan-300 text-slate-900 font-semibold hover:opacity-90">Valider</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // Données démo
+    const state = {
+      tab: 'chat',
+      leads: [
+        {id:'l1', name:'Alice Martin', company:'Lumina', value:12000, stage:'Contacté', next:'Relance email'},
+        {id:'l2', name:'Karim Lopez', company:'NovaTech', value:8000, stage:'Nouvel', next:'Appel découverte'},
+        {id:'l3', name:'Sophie Laurent', company:'GreenPulse', value:15000, stage:'Qualifié', next:'Démo produit'}
+      ],
+      tasks: [
+        {id:'t1', title:'Relancer Alice', due:'2025-09-26', done:false},
+        {id:'t2', title:'Préparer démo GreenPulse', due:'2025-09-27', done:false},
+        {id:'t3', title:'Appel découverte Karim', due:'2025-09-24', done:true}
+      ],
+      deals: [
+        {id:'d1', name:'Lumina - Suite Pro', amount:24000, stage:'Prospect'},
+        {id:'d2', name:'GreenPulse - Annual', amount:48000, stage:'Negotiation'},
+        {id:'d3', name:'NovaTech - Starter', amount:12000, stage:'Won'}
+      ],
+      chat: [
+        {role:'assistant', text:"Bonjour, je suis M.A.X. Votre copilote CRM. Je peux analyser vos leads, prioriser vos tâches et exécuter des actions (emails, relances, workflows n8n). Par quoi commence-t-on ?"},
+      ],
+      context: ['Leads chauds', 'Cycle 30 jours'],
+    };
+
+    // Utils
+    const $ = sel => document.querySelector(sel);
+    const $$ = sel => Array.from(document.querySelectorAll(sel));
+
+    function toast(msg, type='info'){
+      const wrap = document.createElement('div');
+      const color = type==='ok' ? 'from-emerald-400 to-teal-300' :
+                    type==='warn' ? 'from-amber-400 to-yellow-300' :
+                    type==='err' ? 'from-rose-400 to-red-300' : 'from-indigo-400 to-cyan-300';
+      wrap.className = 'fade-in glass rounded-xl p-3 pl-3 pr-10 relative';
+      wrap.innerHTML = `
+        <div class="flex items-center gap-2">
+          <span>${ type==='ok' ? '✅' : type==='warn' ? '⚠️' : type==='err' ? '⛔' : '✨' }</span>
+          <p class="text-sm">${msg}</p>
+        </div>
+        <button class="absolute right-2 top-2 pill px-2 py-1 rounded-md hover:bg-white/15 text-xs">Fermer</button>
+        <div class="absolute bottom-0 left-0 h-1 bg-gradient-to-r ${color}" style="width:0%;" ></div>
+      `;
+      $('#toasts').appendChild(wrap);
+      const bar = wrap.querySelector('div.absolute.bottom-0');
+      let p=0;
+      const int = setInterval(()=>{ p+=3; bar.style.width = p+'%'; if(p>=100){ clearInterval(int); wrap.remove(); } }, 60);
+      wrap.querySelector('button').onclick = ()=>{ clearInterval(int); wrap.remove(); };
+    }
+
+    function formatEUR(n){ return new Intl.NumberFormat('fr-FR', {style:'currency', currency:'EUR'}).format(n); }
+
+    // Tabs
+    function setTab(tab){
+      state.tab = tab;
+      ['chat','leads','tasks','deals'].forEach(t=>{
+        $('#view-'+t).classList.toggle('hidden', t!==tab);
+      });
+      $$('.tab-btn').forEach(b=>{
+        const active = b.getAttribute('data-tab')===tab;
+        b.classList.toggle('glass', true);
+        b.classList.toggle('bg-white/10', active);
+        b.classList.toggle('border', false);
+      });
+      if(tab==='leads') renderLeads();
+      if(tab==='tasks') renderTasks();
+      if(tab==='deals') renderDeals();
+    }
+
+    // Sidebar counts & context
+    function renderCounts(){
+      $('#leadCount').textContent = state.leads.length;
+      $('#taskCount').textContent = state.tasks.length;
+      $('#dealCount').textContent = state.deals.length;
+    }
+    function renderContext(){
+      const box = $('#contextChips');
+      box.innerHTML = '';
+      state.context.forEach((c,i)=>{
+        const el = document.createElement('button');
+        el.className = 'chip rounded-full text-xs px-3 py-1.5 btn';
+        el.textContent = c;
+        el.onclick = ()=>{ state.context.splice(i,1); renderContext(); toast('Contexte retiré','warn'); renderSmartActions(); };
+        box.appendChild(el);
+      });
+    }
+
+    // Chat
+    function renderChat(){
+      const area = $('#chatArea');
+      area.innerHTML = '';
+      state.chat.forEach(msg=>{
+        const row = document.createElement('div');
+        const isMe = msg.role==='user';
+        row.className = 'flex ' + (isMe ? 'justify-end' : 'justify-start');
+        const bubble = document.createElement('div');
+        bubble.className = 'max-w-[80%] rounded-2xl px-4 py-3 fade-in ' + (isMe ? 'bg-white/90 text-slate-900' : 'glass');
+        bubble.innerHTML = '<p class="text-sm leading-6">' + (msg.text) + '</p>';
+        row.appendChild(bubble);
+        area.appendChild(row);
+
+        // Actions proposées attachées à certaines réponses
+        if(msg.actions){
+          const act = document.createElement('div');
+          act.className = 'mt-2 grid gap-2 ' + (isMe ? 'justify-items-end' : 'justify-items-start');
+          msg.actions.forEach(a=>{
+            const btn = document.createElement('button');
+            btn.className = 'btn pill px-3 py-2 rounded-lg hover:bg-white/15 text-sm';
+            btn.textContent = a.label;
+            btn.onclick = a.onClick;
+            act.appendChild(btn);
+          });
+          area.appendChild(act);
+        }
+      });
+      area.scrollTop = area.scrollHeight;
+    }
+
+    function addAssistant(text, actions){
+      state.chat.push({role:'assistant', text, actions});
+      renderChat();
+    }
+    function addUser(text){
+      state.chat.push({role:'user', text});
+      renderChat();
+    }
+
+    // Actions intelligentes (panneau droit)
+    function renderSmartActions(){
+      const box = $('#smartActions');
+      box.innerHTML = '';
+      const actions = [
+        {icon:'🧠', title:'Prioriser les 3 leads à contacter', desc:'Analyse de probabilité de conversion et dernière activité.',
+          run: ()=> { setTab('leads'); toast('3 leads prioritaires mis en avant','ok'); }},
+        {icon:'✉️', title:'Rédiger un email de suivi', desc:'Proposition de message personnalisé par segment.',
+          run: ()=> { addAssistant("J’ai préparé 3 emails de suivi adaptés. Voulez-vous les envoyer maintenant ?", [
+            {label:'Aperçu emails', onClick:()=>toast('Aperçu (démo)','info')},
+            {label:'Envoyer 3 emails', onClick:()=>toast('Emails envoyés (démo)','ok')}
+          ]); }},
+        {icon:'🗓️', title:'Planifier 3 relances', desc:'Création de tâches sur 7/14/21 jours dans EspoCRM.',
+          run: ()=> { createBulkTasks(); }},
+        {icon:'⚙️', title:'Déclencher un workflow n8n', desc:'Segmenter et synchroniser des contacts (démo).',
+          run: ()=> { toast('Workflow n8n déclenché (démo)','ok'); }},
+      ];
+
+      // Ajouter contexte en tags
+      if(state.context.length){
+        const ctx = document.createElement('div');
+        ctx.className = 'mb-2 flex flex-wrap gap-2';
+        state.context.forEach(c=>{
+          const t = document.createElement('span');
+          t.className = 'tag rounded-full text-xs px-2 py-1';
+          t.textContent = c;
+          ctx.appendChild(t);
+        });
+        box.appendChild(ctx);
+      }
+
+      actions.forEach(a=>{
+        const card = document.createElement('div');
+        card.className = 'glass rounded-xl p-3 hover:bg-white/05 transition';
+        card.innerHTML = `
+          <div class="flex items-start gap-3">
+            <div class="text-lg">${a.icon}</div>
+            <div class="flex-1">
+              <div class="flex items-center justify-between">
+                <h4 class="font-medium">${a.title}</h4>
+                <button class="btn rounded-lg px-3 py-1.5 bg-white/10 hover:bg-white/20 text-sm">Exécuter</button>
+              </div>
+              <p class="text-sm text-white/70 mt-1">${a.desc}</p>
+            </div>
+          </div>
+        `;
+        card.querySelector('button').onclick = a.run;
+        box.appendChild(card);
+      });
+    }
+
+    // Leads
+    function renderLeads(){
+      $('#leadRows').innerHTML = '';
+      const q = ($('#leadFilter').value||'').toLowerCase();
+      const stage = $('#leadStage').value || '';
+      state.leads
+        .filter(l => (!q || (l.name+l.company).toLowerCase().includes(q)) && (!stage || l.stage===stage))
+        .forEach(l=>{
+          const tr = document.createElement('tr');
+          tr.className = 'border-b border-white/10 hover:bg-white/5';
+          tr.innerHTML = `
+            <td class="py-3">
+              <div class="flex items-center gap-2">
+                <span class="h-7 w-7 rounded-full bg-white/10 grid place-items-center">👤</span>
+                <div>
+                  <div class="font-medium">${l.name}</div>
+                  <div class="text-xs text-white/60">#${l.id}</div>
+                </div>
+              </div>
+            </td>
+            <td class="py-3">${l.company}</td>
+            <td class="py-3">${formatEUR(l.value)}</td>
+            <td class="py-3">
+              <span class="tag text-xs rounded-md px-2 py-1">${l.stage}</span>
+            </td>
+            <td class="py-3">${l.next || '-'}</td>
+            <td class="py-3 text-right">
+              <div class="flex justify-end gap-2">
+                <button class="btn pill px-2.5 py-1.5 rounded-md hover:bg-white/15 text-xs">Détails</button>
+                <button class="btn pill px-2.5 py-1.5 rounded-md hover:bg-white/15 text-xs">Relancer</button>
+                <button class="btn pill px-2.5 py-1.5 rounded-md hover:bg-white/15 text-xs">Qualifier</button>
+              </div>
+            </td>
+          `;
+          const [btnDetails, btnRelance, btnQual] = tr.querySelectorAll('button');
+          btnDetails.onclick = ()=> openLeadModal(l);
+          btnRelance.onclick = ()=> { toast('Email de relance proposé (démo)','info'); addAssistant(`Je propose un email de relance pour ${l.name} chez ${l.company}. Voulez-vous l’envoyer ?`, [
+            {label:'Envoyer maintenant', onClick:()=>toast('Relance envoyée (démo)','ok')},
+            {label:'Personnaliser', onClick:()=>toast('Ouverture éditeur (démo)','info')},
+          ]); setTab('chat'); };
+          btnQual.onclick = ()=> { l.stage='Qualifié'; l.next='Proposer une démo'; renderLeads(); renderCounts(); toast('Lead qualifié','ok'); };
+          $('#leadRows').appendChild(tr);
+        });
+      renderCounts();
+    }
+
+    function openLeadModal(l){
+      $('#modalTitle').textContent = 'Lead — ' + l.name;
+      $('#modalDesc').textContent = `${l.company} • Valeur ${formatEUR(l.value)} • ${l.stage}`;
+      $('#modalInput1').value = l.name;
+      $('#modalInput2').value = l.company;
+      openModal((vals)=>{
+        l.name = vals[0]; l.company = vals[1] || l.company;
+        renderLeads(); toast('Lead mis à jour','ok');
+      });
+    }
+
+    // Tasks
+    function renderTasks(){
+      const q = $('#taskFilter').value || '';
+      $('#taskList').innerHTML = '';
+      const today = new Date().toISOString().slice(0,10);
+      state.tasks
+        .filter(t=>{
+          if(q==='done') return t.done;
+          if(q==='today') return t.due===today && !t.done;
+          if(q==='overdue') return t.due < today && !t.done;
+          return true;
+        })
+        .forEach(t=>{
+          const li = document.createElement('li');
+          li.className = 'glass rounded-xl p-3 flex items-center justify-between gap-3';
+          li.innerHTML = `
+            <div class="flex items-center gap-3">
+              <input type="checkbox" ${t.done?'checked':''} class="h-5 w-5 rounded-md" />
+              <div>
+                <div class="font-medium ${t.done?'line-through text-white/60':''}">${t.title}</div>
+                <div class="text-xs ${!t.done && t.due < today ? 'text-amber-300' : 'text-white/60'}">Échéance: ${t.due}</div>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <button class="btn pill px-2.5 py-1.5 rounded-md hover:bg-white/15 text-xs">Détails</button>
+              <button class="btn pill px-2.5 py-1.5 rounded-md hover:bg-white/15 text-xs">Supprimer</button>
+            </div>
+          `;
+          const [cb] = li.querySelectorAll('input');
+          cb.onchange = ()=>{ t.done = cb.checked; renderTasks(); renderCounts(); };
+          const [btnDet, btnDel] = li.querySelectorAll('button');
+          btnDet.onclick = ()=>{ $('#modalTitle').textContent = 'Tâche'; $('#modalDesc').textContent = 'Modifier la tâche'; $('#modalInput1').value=t.title; $('#modalInput2').value=t.due; openModal(vals=>{ t.title=vals[0]; t.due=vals[1]||t.due; renderTasks(); toast('Tâche mise à jour','ok'); }); };
+          btnDel.onclick = ()=>{ state.tasks = state.tasks.filter(x=>x.id!==t.id); renderTasks(); renderCounts(); toast('Tâche supprimée','warn'); };
+          $('#taskList').appendChild(li);
+        });
+      renderCounts();
+    }
+
+    function createBulkTasks(){
+      const items = [
+        {id:'auto1', title:'Relance J+7', due: addDays(7), done:false},
+        {id:'auto2', title:'Relance J+14', due: addDays(14), done:false},
+        {id:'auto3', title:'Relance J+21', due: addDays(21), done:false},
+      ];
+      state.tasks = [...items, ...state.tasks];
+      renderTasks();
+      toast('3 tâches planifiées','ok');
+    }
+    function addDays(n){
+      const d = new Date(); d.setDate(d.getDate()+n);
+      return d.toISOString().slice(0,10);
+    }
+
+    // Deals
+    function renderDeals(){
+      const cols = {Prospect: $('#colProspect'), Negotiation: $('#colNeg'), Won: $('#colWon')};
+      Object.values(cols).forEach(c=> c.innerHTML='');
+      const counts = {Prospect:0, Negotiation:0, Won:0};
+      state.deals.forEach(d=>{
+        const card = document.createElement('div');
+        card.className = 'glass rounded-xl p-3';
+        card.innerHTML = `
+          <div class="flex items-start justify-between gap-2">
+            <div>
+              <div class="font-medium">${d.name}</div>
+              <div class="text-xs text-white/60">${formatEUR(d.amount)}</div>
+            </div>
+            <select class="pill rounded-md px-2 py-1 text-xs">
+              <option ${d.stage==='Prospect'?'selected':''}>Prospect</option>
+              <option value="Negotiation" ${d.stage==='Negotiation'?'selected':''}>Negotiation</option>
+              <option value="Won" ${d.stage==='Won'?'selected':''}>Won</option>
+            </select>
+          </div>
+          <div class="mt-2 flex items-center justify-end gap-2">
+            <button class="btn pill px-2.5 py-1.5 rounded-md hover:bg-white/15 text-xs">Note</button>
+            <button class="btn pill px-2.5 py-1.5 rounded-md hover:bg-white/15 text-xs">Proposer étape suivante</button>
+          </div>
+        `;
+        const sel = card.querySelector('select');
+        sel.onchange = ()=> { d.stage = sel.value; renderDeals(); toast('Étape mise à jour','ok'); };
+        const [btnNote, btnNext] = card.querySelectorAll('button');
+        btnNote.onclick = ()=>{ $('#modalTitle').textContent='Ajouter une note'; $('#modalDesc').textContent=d.name; $('#modalInput1').value=''; $('#modalInput2').value=''; openModal(vals=>{ toast('Note ajoutée (démo)','ok'); }); };
+        btnNext.onclick = ()=>{ addAssistant(`Pour "${d.name}", je recommande une démo la semaine prochaine. Voulez-vous planifier ?`, [
+          {label:'Planifier', onClick:()=>{ state.tasks.unshift({id:'t'+Math.random(), title:'Planifier démo - '+d.name, due:addDays(5), done:false}); renderTasks(); toast('Tâche créée','ok'); }},
+          {label:'Plus tard', onClick:()=>toast('Rappel reporté','warn')}
+        ]); setTab('chat'); };
+        cols[d.stage].appendChild(card);
+        counts[d.stage]++;
+      });
+      $('#colProspectCount').textContent = counts['Prospect']||0;
+      $('#colNegCount').textContent = counts['Negotiation']||0;
+      $('#colWonCount').textContent = counts['Won']||0;
+      renderCounts();
+    }
+
+    // Modal
+    function openModal(onSubmit){
+      const m = $('#modal');
+      m.classList.remove('hidden');
+      m.querySelector('#modalForm').onsubmit = (e)=>{ e.preventDefault(); onSubmit([$('#modalInput1').value, $('#modalInput2').value]); closeModal(); };
+      $('#modalCancel').onclick = closeModal;
+      $('#modalClose').onclick = closeModal;
+    }
+    function closeModal(){ $('#modal').classList.add('hidden'); }
+
+    // Global search (démo)
+    $('#globalSearch').addEventListener('input', (e)=>{
+      const q = e.target.value.trim().toLowerCase();
+      if(!q){ return; }
+      // Retour rapide dans le chat
+      setTab('chat');
+      addAssistant(`J’ai cherché “${e.target.value}”. Résultats: ${state.leads.filter(l=>(l.name+l.company).toLowerCase().includes(q)).length} leads, ${state.tasks.filter(t=>t.title.toLowerCase().includes(q)).length} tâches.`);
+    });
+
+    // Chat events
+    $('#chatForm').addEventListener('submit', (e)=>{
+      e.preventDefault();
+      const text = $('#chatInput').value.trim();
+      if(!text) return;
+      $('#chatInput').value = '';
+      addUser(text);
+      // Réponse simulée
+      setTimeout(()=>{
+        const suggestions = [
+          {label:'Créer 2 tâches', onClick:()=>{ state.tasks.unshift({id:'tx1', title:'Relance rapide', due:addDays(2), done:false}); state.tasks.unshift({id:'tx2', title:'Email de suivi', due:addDays(1), done:false}); renderTasks(); toast('Tâches créées','ok'); }},
+          {label:'Envoyer un email', onClick:()=>toast('Email envoyé (démo)','ok')},
+          {label:'Voir les leads', onClick:()=>setTab('leads')}
+        ];
+        addAssistant("Compris. Voici ce que je propose:", suggestions);
+        renderSmartActions();
+      }, 600);
+    });
+
+    // Quick tips
+    $('#chatTips').addEventListener('click', (e)=>{
+      if(e.target.tagName==='BUTTON'){
+        const v = e.target.textContent;
+        $('#chatInput').value = v;
+        $('#chatForm').dispatchEvent(new Event('submit'));
+      }
+    });
+
+    // Smart execution buttons
+    $('#simulateSendEmails').onclick = ()=> toast('5 emails envoyés (démo)', 'ok');
+    $('#simulateCreateTasks').onclick = ()=> createBulkTasks();
+    $('#simulateSyncEspo').onclick = ()=> toast('Synchronisation EspoCRM effectuée (démo)', 'ok');
+    $('#clearContext').onclick = ()=>{ state.context=[]; renderContext(); renderSmartActions(); toast('Contexte réinitialisé','warn'); };
+
+    // Shortcuts
+    $('#suggestNextBest').onclick = ()=> {
+      setTab('chat');
+      addAssistant("Prochaine meilleure action: Relancer Alice (dernière activité J-5, forte valeur). Voulez-vous que je programme une relance demain ?", [
+        {label:'Oui, programme', onClick:()=>{ state.tasks.unshift({id:'tNB', title:'Relance Alice', due:addDays(1), done:false}); renderTasks(); toast('Relance programmée','ok'); }},
+        {label:'Voir détails', onClick:()=>setTab('leads')}
+      ]);
+    };
+    $('#runWorkflow').onclick = ()=> { toast('n8n déclenché (démo)', 'ok'); };
+
+    // Leads controls
+    $('#leadFilter').addEventListener('input', renderLeads);
+    $('#leadStage').addEventListener('change', renderLeads);
+    $('#addLead').onclick = ()=>{
+      $('#modalTitle').textContent = 'Nouveau lead';
+      $('#modalDesc').textContent = 'Ajoutez rapidement un lead';
+      $('#modalInput1').value = ''; $('#modalInput2').value = '';
+      openModal(vals=>{
+        const l = {id:'l'+Math.floor(Math.random()*9999), name: vals[0]||'Lead sans nom', company: vals[1]||'—', value: 5000, stage:'Nouvel', next:'Appel découverte'};
+        state.leads.unshift(l); renderLeads(); toast('Lead ajouté','ok');
+      });
+    };
+
+    // Tasks controls
+    $('#taskFilter').addEventListener('change', renderTasks);
+    $('#addTask').onclick = ()=>{
+      $('#modalTitle').textContent = 'Nouvelle tâche';
+      $('#modalDesc').textContent = 'Définissez un titre et une date';
+      $('#modalInput1').value = ''; $('#modalInput2').value = addDays(3);
+      openModal(vals=>{
+        state.tasks.unshift({id:'t'+Math.random(), title: vals[0]||'Tâche', due: vals[1]||addDays(3), done:false});
+        renderTasks(); toast('Tâche créée','ok');
+      });
+    };
+
+    // Deals controls
+    $('#addDeal').onclick = ()=>{
+      $('#modalTitle').textContent = 'Nouveau deal';
+      $('#modalDesc').textContent = 'Renseignez le nom et le montant (dans Détail)';
+      $('#modalInput1').value = ''; $('#modalInput2').value = '12000';
+      openModal(vals=>{
+        state.deals.unshift({id:'d'+Math.random(), name: vals[0]||'Deal', amount: parseFloat(vals[1]||'12000')||12000, stage:'Prospect'});
+        renderDeals(); toast('Deal créé','ok');
+      });
+    };
+
+    // Quick New
+    $('#quickNewBtn').onclick = ()=> {
+      const options = ['Lead','Tâche','Deal'];
+      const pick = options[Math.floor(Math.random()*options.length)];
+      toast(`Raccourci “Nouveau ${pick}” (ouvrez le bon onglet)`, 'info');
+      if(pick==='Lead') setTab('leads');
+      if(pick==='Tâche') setTab('tasks');
+      if(pick==='Deal') setTab('deals');
+    };
+
+    // Help modal
+    $('#openHelp').onclick = ()=>{
+      $('#modalTitle').textContent = 'Centre d’aide';
+      $('#modalDesc').textContent = 'M.A.X. fonctionne en lecture/écriture sur votre CRM via des actions guidées. Les intégrations réelles se font côté serveur (démo ici).';
+      $('#modalInput1').value = 'Astuce: utilisez le chat pour tout lancer.';
+      $('#modalInput2').value = 'Les boutons Exécuter simulent EspoCRM/n8n.';
+      openModal(()=>{ closeModal(); });
+    };
+
+    // Sidebar tabs wiring
+    $$('.tab-btn').forEach(btn=> btn.onclick = ()=> setTab(btn.getAttribute('data-tab')) );
+
+    // Init
+    function init(){
+      renderCounts();
+      renderContext();
+      renderChat();
+      renderSmartActions();
+      setTab('chat');
+      // Astuce initiale
+      setTimeout(()=> toast('Astuce: dites “Planifie 3 relances” pour créer des tâches automatiquement.'), 800);
+    }
+    init();
+  </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'983a531b744cd131',t:'MTc1ODYzMzQ3MS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>

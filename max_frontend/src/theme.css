@@ -1,0 +1,24 @@
+:root{
+  /* Identité visuelle */
+  --max-bg: #0F1419;        /* fond */
+  --max-text: #FFFFFF;      /* texte */
+
+  --max-cyan: #00E5FF;      /* accent primaire */
+  --max-purple: #A855F7;    /* accent secondaire */
+
+  /* dérivés utiles */
+  --max-cyan-15: rgba(0,229,255,.15);
+  --max-cyan-25: rgba(0,229,255,.25);
+  --max-cyan-40: rgba(0,229,255,.40);
+
+  --max-card: #111519;      /* fond cartes */
+  --max-stroke: rgba(0,229,255,.12); /* bordure cyan subtile */
+  --max-shadow: 0 10px 30px rgba(0,0,0,.25); /* ombre douce */
+
+  --max-gradient: linear-gradient(135deg, var(--max-cyan), var(--max-purple));
+}
+
+html, body, #root { background: var(--max-bg); color: var(--max-text); }
+
+/* Inter + Outfit font family */
+:root{ --font-sans: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }

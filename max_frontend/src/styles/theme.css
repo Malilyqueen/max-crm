@@ -1,0 +1,22 @@
+:root{
+  --bg-primary:#0F1419;
+  --bg-secondary:#1A1F2E;
+  --card:#111519;
+  --stroke:#222833;
+  --text:#E6EDF5;
+  --muted:#94A3B8;
+  --accent-cyan:#00E5FF;
+  --accent-purple:#A855F7;
+  --success:#10B981; --warn:#F59E0B; --danger:#EF4444;
+
+  /* M.A.X. theme variables for Tailwind */
+  --max-bg: #0F1419;
+  --max-text: #E6EDF5;
+  --max-cyan: #00E5FF;
+  --max-purple: #A855F7;
+  --max-card: #111519;
+  --max-stroke: #222833;
+  --max-shadow: 0 4px 16px rgba(0, 229, 255, 0.1);
+  --max-cyan-25: rgba(0, 229, 255, 0.25);
+  --max-gradient: linear-gradient(135deg, #00E5FF 0%, #A855F7 100%);
+}
