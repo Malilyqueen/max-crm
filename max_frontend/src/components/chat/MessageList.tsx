@@ -8,6 +8,7 @@ import type { ChatMessage } from '../../types/chat';
 import { Message } from './Message';
 import { TypingIndicator } from './TypingIndicator';
 import { QuickCards } from './QuickCards';
+import { ConsentCard } from './ConsentCard';
 import { useThemeColors } from '../../hooks/useThemeColors';
 import { BarChart3, Search, Target, Sparkles, TrendingUp, Bot } from 'lucide-react';
 
@@ -15,12 +16,16 @@ interface MessageListProps {
   messages: ChatMessage[];
   isStreaming?: boolean;
   isLoading?: boolean;
+  onApproveConsent?: (consentId: string) => Promise<void>;
+  onViewAudit?: (consentId: string) => void;
 }
 
 export const MessageList: React.FC<MessageListProps> = ({
   messages,
   isStreaming = false,
-  isLoading = false
+  isLoading = false,
+  onApproveConsent,
+  onViewAudit
 }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const colors = useThemeColors();
@@ -143,9 +148,24 @@ export const MessageList: React.FC<MessageListProps> = ({
       )}
 
       {/* Messages */}
-      {messages.map((message, index) => (
-        <Message key={`${message.timestamp}-${index}`} message={message} />
-      ))}
+      {messages.map((message, index) => {
+        // Si c'est un message de consentement, afficher ConsentCard
+        if (message.type === 'consent' && message.consentId && message.operation && onApproveConsent) {
+          return (
+            <ConsentCard
+              key={`${message.timestamp}-${index}`}
+              consentId={message.consentId}
+              operation={message.operation.description}
+              expiresIn={300} // 5 minutes
+              onApprove={onApproveConsent}
+              onViewAudit={onViewAudit}
+            />
+          );
+        }
+
+        // Sinon, afficher un message normal
+        return <Message key={`${message.timestamp}-${index}`} message={message} />;
+      })}
 
       {/* Indicateur de saisie */}
       {(isStreaming || isLoading) && <TypingIndicator />}

@@ -14,7 +14,21 @@ export type ChatMode = 'auto' | 'assist' | 'conseil';
 /**
  * Rôle du message
  */
-export type MessageRole = 'user' | 'assistant';
+export type MessageRole = 'user' | 'assistant' | 'system';
+
+/**
+ * Type de message
+ */
+export type MessageType = 'text' | 'consent';
+
+/**
+ * Détails d'une opération nécessitant consentement
+ */
+export interface ConsentOperation {
+  type: string;
+  description: string;
+  details: Record<string, any>;
+}
 
 /**
  * Message dans la conversation
@@ -23,6 +37,11 @@ export interface ChatMessage {
   role: MessageRole;
   content: string;
   timestamp: number;
+  type?: MessageType;
+  consentId?: string;
+  operation?: ConsentOperation;
+  consentStatus?: 'pending' | 'executing' | 'success' | 'error' | 'expired';
+  auditReportId?: string;
 }
 
 /**

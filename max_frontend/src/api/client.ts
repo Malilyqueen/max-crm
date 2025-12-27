@@ -54,7 +54,7 @@ apiClient.interceptors.request.use(
     // TOUJOURS ajouter headers multi-tenant (même sans token)
     if (config.headers) {
       const settingsState = useSettingsStore.getState();
-      const tenant = settingsState.tenant || 'macrea-admin';
+      const tenant = settingsState.tenant || 'macrea';
 
       config.headers['X-Tenant'] = tenant;
       config.headers['X-Role'] = userRole;

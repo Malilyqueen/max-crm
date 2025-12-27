@@ -19,6 +19,8 @@ import { ModeSelector } from '../components/chat/ModeSelector';
 import { TokenDisplay } from '../components/chat/TokenDisplay';
 import { ActivityPanel, Activity } from '../components/chat/ActivityPanel';
 import { useThemeColors } from '../hooks/useThemeColors';
+import { useConsent } from '../hooks/useConsent';
+import { ChatMessage } from '../types/chat';
 
 export function ChatPage() {
   const {
@@ -39,6 +41,20 @@ export function ChatPage() {
   // État local pour le panneau d'activité
   const [isActivityOpen, setIsActivityOpen] = useState(false);
   const [activities, setActivities] = useState<Activity[]>([]);
+
+  // Hook de consentement
+  const { requestConsent, executeConsent, getAuditReport } = useConsent();
+
+  // Fonction utilitaire pour ajouter une activité
+  const addActivity = (icon: string, message: string) => {
+    const newActivity: Activity = {
+      id: `${Date.now()}_${Math.random()}`,
+      icon,
+      message,
+      timestamp: Date.now()
+    };
+    setActivities(prev => [...prev, newActivity]);
+  };
 
   // Charger l'historique au mount (désactivé temporairement pour debug)
   useEffect(() => {
@@ -133,6 +149,47 @@ export function ChatPage() {
         console.error('Erreur reset:', error);
         alert(error.message || 'Erreur lors de la réinitialisation');
       }
+    }
+  };
+
+  // Handler pour approuver un consentement
+  const handleApproveConsent = async (consentId: string) => {
+    try {
+      // Log: CONSENT_GRANTED
+      addActivity('check-circle', `Consentement accordé: ${consentId.substring(0, 20)}...`);
+
+      // Log: EXECUTION_STARTED
+      addActivity('refresh-cw', 'Exécution intervention layout...');
+
+      const result = await executeConsent(consentId);
+
+      // Log: EXECUTION_SUCCESS
+      addActivity('check', `Opération réussie: ${result.result?.layoutsModified || 0} layout(s) modifié(s)`);
+
+      // Log: AUDIT_AVAILABLE
+      if (result.audit?.consentId) {
+        addActivity('file-text', `Rapport d'audit disponible: ${result.audit.consentId}`);
+      }
+
+      // Mettre à jour le message de consentement dans le store
+      // (Le MessageList détectera automatiquement le changement de status)
+
+    } catch (error: any) {
+      console.error('[CONSENT] Erreur exécution:', error);
+      // Log: EXECUTION_FAILED
+      addActivity('alert-triangle', `Échec: ${error.message}`);
+      throw error;
+    }
+  };
+
+  // Handler pour voir le rapport d'audit
+  const handleViewAudit = async (consentId: string) => {
+    try {
+      const auditReport = await getAuditReport(consentId);
+      console.log('[CONSENT] Rapport audit:', auditReport);
+      // Ici on pourrait ouvrir AuditReportModal si besoin
+    } catch (error: any) {
+      console.error('[CONSENT] Erreur chargement audit:', error);
     }
   };
 
@@ -292,6 +349,62 @@ export function ChatPage() {
               </div>
 
               <div className="flex items-center gap-3">
+                {/* 🧪 Bouton Test Consent (dev only) */}
+                <button
+                  onClick={async () => {
+                    try {
+                      const consent = await requestConsent({
+                        type: 'layout_modification',
+                        description: 'TEST: Ajouter le champ testManuel aux layouts Lead',
+                        details: {
+                          entity: 'Lead',
+                          fieldName: 'testManuel',
+                          layoutTypes: ['detail', 'list']
+                        }
+                      });
+                      addActivity('alert-circle', `TEST Consent créé: ${consent.consentId.substring(0, 20)}...`);
+
+                      // Ajouter un message de consentement au chat
+                      const testMessage: ChatMessage = {
+                        role: 'system',
+                        content: 'Opération sensible détectée - Test manuel',
+                        timestamp: Date.now(),
+                        type: 'consent',
+                        consentId: consent.consentId,
+                        operation: {
+                          type: 'layout_modification',
+                          description: 'TEST: Ajouter le champ testManuel aux layouts Lead',
+                          details: {
+                            entity: 'Lead',
+                            fieldName: 'testManuel',
+                            layoutTypes: ['detail', 'list']
+                          }
+                        },
+                        consentStatus: 'pending'
+                      };
+
+                      // Forcer l'ajout au store - Hack pour ajouter un message custom
+                      const currentStore = useChatStore.getState();
+                      useChatStore.setState({
+                        messages: [...currentStore.messages, testMessage]
+                      });
+
+                      console.log('[TEST] Message consent ajouté au chat');
+                    } catch (error: any) {
+                      console.error('[TEST] Erreur:', error);
+                      alert('Erreur test consent: ' + error.message);
+                    }
+                  }}
+                  className="px-3 py-2 rounded-lg text-xs font-medium transition-all"
+                  style={{
+                    background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                    color: 'white',
+                    border: '1px solid rgba(245, 158, 11, 0.3)'
+                  }}
+                >
+                  🧪 Test Consent
+                </button>
+
                 {/* Bouton Activité Premium */}
                 <button
                   onClick={() => setIsActivityOpen(!isActivityOpen)}
@@ -356,7 +469,13 @@ export function ChatPage() {
         </div>
 
         {/* Messages avec scroll indépendant */}
-        <MessageList messages={messages} isStreaming={isStreaming} isLoading={isLoading} />
+        <MessageList
+          messages={messages}
+          isStreaming={isStreaming}
+          isLoading={isLoading}
+          onApproveConsent={handleApproveConsent}
+          onViewAudit={handleViewAudit}
+        />
 
         {/* Input */}
         <ChatInput
