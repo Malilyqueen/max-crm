@@ -1,42 +1,31 @@
-// lib/supabaseClient.js
+/**
+ * supabaseClient.js
+ * Client Supabase configuré pour le système d'alertes M.A.X.
+ */
+
 import { createClient } from '@supabase/supabase-js';
-import 'dotenv/config';
+import dotenv from 'dotenv';
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
+dotenv.config();
 
-if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
-  console.warn('[SUPABASE] ⚠️  Configuration manquante - Supabase désactivé');
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_KEY; // Service role key pour backend
+
+if (!supabaseUrl || !supabaseKey) {
+  console.error('[Supabase] ❌ Credentials manquants dans .env');
+  console.error('   SUPABASE_URL:', supabaseUrl ? '✓' : '✗');
+  console.error('   SUPABASE_SERVICE_KEY:', supabaseKey ? '✓' : '✗');
+  throw new Error('Supabase credentials manquants');
 }
 
-// Client Supabase avec service_role key (accès admin)
-export const supabase = SUPABASE_URL && SUPABASE_SERVICE_KEY
-  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
-    })
-  : null;
-
-// Helper pour vérifier la connexion
-export async function testSupabaseConnection() {
-  if (!supabase) {
-    return { ok: false, error: 'Supabase client not initialized' };
+// Créer client Supabase avec service role (bypass RLS)
+export const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false
   }
+});
 
-  try {
-    // Test simple : récupérer une table (même vide)
-    const { error } = await supabase.from('max_sessions').select('count', { count: 'exact', head: true });
+console.log('[Supabase] ✅ Client initialisé:', supabaseUrl);
 
-    if (error) {
-      return { ok: false, error: error.message };
-    }
-
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err.message };
-  }
-}
-
-console.log('[SUPABASE] Client initialisé:', SUPABASE_URL ? '✅' : '❌');
+export default supabase;

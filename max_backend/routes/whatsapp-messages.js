@@ -20,6 +20,7 @@ import WhatsAppMessage from '../models/WhatsAppMessage.js';
 import { WHATSAPP_MESSAGE_PRESETS, getPresetByName, getPresetsByType } from '../config/whatsapp-message-presets.js';
 import { listAvailableActions } from '../config/whatsapp-actions.js';
 import { sendWhatsAppMessage } from '../services/whatsappSendService.js';
+import { logActivity } from '../lib/activityLogger.js';
 
 const router = express.Router();
 
@@ -287,6 +288,28 @@ router.post('/messages/:id/send', async (req, res) => {
 
     if (result.success) {
       console.log(`   ✅ Message envoyé (SID: ${result.messageSid})`);
+
+      // Logger l'activité sortante (best effort - ne bloque jamais l'envoi)
+      try {
+        const finalMessageText = result.finalMessageText || message.messageText || '';
+        await logActivity({
+          leadId,
+          channel: 'whatsapp',
+          direction: 'out',
+          status: 'sent',
+          messageSnippet: finalMessageText.substring(0, 100),
+          meta: {
+            messageId: req.params.id,
+            messageName: message.name,
+            twilioSid: result.messageSid
+          },
+          tenantId: message.tenantId || 'macrea'
+        });
+        console.log(`   📝 Activité loggée pour lead ${leadId}`);
+      } catch (logError) {
+        console.warn(`   ⚠️  Erreur log activité (non bloquant):`, logError.message);
+      }
+
       res.json({
         success: true,
         messageSid: result.messageSid,

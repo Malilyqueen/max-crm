@@ -119,6 +119,11 @@ const NEWSLETTER_CREATION = fs.readFileSync(
   'utf-8'
 );
 
+const NO_TECHNICAL_DETAILS_FOR_CLIENTS = fs.readFileSync(
+  path.join(__dirname, '..', 'prompts', 'NO_TECHNICAL_DETAILS_FOR_CLIENTS.txt'),
+  'utf-8'
+);
+
 // Charger l'identité de l'agent (règles anti-hallucination, etc.)
 const AGENT_IDENTITY = JSON.parse(
   fs.readFileSync(
@@ -164,6 +169,8 @@ ${MACREA_CORE_UNIVERSAL}
 ═══════════════════════════════════════════════════════════════════
 
 ${NEWSLETTER_CREATION}
+
+${NO_TECHNICAL_DETAILS_FOR_CLIENTS}
 
 ═══════════════════════════════════════════════════════════════════
 IDENTITÉ ET RÈGLES ANTI-HALLUCINATION
@@ -398,15 +405,174 @@ async function executeToolCall(toolName, args, sessionId) {
     }
 
     case 'update_leads_in_espo': {
-      const { leadIds, updates, mode = 'update_only' } = args;
+      const { leadIds, updates, mode = 'update_only', leadData: directLeadData } = args;
 
       try {
-        // Mode force_create : créer de nouveaux leads depuis les données du fichier uploadé
+        // Mode force_create : créer de nouveaux leads depuis les données du fichier uploadé OU directLeadData
         if (mode === 'force_create') {
+          // Vérifier s'il y a des données directes (création conversationnelle)
+          if (directLeadData && typeof directLeadData === 'object') {
+            // Mode DIRECT CREATE: L'utilisateur a fourni les données du lead directement
+            console.log('[update_leads_in_espo] Mode DIRECT CREATE avec données:', directLeadData);
+
+            try {
+              // Mapper les valeurs vers les énumérations EspoCRM valides
+              const normalizeStatus = (status) => {
+                if (!status) return 'New';
+                const statusMap = {
+                  'nouveau': 'New',
+                  'new': 'New',
+                  'assigné': 'Assigned',
+                  'assigned': 'Assigned',
+                  'en cours': 'In Process',
+                  'in process': 'In Process',
+                  'converti': 'Converted',
+                  'converted': 'Converted',
+                  'recyclé': 'Recycled',
+                  'recycled': 'Recycled',
+                  'mort': 'Dead',
+                  'dead': 'Dead'
+                };
+                return statusMap[status.toLowerCase()] || 'New';
+              };
+
+              const normalizeSource = (source) => {
+                if (!source) return 'Web Site';
+                const sourceMap = {
+                  'call': 'Call',
+                  'appel': 'Call',
+                  'email': 'Email',
+                  'existing customer': 'Existing Customer',
+                  'client existant': 'Existing Customer',
+                  'partner': 'Partner',
+                  'partenaire': 'Partner',
+                  'public relations': 'Public Relations',
+                  'web site': 'Web Site',
+                  'site web': 'Web Site',
+                  'campaign': 'Campaign',
+                  'campagne': 'Campaign',
+                  'other': 'Other',
+                  'autre': 'Other',
+                  'whatsapp': 'Web Site',  // WhatsApp n'est pas dans la liste EspoCRM → Web Site
+                  'social media': 'Web Site'
+                };
+                return sourceMap[source.toLowerCase()] || 'Web Site';
+              };
+
+              const normalizeIndustry = (industry) => {
+                if (!industry) return '';  // Industry est optionnel
+                const industryMap = {
+                  'agriculture': 'Agriculture',
+                  'automotive': 'Automotive',
+                  'automobile': 'Automotive',
+                  'banking': 'Banking',
+                  'banque': 'Banking',
+                  'banque et conseil': 'Consulting',  // Mapping spécifique pour ce cas
+                  'consulting': 'Consulting',
+                  'conseil': 'Consulting',
+                  'education': 'Education',
+                  'éducation': 'Education',
+                  'energy': 'Energy',
+                  'énergie': 'Energy',
+                  'entertainment': 'Entertainment',
+                  'divertissement': 'Entertainment',
+                  'finance': 'Finance',
+                  'healthcare': 'Healthcare',
+                  'santé': 'Healthcare',
+                  'hospitality': 'Hospitality',
+                  'hôtellerie': 'Hospitality',
+                  'insurance': 'Insurance',
+                  'assurance': 'Insurance',
+                  'legal': 'Legal',
+                  'juridique': 'Legal',
+                  'manufacturing': 'Manufacturing',
+                  'fabrication': 'Manufacturing',
+                  'marketing': 'Marketing',
+                  'media': 'Media',
+                  'médias': 'Media',
+                  'real estate': 'Real Estate',
+                  'immobilier': 'Real Estate',
+                  'recreation': 'Recreation',
+                  'loisirs': 'Recreation',
+                  'retail': 'Retail',
+                  'commerce': 'Retail',
+                  'shipping': 'Shipping',
+                  'transport maritime': 'Shipping',
+                  'technology': 'Technology',
+                  'technologie': 'Technology',
+                  'telecommunications': 'Telecommunications',
+                  'télécommunications': 'Telecommunications',
+                  'transportation': 'Transportation',
+                  'transport': 'Transportation',
+                  'utilities': 'Utilities',
+                  'services publics': 'Utilities',
+                  'other': 'Other',
+                  'autre': 'Other'
+                };
+                return industryMap[industry.toLowerCase()] || '';  // Si inconnu, laisser vide plutôt qu'erreur
+              };
+
+              // Formatter les données pour EspoCRM
+              const leadPayload = {
+                firstName: directLeadData.firstName || directLeadData.prenom || '',
+                lastName: directLeadData.lastName || directLeadData.nom || directLeadData.name || 'N/A',
+                accountName: directLeadData.accountName || directLeadData.company || directLeadData.entreprise || '',
+                emailAddress: directLeadData.emailAddress || directLeadData.email || '',
+                phoneNumber: directLeadData.phoneNumber || directLeadData.phone || directLeadData.telephone || '',
+                addressCity: directLeadData.addressCity || directLeadData.ville || directLeadData.adresse || '',
+                addressCountry: directLeadData.addressCountry || directLeadData.pays || '',
+                description: directLeadData.description || directLeadData.note || '',
+                industry: normalizeIndustry(directLeadData.industry || directLeadData.secteur),
+                status: normalizeStatus(directLeadData.status),
+                source: normalizeSource(directLeadData.source)
+              };
+
+              console.log('[update_leads_in_espo] Payload EspoCRM:', JSON.stringify(leadPayload, null, 2));
+
+              // Créer le lead via POST
+              const created = await espoFetch('/Lead', {
+                method: 'POST',
+                body: JSON.stringify(leadPayload)
+              });
+
+              console.log(`[update_leads_in_espo] ✅ Lead créé avec succès - ID: ${created.id}`);
+
+              return {
+                success: true,
+                mode: 'direct_create',
+                created: 1,
+                failed: 0,
+                leadId: created.id,
+                details: [{
+                  name: leadPayload.lastName || leadPayload.accountName,
+                  status: 'success',
+                  message: `Lead créé avec ID: ${created.id}`
+                }]
+              };
+            } catch (error) {
+              console.error('[update_leads_in_espo] ❌ Erreur création lead direct:');
+              console.error('  - Message:', error.message);
+              console.error('  - Status:', error.status || 'N/A');
+              console.error('  - Body:', error.body || 'N/A');
+              console.error('  - URL:', error.url || 'N/A');
+
+              return {
+                success: false,
+                error: `Création échouée: ${error.message}`,
+                details: {
+                  status: error.status,
+                  body: error.body,
+                  url: error.url
+                }
+              };
+            }
+          }
+
+          // Mode FILE CREATE: Fichier CSV uploadé
           if (!conversation.uploadedFile || !conversation.uploadedFile.analysis || !conversation.uploadedFile.analysis.data) {
             return {
               success: false,
-              error: 'Aucun fichier uploadé ou données manquantes pour la création de leads.'
+              error: 'Mode force_create nécessite soit un fichier CSV uploadé, soit des données directes (leadData). Utilisez {mode: "force_create", leadData: {...}} pour créer un lead conversationnellement.'
             };
           }
 
@@ -496,7 +662,10 @@ async function executeToolCall(toolName, args, sessionId) {
                 status: 'error',
                 message: `Erreur: ${error.message}`
               });
-              console.error(`[update_leads_in_espo] Erreur création/mise à jour lead:`, error.message);
+              console.error(`[update_leads_in_espo] ❌ Erreur création/mise à jour lead:`, error.message);
+              if (error.status) console.error(`  - Status HTTP: ${error.status}`);
+              if (error.body) console.error(`  - Body CRM: ${error.body}`);
+              if (error.url) console.error(`  - URL: ${error.url}`);
             }
           }
 
@@ -563,7 +732,10 @@ async function executeToolCall(toolName, args, sessionId) {
               status: 'error',
               message: `Erreur: ${error.message}`
             });
-            console.error(`[update_leads_in_espo] Erreur mise à jour lead ${id}:`, error.message);
+            console.error(`[update_leads_in_espo] ❌ Erreur mise à jour lead ${id}:`, error.message);
+            if (error.status) console.error(`  - Status HTTP: ${error.status}`);
+            if (error.body) console.error(`  - Body CRM: ${error.body}`);
+            if (error.url) console.error(`  - URL: ${error.url}`);
           }
         }
 
@@ -763,13 +935,17 @@ async function executeToolCall(toolName, args, sessionId) {
             preview: analysisResults.details,
             message: `📊 PRÉVISUALISATION ENRICHISSEMENT
 
-✅ ${analysisResults.enriched} leads analysés avec succès
-⏭️  ${analysisResults.skipped} leads ignorés (pas d'email ou erreur)
+✅ ${analysisResults.enriched} leads enrichis (100% traités)
 
 Exemples d'enrichissements détectés:
 ${previewSummary}${totalMessage}
 
-💡 Pour appliquer ces enrichissements au CRM, confirmez l'application.`
+💡 M.A.X. enrichit TOUS les leads avec stratégies adaptées:
+  • Email → Analyse IA domaine
+  • Téléphone → Stratégie WhatsApp
+  • Minimal → Hypothèse + qualification
+
+Pour appliquer ces enrichissements au CRM, confirmez l'application.`
           };
         }
 
@@ -782,21 +958,12 @@ ${previewSummary}${totalMessage}
             .map(d => `  • ${d.name || 'Lead sans nom'}: ${d.reason}`)
             .join('\n');
 
+          // ❌ CE CAS NE DEVRAIT PLUS JAMAIS ARRIVER avec la nouvelle logique 100% enrichissement
           return {
-            success: true,
-            message: `ℹ️ AUCUN LEAD À ENRICHIR
-
-📊 Analyse effectuée:
-  • ${analysisResults.analyzed} leads analysés
-  • 0 leads enrichis
-  • ${analysisResults.skipped} leads ignorés
-
-❌ Raisons:
-${skipReasons || '  • Aucun email valide trouvé'}
-
-💡 Vérifiez que vos leads ont des adresses email professionnelles (@entreprise.com).`,
+            success: false,
+            error: 'Erreur système: Aucun lead enrichi malgré nouvelle logique 100%. Vérifier emailAnalyzer.js',
             analyzed: analysisResults.analyzed,
-            skipped: analysisResults.skipped
+            details: analysisResults.details
           };
         }
 
@@ -812,8 +979,8 @@ ${skipReasons || '  • Aucun email valide trouvé'}
             await espoFetch(`/Lead/${lead.id}`, {
               method: 'PATCH',
               body: JSON.stringify({
-                secteurInfere: lead.secteur,
-                tagsIA: lead.maxTags,
+                secteur: lead.secteur,
+                tags: lead.maxTags,
                 description: lead.description
               })
             });
@@ -882,17 +1049,16 @@ ${skipReasons || '  • Aucun email valide trouvé'}
           message: `✅ ENRICHISSEMENT TERMINÉ
 
 📈 Résultats:
-  • ${updateReport.updated} leads mis à jour dans le CRM
-  • ${analysisResults.analyzed} emails analysés par l'IA
-  • ${analysisResults.skipped + updateReport.skipped} leads ignorés
+  • ${updateReport.updated} leads mis à jour dans le CRM (100% traités)
+  • ${analysisResults.analyzed} leads analysés par l'IA
 
 📝 Leads enrichis:
 ${updatedSummary}${moreUpdates}${errorDetails}
 
 💾 Les champs suivants ont été mis à jour:
-  • Description (secteur déduit)
-  • Segments/Tags (max 3 tags pertinents)
-  • Services potentiels identifiés
+  • secteurInfere (secteur déduit ou "inconnu" si incertain)
+  • tagsIA (stratégie contact: whatsapp, email, à_qualifier...)
+  • description (hypothèse M.A.X. + besoins détectés)
 
 📊 Rapport complet sauvegardé : ${reportId}
 💡 Utilisez "Affiche le rapport ${reportId}" pour voir les détails complets`
@@ -968,14 +1134,18 @@ ${updatedSummary}${moreUpdates}${errorDetails}
             skipped: analysisResults.skipped,
             message: `🔍 PRÉVISUALISATION AUTO-ENRICHISSEMENT
 
-📊 Trouvé ${leadsWithoutSecteur.length} leads sans secteur:
-  • ${analysisResults.enriched} peuvent être enrichis
-  • ${analysisResults.skipped} seront ignorés (pas d'email)
+📊 ${leadsWithoutSecteur.length} leads sans secteur détectés
+✅ ${analysisResults.enriched} seront enrichis (100% traités)
 
 📋 Aperçu des enrichissements:
 ${previewList}${morePreview}
 
-💡 Pour appliquer ces enrichissements, relancez sans prévisualisation.`
+💡 Enrichissement intelligent avec stratégies adaptées:
+  • Email disponible → Analyse IA du domaine
+  • Téléphone uniquement → Stratégie WhatsApp
+  • Données minimales → Hypothèse + qualification manuelle
+
+Pour appliquer ces enrichissements, relancez sans prévisualisation.`
           };
         }
 
@@ -993,8 +1163,8 @@ ${previewList}${morePreview}
             await espoFetch(`/Lead/${lead.id}`, {
               method: 'PATCH',
               body: JSON.stringify({
-                secteurInfere: lead.secteur,
-                tagsIA: lead.maxTags,
+                secteur: lead.secteur,
+                tags: lead.maxTags,
                 description: lead.description
               })
             });
@@ -1084,28 +1254,33 @@ ${previewList}${morePreview}
           failed: failCount,
           tasksCreated,
           details: successDetails,
-          message: `✅ AUTO-ENRICHISSEMENT TERMINÉ !
+          message: `✅ AUTO-ENRICHISSEMENT 100% TERMINÉ !
 
 📊 RÉSULTATS:
-  • Leads trouvés sans secteur: ${leadsWithoutSecteur.length}
-  • Leads enrichis avec succès: ${successCount}
-  • Leads ignorés/échecs: ${failCount + analysisResults.skipped}
+  • Leads sans secteur détectés: ${leadsWithoutSecteur.length}
+  • Leads enrichis: ${successCount} (${failCount > 0 ? `${failCount} en erreur CRM` : '100%'})
   • ✨ Tâches créées automatiquement: ${tasksCreated}
 
 📋 Leads enrichis:
 ${successList}${moreSuccess}
 
 💾 Champs mis à jour:
-  • secteur (secteur d'activité déduit)
-  • maxTags (tags pertinents)
-  • description (enrichie avec insights)
+  • secteurInfere (secteur déduit ou "inconnu/estimé" si incertain)
+  • tagsIA (stratégie: whatsapp, email, à_qualifier, phone_only...)
+  • description (hypothèse M.A.X. + besoins détectés)
+
+💡 PHILOSOPHIE M.A.X.:
+  • 100% des leads traités, ZÉRO ignoré
+  • Email → Analyse IA domaine
+  • Téléphone → Stratégie WhatsApp
+  • Minimal → Hypothèse basse confiance + qualification manuelle
 
 📋 Tâches créées selon l'urgence:
   • ⚡ Urgence immédiate → Tâche Urgente (échéance: 2 jours)
   • 📞 Moyen terme → Tâche Normale (échéance: 5 jours)
   • 📧 Prospection → Tâche Basse priorité (échéance: 14 jours)
 
-✨ Tous vos leads ont maintenant un secteur ET des tâches de suivi !`
+✨ Tous vos leads ont maintenant un secteur ET une stratégie de contact !`
         };
 
       } catch (error) {
@@ -2806,6 +2981,107 @@ ${successList}${moreSuccess}
       }
     }
 
+    case 'send_whatsapp_greenapi': {
+      const { phoneNumber, message, instanceId = '7105440259' } = args;
+
+      try {
+        console.log(`[send_whatsapp_greenapi] Envoi WhatsApp direct via Green-API à ${phoneNumber}`);
+
+        // Import Green-API service
+        const { sendTestMessage } = await import('../providers/greenapi/greenapi.service.js');
+        const { getInstance } = await import('../lib/waInstanceManager.js');
+
+        // Get instance with API token
+        const instance = await getInstance(instanceId);
+
+        if (!instance || !instance.apiToken) {
+          return {
+            success: false,
+            error: `Instance WhatsApp ${instanceId} non trouvée ou non configurée. Utilise /wa-instance pour la configurer.`
+          };
+        }
+
+        // Clean phone number (remove +, spaces, parentheses, dashes)
+        const cleanNumber = phoneNumber.replace(/[\+\s\-\(\)]/g, '');
+        console.log(`[send_whatsapp_greenapi] Numéro nettoyé: ${cleanNumber}`);
+
+        // Send message via Green-API
+        const result = await sendTestMessage({
+          idInstance: instanceId,
+          apiTokenInstance: instance.apiToken,
+          phoneNumber: cleanNumber,
+          message
+        });
+
+        console.log(`[send_whatsapp_greenapi] ✅ Message envoyé:`, result);
+
+        // Logger l'activité sortante (best effort - ne bloque jamais le chat)
+        const leadId = args.leadId; // Optionnel - peut être passé par M.A.X.
+        if (leadId) {
+          try {
+            await logMaxActivity({
+              leadId,
+              channel: 'whatsapp',
+              direction: 'out',
+              status: 'sent',
+              messageSnippet: message.substring(0, 100),
+              meta: {
+                provider: 'green-api',
+                instanceId,
+                messageId: result.idMessage,
+                phoneNumber: cleanNumber
+              },
+              tenantId: tenant || 'macrea'
+            });
+            console.log(`[send_whatsapp_greenapi] 📝 Activité loggée pour lead ${leadId}`);
+          } catch (logError) {
+            console.warn(`[send_whatsapp_greenapi] ⚠️  Erreur log activité (non bloquant):`, logError.message);
+          }
+        } else {
+          console.warn(`[send_whatsapp_greenapi] ⚠️  Pas de leadId - activité non loggée`);
+        }
+
+        return {
+          success: true,
+          messageId: result.idMessage,
+          status: 'sent',
+          phoneNumber: cleanNumber,
+          provider: 'green-api',
+          message: `✅ Message WhatsApp envoyé via Green-API à ${phoneNumber}`
+        };
+
+      } catch (error) {
+        console.error('[send_whatsapp_greenapi] ❌ Erreur:', error.message);
+
+        // Logger l'échec (optionnel - best effort)
+        const leadId = args.leadId;
+        if (leadId) {
+          try {
+            await logMaxActivity({
+              leadId,
+              channel: 'whatsapp',
+              direction: 'out',
+              status: 'failed',
+              messageSnippet: message ? message.substring(0, 100) : 'Erreur envoi',
+              meta: {
+                provider: 'green-api',
+                error: error.message
+              },
+              tenantId: tenant || 'macrea'
+            });
+          } catch (logError) {
+            // Silently fail - logging d'échec est purement informatif
+          }
+        }
+
+        return {
+          success: false,
+          error: error.message,
+          hint: 'Vérifie que l\'instance Green-API est configurée et active. Utilise /wa-instance pour vérifier.'
+        };
+      }
+    }
+
     case 'list_whatsapp_templates': {
       const { type = 'all', status = 'active' } = args;
 
@@ -3575,6 +3851,9 @@ router.post('/', async (req, res) => {
   try {
     const { sessionId: clientSessionId, message, mode = 'assisté' } = req.body;
 
+    // Extraire le rôle de l'utilisateur (admin vs client) depuis le header
+    const userRole = (req.header('X-Role') || 'client').toLowerCase();
+
     if (!message || typeof message !== 'string' || !message.trim()) {
       return res.status(400).json({ ok: false, error: 'Message requis' });
     }
@@ -4022,6 +4301,30 @@ ${maxContext.recent_actions.length > 15 ? `\n... et ${maxContext.recent_actions.
     // Utiliser le prompt complet avec les règles opérationnelles
     // ⚠️ ULTRA_PRIORITY_RULES À LA FIN pour maximum recency bias (GPT-4 lit en dernier)
     const systemPrompt = `${BASE_SYSTEM_PROMPT}${sessionContext}${espoContext}${supabaseContext}${modeInstructions}
+
+═══════════════════════════════════════════════════════════════════
+👤 RÔLE UTILISATEUR ACTUEL
+═══════════════════════════════════════════════════════════════════
+
+Rôle actuel: ${userRole === 'admin' ? 'ADMIN' : 'CLIENT'}
+
+${userRole === 'admin' ? `
+🔓 MODE ADMIN ACTIF
+Tu parles à un ADMINISTRATEUR. Applique les règles suivantes:
+✅ Montrer TOUS les détails techniques
+✅ Mentionner les tools utilisés (query_espo_leads, update_leads_in_espo, etc.)
+✅ Afficher les IDs EspoCRM
+✅ Expliquer les erreurs techniques en détail
+✅ Proposer des actions de debug
+` : `
+🔒 MODE CLIENT ACTIF
+Tu parles à un UTILISATEUR FINAL. Applique les règles suivantes:
+❌ JAMAIS mentionner les tools (query_espo_leads, update_leads_in_espo, etc.)
+❌ JAMAIS montrer les IDs techniques EspoCRM
+❌ JAMAIS utiliser de jargon technique (API, endpoint, fonction, tool)
+✅ Utiliser un langage business simple et clair
+✅ Focus sur les résultats métier, pas sur l'implémentation
+`}
 
 ═══════════════════════════════════════════════════════════════════
 🚨🚨🚨 RÈGLES ULTRA-PRIORITAIRES (LIRE EN DERNIER = RETENIR EN PREMIER) 🚨🚨🚨

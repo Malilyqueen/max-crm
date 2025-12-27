@@ -16,6 +16,7 @@ import express from 'express';
 import { parseButtonPayload } from '../config/whatsapp-templates.js';
 import { espoFetch } from '../lib/espoClient.js';
 import { executeWhatsAppAction } from '../config/whatsapp-actions.js';
+import { logActivity } from '../lib/activityLogger.js';
 
 const router = express.Router();
 
@@ -113,6 +114,28 @@ async function handleButtonClick(buttonPayload, from, body, messageSid) {
       console.log(`   Type: ${type || 'N/A'}`);
       console.log(`   Phone: ${phoneNumber}`);
 
+      // Logger l'activité entrante (clic bouton = réponse)
+      try {
+        await logActivity({
+          leadId,
+          channel: 'whatsapp',
+          direction: 'in',
+          status: 'replied',
+          messageSnippet: `Clic bouton: ${action}`,
+          meta: {
+            from: phoneNumber,
+            twilioSid: messageSid,
+            buttonPayload,
+            action,
+            type
+          },
+          tenantId: tenant
+        });
+        console.log(`   📝 Activité entrante loggée (clic bouton structuré)`);
+      } catch (logError) {
+        console.warn(`   ⚠️  Erreur log activité (non bloquant):`, logError.message);
+      }
+
       // Extraire le contexte additionnel du payload si présent
       let additionalContext = {};
       if (parsed.ctx) {
@@ -154,6 +177,26 @@ async function handleButtonClick(buttonPayload, from, body, messageSid) {
       }
 
       console.log(`   👤 Lead trouvé: ${lead.name} (ID: ${lead.id})`);
+
+      // Logger l'activité entrante (clic bouton = réponse)
+      try {
+        await logActivity({
+          leadId: lead.id,
+          channel: 'whatsapp',
+          direction: 'in',
+          status: 'replied',
+          messageSnippet: `Clic bouton: ${buttonPayload}`,
+          meta: {
+            from: phoneNumber,
+            twilioSid: messageSid,
+            buttonPayload
+          },
+          tenantId: 'macrea'
+        });
+        console.log(`   📝 Activité entrante loggée (clic bouton)`);
+      } catch (logError) {
+        console.warn(`   ⚠️  Erreur log activité (non bloquant):`, logError.message);
+      }
 
       // Déterminer l'action à partir de la réponse
       const action = buttonPayload.toUpperCase() === 'OUI' ? 'confirm' : 'cancel';
@@ -212,6 +255,25 @@ async function handleTextMessage(from, body, messageSid) {
 
     if (lead) {
       console.log(`   👤 Lead trouvé: ${lead.name} (ID: ${lead.id})`);
+
+      // Logger l'activité entrante (best effort - ne bloque jamais le traitement)
+      try {
+        await logActivity({
+          leadId: lead.id,
+          channel: 'whatsapp',
+          direction: 'in',
+          status: 'replied',
+          messageSnippet: body.substring(0, 100),
+          meta: {
+            from: phoneNumber,
+            twilioSid: messageSid
+          },
+          tenantId: 'macrea'
+        });
+        console.log(`   📝 Activité entrante loggée pour lead ${lead.id}`);
+      } catch (logError) {
+        console.warn(`   ⚠️  Erreur log activité (non bloquant):`, logError.message);
+      }
 
       // DÉTECTION DES RÉPONSES OUI/NON pour confirmation RDV
       if (normalizedBody === 'oui' || normalizedBody === 'yes' || normalizedBody === 'o') {

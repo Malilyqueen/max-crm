@@ -1,4 +1,32 @@
 import 'dotenv/config';
+
+// ============================================================
+// VALIDATION .ENV OBLIGATOIRE
+// ============================================================
+const REQUIRED_ENV = [
+  'ESPO_BASE_URL',
+  'ESPO_API_KEY',
+  'ESPO_USERNAME',
+  'ESPO_PASSWORD',
+  'JWT_SECRET',
+  'SUPABASE_URL',
+  'SUPABASE_ANON_KEY'
+];
+
+const missing = REQUIRED_ENV.filter(key => !process.env[key]);
+
+if (missing.length > 0) {
+  console.error('\n❌ ERREUR: Variables .env manquantes:\n');
+  missing.forEach(key => console.error(`   - ${key}`));
+  console.error('\n📋 Action requise:');
+  console.error('   1. Copier .env.example vers .env');
+  console.error('   2. Renseigner les valeurs manquantes');
+  console.error('   3. Redémarrer le backend\n');
+  process.exit(1);
+}
+
+console.log('✅ Variables .env validées');
+
 import express from 'express';
 import cors from 'cors';
 import { checkModeWrite } from './middleware/checkMode.js';
@@ -54,6 +82,8 @@ import tenantGoalsRouter from './routes/tenantGoals.js';
 import testWhatsappStubRouter from './routes/test-whatsapp-stub.js';
 import actionsApiRouter from './routes/actions-api.js';
 import waInstanceRouter from './routes/wa-instance.js';
+import consentRouter from './routes/consent.js';
+import activitiesRouter from './routes/activities.js';
 
 process.on('unhandledRejection', (reason)=> console.error('[FATAL] UnhandledRejection:', reason));
 process.on('uncaughtException', (err)=> { console.error('[FATAL] UncaughtException:', err); process.exit(1); });
@@ -69,11 +99,13 @@ app.use(cors({
     'http://localhost:5173', 'http://127.0.0.1:5173',
     'http://localhost:5174', 'http://127.0.0.1:5174',
     'http://localhost:5175', 'http://127.0.0.1:5175',
-    'http://localhost:8081', 'http://127.0.0.1:8081'
+    'http://localhost:8081', 'http://127.0.0.1:8081',
+    'https://max.studiomacrea.cloud'
   ],
   methods: ['GET', 'POST', 'OPTIONS', 'DELETE', 'PUT', 'PATCH'],
   allowedHeaders: ['Content-Type','X-Api-Key','X-Tenant','X-Role','X-Preview','X-Client','Authorization'],
-  exposedHeaders: ['Content-Type']
+  exposedHeaders: ['Content-Type'],
+  credentials: true
 }));
 
 // Route Auth (publique, pas d'auth requise pour login)
@@ -113,6 +145,7 @@ app.use('/api/tenant/goals', tenantGoalsRouter); // Routes tenant goals (mémoir
 app.use('/api/test', testWhatsappStubRouter); // 🧪 Endpoint de test WhatsApp stub (sans dépendre de Twilio Live)
 app.use('/api/action-layer', actionsApiRouter); // 🎯 Action Layer - Endpoints pour tester les actions CRM manuellement (AVANT headers middleware)
 app.use('/api/wa', waInstanceRouter); // 📱 Green-API WhatsApp Instance Management (AVANT headers middleware)
+app.use('/api/consent', consentRouter); // 🔒 Système de consentement pour opérations sensibles (AVANT headers middleware)
 
 // Sanity ping (AVANT headers middleware pour Cloudflare healthcheck)
 app.get('/api/ping', (req, res) => res.json({ ok: true, pong: true }));
@@ -123,7 +156,9 @@ app.use((req,res,next)=>{ res.setHeader('Content-Type','application/json; charse
 // Define guardMode
 const guardMode = (type) => checkModeWrite;
 
-// Mount routes
+// Mount routes (AFTER headers middleware for tenant resolution)
+app.use('/api/activities', activitiesRouter); // 🔔 Système d'alertes vivantes M.A.X.
+app.use('/api/alerts', activitiesRouter); // 🔔 Alias pour /activities (GET /api/alerts/active)
 app.use('/api', statusRouter);
 app.use('/api', reportingRouter);
 app.use('/api', askRouter);
@@ -252,6 +287,37 @@ const PORT = process.env.PORT || 3005;
   }
 })();
 
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, '0.0.0.0', async () => {
   console.log(`M.A.X. server P1 listening on http://127.0.0.1:${PORT}`);
+
+  // ✅ Green-API Configuration Check
+  const greenApiBaseUrl = process.env.GREENAPI_BASE_URL || 'https://api.green-api.com';
+  console.log(`\n🌐 Green-API Configuration:`);
+  console.log(`   Base URL: ${greenApiBaseUrl}`);
+
+  // ⚠️ Validation: Interdire localhost/127.0.0.1 en production
+  if (greenApiBaseUrl.includes('127.0.0.1') || greenApiBaseUrl.includes('localhost')) {
+    console.error(`\n❌ ERREUR CONFIGURATION GREEN-API:`);
+    console.error(`   GREENAPI_BASE_URL pointe vers localhost (${greenApiBaseUrl})`);
+    console.error(`   Green-API est un service EXTERNE - utiliser https://api.green-api.com`);
+    console.error(`   Corrigez le .env: GREENAPI_BASE_URL=https://api.green-api.com\n`);
+  } else {
+    console.log(`   ✅ URL valide (service externe)\n`);
+  }
+
+  // 🩺 Green-API Health Check
+  try {
+    const { validateGreenApiConfig } = await import('./providers/greenapi/greenapi.config.js');
+    const configCheck = validateGreenApiConfig();
+
+    if (!configCheck.isValid) {
+      console.log(`⚠️  Green-API: Variables manquantes (non-bloquant): ${configCheck.missing.join(', ')}`);
+    } else {
+      console.log(`✅ Green-API: Configuration complète`);
+    }
+  } catch (error) {
+    console.log(`⚠️  Green-API: Impossible de valider la config (${error.message})`);
+  }
+
+  console.log(''); // Ligne vide pour lisibilité
 });

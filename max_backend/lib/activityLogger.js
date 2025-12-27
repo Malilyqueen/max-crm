@@ -1,155 +1,247 @@
 /**
  * activityLogger.js
- * Système de logging des actions M.A.X. pour l'onglet Reporting
+ * Système de logging des interactions avec les leads
+ * Alimente le système d'alertes vivantes M.A.X.
+ * DB: Supabase (PostgreSQL)
  */
 
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const ACTIVITY_LOG_FILE = path.join(__dirname, '..', 'logs', 'max_activity.jsonl');
+import { supabase } from './supabaseClient.js';
 
 /**
- * Log une action M.A.X. dans le fichier d'activité
- * @param {Object} action - L'action à logger
- * @param {string} action.type - Type d'action: 'field_created', 'layout_modified', 'data_updated', 'data_listed', 'data_deleted'
- * @param {string} action.tool - Nom de l'outil utilisé
- * @param {string} action.entity - Entité concernée (Lead, Contact, etc.)
- * @param {Object} action.details - Détails de l'action
- * @param {string} action.sessionId - ID de session
- * @param {boolean} action.success - Succès ou échec
- * @param {string} action.error - Message d'erreur si échec
+ * Logger une activité (message, appel, etc.)
+ *
+ * @param {Object} params - Paramètres de l'activité
+ * @param {string} params.leadId - ID du lead EspoCRM
+ * @param {string} params.channel - Canal (whatsapp/email/call/other)
+ * @param {string} params.direction - Direction (in/out)
+ * @param {string} [params.status] - Statut (sent/delivered/failed/replied/no_answer)
+ * @param {string} [params.messageSnippet] - Aperçu du message
+ * @param {Object} [params.meta] - Métadonnées additionnelles
+ * @param {string} [params.tenantId] - ID du tenant (défaut: 'macrea')
+ * @returns {Promise<Object>} Activité créée
  */
-export function logMaxActivity(action) {
-  const logEntry = {
-    timestamp: new Date().toISOString(),
-    actor: 'M.A.X.',
-    ...action
+export async function logActivity({
+  leadId,
+  channel,
+  direction,
+  status = 'sent',
+  messageSnippet = null,
+  meta = {},
+  tenantId = 'macrea'
+}) {
+  // Validation
+  const validChannels = ['whatsapp', 'email', 'call', 'other'];
+  const validDirections = ['in', 'out'];
+  const validStatuses = ['sent', 'delivered', 'failed', 'replied', 'no_answer'];
+
+  if (!validChannels.includes(channel)) {
+    throw new Error(`Canal invalide: ${channel}. Attendu: ${validChannels.join(', ')}`);
+  }
+
+  if (!validDirections.includes(direction)) {
+    throw new Error(`Direction invalide: ${direction}. Attendu: ${validDirections.join(', ')}`);
+  }
+
+  if (!validStatuses.includes(status)) {
+    throw new Error(`Statut invalide: ${status}. Attendu: ${validStatuses.join(', ')}`);
+  }
+
+  // Préparer données pour Supabase
+  const activityData = {
+    tenant_id: tenantId,
+    lead_id: leadId,
+    channel,
+    direction,
+    status,
+    message_snippet: messageSnippet ? messageSnippet.substring(0, 500) : null,
+    meta: meta || {}
   };
 
-  // Créer le dossier logs si nécessaire
-  const logsDir = path.dirname(ACTIVITY_LOG_FILE);
-  if (!fs.existsSync(logsDir)) {
-    fs.mkdirSync(logsDir, { recursive: true });
+  // Insérer dans Supabase
+  const { data, error } = await supabase
+    .from('lead_activities')
+    .insert(activityData)
+    .select()
+    .single();
+
+  if (error) {
+    console.error(`[ActivityLogger] ❌ Erreur Supabase:`, error);
+    throw new Error(`Erreur logging activité: ${error.message}`);
   }
 
-  // Ajouter au fichier JSONL (une ligne JSON par action)
-  fs.appendFileSync(ACTIVITY_LOG_FILE, JSON.stringify(logEntry) + '\n');
+  console.log(`[ActivityLogger] ✓ Logged: ${leadId} - ${channel} ${direction} (${status})`);
 
-  console.log(`[ActivityLogger] Action logged: ${action.type} on ${action.entity}`);
+  return data;
 }
 
 /**
- * Récupère les N dernières actions M.A.X.
- * @param {number} limit - Nombre d'actions à récupérer
- * @returns {Array} Liste des actions
+ * Récupérer les activités d'un lead
+ *
+ * @param {string} leadId - ID du lead
+ * @param {number} [days=30] - Nombre de jours à récupérer
+ * @param {string} [tenantId='macrea'] - ID du tenant
+ * @returns {Promise<Array>} Liste des activités
  */
-export function getRecentMaxActivity(limit = 50) {
-  if (!fs.existsSync(ACTIVITY_LOG_FILE)) {
-    return [];
+export async function getLeadActivities(leadId, days = 30, tenantId = 'macrea') {
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - days);
+
+  const { data, error } = await supabase
+    .from('lead_activities')
+    .select('*')
+    .eq('tenant_id', tenantId)
+    .eq('lead_id', leadId)
+    .gte('created_at', cutoffDate.toISOString())
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error(`[ActivityLogger] ❌ Erreur récupération activités:`, error);
+    throw new Error(`Erreur récupération activités: ${error.message}`);
   }
 
-  const lines = fs.readFileSync(ACTIVITY_LOG_FILE, 'utf-8')
-    .split('\n')
-    .filter(line => line.trim());
+  console.log(`[ActivityLogger] ✓ ${data.length} activités trouvées pour lead ${leadId} (${days}j)`);
 
-  // Prendre les N dernières lignes
-  const recentLines = lines.slice(-limit);
-
-  return recentLines
-    .map(line => {
-      try {
-        return JSON.parse(line);
-      } catch (error) {
-        console.error('[ActivityLogger] Failed to parse line:', line);
-        return null;
-      }
-    })
-    .filter(entry => entry !== null)
-    .reverse(); // Plus récent en premier
+  return data || [];
 }
 
 /**
- * Récupère les actions M.A.X. filtrées
- * @param {Object} filters - Filtres
- * @param {string} filters.type - Type d'action
- * @param {string} filters.entity - Entité
- * @param {string} filters.sessionId - ID de session
- * @param {Date} filters.since - Date de début
- * @param {number} filters.limit - Nombre max de résultats
- * @returns {Array} Liste des actions filtrées
+ * Calculer le canal préféré d'un lead
+ *
+ * @param {string} leadId - ID du lead
+ * @param {string} [tenantId='macrea'] - ID du tenant
+ * @returns {Promise<Object>} Canal préféré + statistiques
  */
-export function getMaxActivity(filters = {}) {
-  const { type, entity, sessionId, since, limit = 100 } = filters;
+export async function calculatePreferredChannel(leadId, tenantId = 'macrea') {
+  const activities = await getLeadActivities(leadId, 30, tenantId);
 
-  let activities = getRecentMaxActivity(limit * 2); // Prendre plus pour filtrer
+  const channels = ['whatsapp', 'email', 'call'];
+  const stats = {};
 
-  if (type) {
-    activities = activities.filter(a => a.type === type);
+  channels.forEach(channel => {
+    const sent = activities.filter(a => a.channel === channel && a.direction === 'out').length;
+    const replied = activities.filter(a => a.channel === channel && a.direction === 'in').length;
+
+    stats[channel] = {
+      sent,
+      replied,
+      rate: sent > 0 ? (replied / sent) * 100 : 0
+    };
+  });
+
+  // Canal préféré = meilleur taux (minimum 2 tentatives)
+  const validChannels = Object.entries(stats)
+    .filter(([ch, s]) => s.sent >= 2)
+    .sort((a, b) => b[1].rate - a[1].rate);
+
+  if (validChannels.length === 0) {
+    return {
+      preferredChannel: 'inconnu',
+      stats,
+      confidence: 'aucune'
+    };
   }
 
-  if (entity) {
-    activities = activities.filter(a => a.entity === entity);
-  }
+  const [preferredChannel, { rate }] = validChannels[0];
 
-  if (sessionId) {
-    activities = activities.filter(a => a.sessionId === sessionId);
-  }
+  // Niveau de confiance
+  let confidence = 'basse';
+  if (rate >= 70) confidence = 'haute';
+  else if (rate >= 40) confidence = 'moyenne';
 
-  if (since) {
-    const sinceTime = new Date(since).getTime();
-    activities = activities.filter(a => new Date(a.timestamp).getTime() >= sinceTime);
-  }
-
-  return activities.slice(0, limit);
-}
-
-/**
- * Formate une action pour l'affichage dans le Reporting
- * @param {Object} action - Action brute
- * @returns {Object} Action formatée pour le frontend
- */
-export function formatActivityForReporting(action) {
-  const typeLabels = {
-    field_created: '🔧 Champ créé',
-    layout_modified: '📋 Layout modifié',
-    data_updated: '✏️ Données mises à jour',
-    data_listed: '📊 Données listées',
-    data_deleted: '🗑️ Données supprimées',
-    rebuild: '🔨 Rebuild exécuté',
-    cache_cleared: '🧹 Cache nettoyé'
-  };
-
-  let title = typeLabels[action.type] || '⚙️ Action';
-
-  // Utiliser les données directes de l'action
-  if (action.fieldName) {
-    title += ` : ${action.fieldName}`;
-    if (action.fieldType) {
-      title += ` (${action.fieldType})`;
-    }
-  } else if (action.count) {
-    title += ` (${action.count} éléments)`;
-  }
-
-  // Ajouter les détails si disponibles
-  const details = action.details || `${action.entity || 'Entity'} - ${action.type}`;
+  console.log(`[ActivityLogger] Canal préféré pour ${leadId}: ${preferredChannel} (${rate.toFixed(0)}% - confiance ${confidence})`);
 
   return {
-    ts: new Date(action.timestamp).getTime(),
-    type: action.type,
-    title: title,
-    meta: {
-      entityType: action.entity || 'Lead',
-      entityId: action.leadIds?.[0] || action.fieldName || 'unknown',
-      details: details,
-      count: action.count || 0,
-      actor: action.actor || 'M.A.X.',
-      // Compatibilité avec l'ancien format
-      entity: action.entity || 'Lead'
-    }
+    preferredChannel,
+    rate: rate.toFixed(1),
+    stats,
+    confidence
   };
+}
+
+/**
+ * Calculer les jours depuis dernière activité
+ *
+ * @param {string} leadId - ID du lead
+ * @param {string} [tenantId='macrea'] - ID du tenant
+ * @returns {Promise<number>} Nombre de jours
+ */
+export async function daysSinceLastActivity(leadId, tenantId = 'macrea') {
+  const activities = await getLeadActivities(leadId, 90, tenantId);
+
+  if (activities.length === 0) {
+    return Infinity; // Jamais contacté
+  }
+
+  const lastActivity = activities[0]; // Plus récent (ordre DESC)
+  const now = new Date();
+  const lastDate = new Date(lastActivity.created_at);
+  const diffMs = now - lastDate;
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  return diffDays;
+}
+
+/**
+ * Détecter si un message contient une intention d'achat
+ *
+ * @param {string} message - Contenu du message
+ * @returns {boolean} True si intention détectée
+ */
+export function hasIntention(message) {
+  if (!message) return false;
+
+  const intentionKeywords = [
+    'prix', 'tarif', 'coût', 'combien', 'disponible', 'dispo',
+    'commander', 'acheter', 'réserver', 'rendez-vous',
+    'devis', 'proposition', 'offre', 'intéressé', 'contact',
+    'quand', 'comment', 'où', 'horaire', 'délai'
+  ];
+
+  const lowerMessage = message.toLowerCase();
+
+  return intentionKeywords.some(keyword => lowerMessage.includes(keyword));
+}
+
+/**
+ * Récupérer les activités récentes de M.A.X. (pour reporting)
+ * Note: Fonction de compatibilité pour reporting.js
+ *
+ * @param {number} limit - Nombre d'activités à retourner
+ * @returns {Array} Liste des activités récentes
+ */
+export function getRecentMaxActivity(limit = 50) {
+  // Pour l'instant, retourner un tableau vide
+  // Cette fonction sera implémentée plus tard avec agrégation multi-leads
+  console.log('[ActivityLogger] getRecentMaxActivity appelé (stub)');
+  return [];
+}
+
+/**
+ * Formater une activité pour le reporting
+ * Note: Fonction de compatibilité pour reporting.js
+ *
+ * @param {Object} activity - Activité brute
+ * @returns {Object} Activité formatée
+ */
+export function formatActivityForReporting(activity) {
+  return {
+    id: activity.id,
+    leadId: activity.lead_id,
+    channel: activity.channel,
+    direction: activity.direction,
+    status: activity.status,
+    snippet: activity.message_snippet,
+    timestamp: activity.created_at
+  };
+}
+
+/**
+ * Logger une activité de M.A.X. (alias pour logActivity)
+ * Note: Fonction de compatibilité pour chat.js
+ *
+ * @param {Object} params - Paramètres de l'activité
+ * @returns {Promise<Object>} Activité créée
+ */
+export async function logMaxActivity(params) {
+  return logActivity(params);
 }
