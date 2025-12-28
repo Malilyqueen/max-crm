@@ -162,6 +162,7 @@ export interface ChatState {
 
   // Utils
   addMessage: (role: MessageRole, content: string) => void;
+  injectMessage: (message: ChatMessage) => void;
   clearMessages: () => void;
 }
 

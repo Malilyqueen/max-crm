@@ -34,9 +34,16 @@ export function ChatPage() {
     uploadFile,
     changeMode,
     resetConversation,
-    loadHistory
+    loadHistory,
+    injectMessage
   } = useChatStore();
   const colors = useThemeColors();
+
+  // Mode debug activé via ?debug=1
+  const [isDebugMode] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('debug') === '1';
+  });
 
   // État local pour le panneau d'activité
   const [isActivityOpen, setIsActivityOpen] = useState(false);
@@ -190,6 +197,43 @@ export function ChatPage() {
       // Ici on pourrait ouvrir AuditReportModal si besoin
     } catch (error: any) {
       console.error('[CONSENT] Erreur chargement audit:', error);
+    }
+  };
+
+  // 🧪 TEST CONSENT - Bouton de test temporaire pour démo
+  const testConsentFlow = async () => {
+    try {
+      console.log('[TEST_CONSENT] Appel endpoint test-consent...');
+      addActivity('flask', 'Test consentement démarré');
+
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/chat/test-consent`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Tenant': 'macrea-admin'
+        },
+        body: JSON.stringify({
+          sessionId: sessionId || `demo_${Date.now()}`,
+          description: 'Ajouter le champ secteur aux layouts Lead'
+        })
+      });
+
+      const data = await response.json();
+      console.log('[TEST_CONSENT] Réponse:', data);
+
+      if (data.success && data.message) {
+        // Injecter le message de consentement dans la conversation
+        injectMessage(data.message);
+        addActivity('check-circle', `Message consentement injecté: ${data.message.consentId?.substring(0, 20)}...`);
+        console.log('[TEST_CONSENT] ✅ ConsentCard devrait s\'afficher maintenant');
+      } else {
+        throw new Error(data.error || 'Échec test-consent');
+      }
+
+    } catch (error: any) {
+      console.error('[TEST_CONSENT] ❌ Erreur:', error);
+      addActivity('x-circle', `Erreur test: ${error.message}`);
+      alert(`Erreur test consentement: ${error.message}`);
     }
   };
 
@@ -476,6 +520,27 @@ export function ChatPage() {
           onApproveConsent={handleApproveConsent}
           onViewAudit={handleViewAudit}
         />
+
+        {/* 🧪 BOUTON TEST CONSENTEMENT (visible seulement en mode debug ?debug=1) */}
+        {isDebugMode && (
+          <div className="px-6 py-2 border-t" style={{
+            borderColor: 'rgba(251, 191, 36, 0.3)',
+            background: 'rgba(251, 191, 36, 0.05)'
+          }}>
+            <button
+              onClick={testConsentFlow}
+              className="w-full px-4 py-3 rounded-lg font-medium transition-all"
+              style={{
+                background: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
+                color: '#000',
+                border: '1px solid rgba(251, 191, 36, 0.5)',
+                boxShadow: '0 4px 16px rgba(251, 191, 36, 0.3)'
+              }}
+            >
+              🧪 Test Consentement (DEV ONLY)
+            </button>
+          </div>
+        )}
 
         {/* Input */}
         <ChatInput

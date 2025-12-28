@@ -87,6 +87,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
   },
 
+  // Injecter un message complet (avec tous les champs type, consentId, etc.)
+  injectMessage: (message: any) => {
+    set((state) => {
+      const newMessages = [...state.messages, message];
+      saveSessionToStorage(state.sessionId, newMessages);
+      return { messages: newMessages };
+    });
+  },
+
   // Effacer tous les messages
   clearMessages: () => {
     set({ messages: [], totalTokens: 0 });
