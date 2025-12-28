@@ -27,6 +27,7 @@ import { createOpportunity } from './createOpportunity.js';
 import { createContact } from './createContact.js';
 import { createTicket } from './createTicket.js';
 import { createKnowledgeArticle } from './createKnowledgeArticle.js';
+import { requestConsent } from './requestConsent.js';
 import { logAction } from './actionLogger.js';
 
 /**
@@ -78,6 +79,10 @@ export async function executeAction(actionType, params) {
         result = await createKnowledgeArticle(params);
         break;
 
+      case 'request_consent':
+        result = await requestConsent(params);
+        break;
+
       default:
         throw new Error(`Action inconnue: ${actionType}`);
     }
@@ -123,5 +128,6 @@ export {
   createEmailDraft,
   createCalendarEvent,
   writeCrmNote,
-  updateCrmField
+  updateCrmField,
+  requestConsent
 };
