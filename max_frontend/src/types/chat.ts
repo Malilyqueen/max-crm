@@ -40,6 +40,7 @@ export interface ChatMessage {
   type?: MessageType;
   consentId?: string;
   operation?: ConsentOperation;
+  expiresIn?: number;
   consentStatus?: 'pending' | 'executing' | 'success' | 'error' | 'expired';
   auditReportId?: string;
 }

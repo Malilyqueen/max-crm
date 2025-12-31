@@ -517,7 +517,7 @@ export function ChatPage() {
           messages={messages}
           isStreaming={isStreaming}
           isLoading={isLoading}
-          onApproveConsent={handleApproveConsent}
+          sessionId={sessionId || undefined}
           onViewAudit={handleViewAudit}
         />
 

@@ -209,10 +209,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
           mode: modeMap[currentState.mode] || 'assisté'
         });
 
-        // Le vrai M.A.X. retourne { ok, answer, sessionId, ... }
+        // Le vrai M.A.X. retourne { ok, answer, sessionId, pendingConsent?, ... }
         const data = response.data || response;
         const answer = data.answer || data.message || '';
         const newSessionId = data.sessionId;
+        const pendingConsent = data.pendingConsent; // 🔐 Consent Gate
 
         // Sauvegarder sessionId pour continuité
         if (newSessionId) {
@@ -223,6 +224,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         // Ajouter réponse assistant (va aussi sauvegarder via addMessage)
         get().addMessage('assistant', answer);
+
+        // 🔐 CONSENT GATE: Si pendingConsent, injecter message type "consent"
+        if (pendingConsent) {
+          console.log('[CHAT_STORE] 🚨 Consent requis détecté:', pendingConsent);
+          get().injectMessage({
+            role: 'consent',
+            type: 'consent',
+            consentId: pendingConsent.consentId,
+            operation: pendingConsent.operation,
+            expiresIn: pendingConsent.expiresIn,
+            timestamp: Date.now()
+          });
+        }
 
         set({ isLoading: false });
       } catch (error: any) {

@@ -10,13 +10,14 @@ import { TypingIndicator } from './TypingIndicator';
 import { QuickCards } from './QuickCards';
 import { ConsentCard } from './ConsentCard';
 import { useThemeColors } from '../../hooks/useThemeColors';
+import { useChatStore } from '../../stores/useChatStore';
 import { BarChart3, Search, Target, Sparkles, TrendingUp, Bot } from 'lucide-react';
 
 interface MessageListProps {
   messages: ChatMessage[];
   isStreaming?: boolean;
   isLoading?: boolean;
-  onApproveConsent?: (consentId: string) => Promise<void>;
+  sessionId?: string;
   onViewAudit?: (consentId: string) => void;
 }
 
@@ -24,11 +25,12 @@ export const MessageList: React.FC<MessageListProps> = ({
   messages,
   isStreaming = false,
   isLoading = false,
-  onApproveConsent,
+  sessionId,
   onViewAudit
 }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const colors = useThemeColors();
+  const { addMessage } = useChatStore();
 
   // Auto-scroll vers le bas quand nouveaux messages
   useEffect(() => {
@@ -150,14 +152,20 @@ export const MessageList: React.FC<MessageListProps> = ({
       {/* Messages */}
       {messages.map((message, index) => {
         // Si c'est un message de consentement, afficher ConsentCard
-        if (message.type === 'consent' && message.consentId && message.operation && onApproveConsent) {
+        if (message.type === 'consent' && message.consentId && message.operation) {
           return (
             <ConsentCard
               key={`${message.timestamp}-${index}`}
               consentId={message.consentId}
-              operation={message.operation.description}
-              expiresIn={300} // 5 minutes
-              onApprove={onApproveConsent}
+              operation={message.operation}
+              expiresIn={message.expiresIn || 300}
+              sessionId={sessionId}
+              onExecuteComplete={(result) => {
+                // Injecter message de succès dans le chat
+                if (result.success && result.result?.message) {
+                  addMessage('assistant', result.result.message);
+                }
+              }}
               onViewAudit={onViewAudit}
             />
           );
