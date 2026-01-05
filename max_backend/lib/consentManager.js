@@ -19,6 +19,9 @@ const CONSENT_EXPIRY_MS = 5 * 60 * 1000;
 // Storage des consentements actifs (en mémoire volatile)
 const activeConsents = new Map();
 
+// Cache des derniers consents approuvés par type d'opération (pour réutilisation pendant grâce période)
+const lastApprovedConsentByType = new Map();
+
 // Répertoire des rapports d'audit
 const AUDIT_DIR = path.join(__dirname, '../audit_reports');
 
@@ -106,6 +109,31 @@ function validateConsent(consentId) {
     console.log(`[ConsentManager] ✅ Consent ${consentId} validated and consumed`);
 
     return consent;
+}
+
+/**
+ * Find the most recent approved consent for an operation type (within grace period)
+ * @param {string} operationType - Type d'opération (e.g., 'layout_modification')
+ * @returns {Object|null} Consent if found and still valid, null otherwise
+ */
+function findRecentConsentByType(operationType) {
+    const GRACE_PERIOD_MS = 10 * 60 * 1000; // 10 minutes
+
+    for (const [consentId, consent] of activeConsents.entries()) {
+        if (consent.operation.type === operationType &&
+            consent.status === 'approved' &&
+            consent.usedAt) {
+
+            const timeSinceUse = Date.now() - consent.usedAt;
+            if (timeSinceUse <= GRACE_PERIOD_MS) {
+                console.log(`[ConsentManager] 🔄 Réutilisation consent ${consentId} pour ${operationType} (approuvé il y a ${Math.floor(timeSinceUse/1000)}s)`);
+                return consent;
+            }
+        }
+    }
+
+    console.log(`[ConsentManager] Aucun consent récent trouvé pour ${operationType}`);
+    return null;
 }
 
 /**
@@ -249,6 +277,7 @@ export {
     createConsentRequest,
     validateConsent,
     checkConsentForExecution,
+    findRecentConsentByType,
     createAuditReport,
     getAuditReport,
     listAuditReports
