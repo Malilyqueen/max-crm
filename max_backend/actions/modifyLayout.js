@@ -18,7 +18,7 @@ const { FilesystemLayoutManager } = pkg;
  * @returns {Promise<Object>} Résultat de l'opération
  */
 export async function modifyLayout(params) {
-  const { consentId, entity, fieldName, layoutTypes = ['detail', 'list'], tenantId = 'macrea' } = params;
+  const { consentId, entity, fieldName, layoutTypes = ['detail', 'edit', 'list'], tenantId = 'macrea' } = params;
 
   console.log(`\n🔧 MODIFY_LAYOUT: ${entity}.${fieldName}`);
   console.log(`   ConsentId: ${consentId}`);
@@ -36,36 +36,31 @@ export async function modifyLayout(params) {
     // Note: La vérification du consentement est déjà faite par /api/consent/execute
     // Cette action est appelée APRÈS l'approbation, donc on procède directement
 
-    const layoutManager = new FilesystemLayoutManager(tenantId);
-    const results = [];
+    const layoutManager = new FilesystemLayoutManager({
+      sshHost: process.env.ESPO_SSH_HOST,
+      sshUser: process.env.ESPO_SSH_USER || 'root',
+      containerName: 'espocrm'
+    });
 
-    // Modifier chaque type de layout demandé
-    for (const layoutType of layoutTypes) {
-      console.log(`   Modifying ${layoutType} layout...`);
+    // Appel de la méthode correcte: addFieldToLayouts (avec 's')
+    const result = await layoutManager.addFieldToLayouts(entity, fieldName, layoutTypes);
 
-      const result = await layoutManager.addFieldToLayout(entity, fieldName, layoutType);
-      results.push({
-        layoutType,
-        success: result.success || false,
-        path: result.path,
-        message: result.message
-      });
-    }
-
-    const successCount = results.filter(r => r.success).length;
+    console.log(`[MODIFY_LAYOUT] Result:`, JSON.stringify(result, null, 2));
 
     return {
-      success: successCount > 0,
+      success: result.success && result.layoutsModified > 0,
       provider: 'espocrm-layouts',
       entityId: consentId,
-      preview: `${successCount}/${layoutTypes.length} layout(s) modifié(s) pour ${entity}.${fieldName}`,
+      preview: `${result.layoutsModified} layout(s) modifié(s), ${result.layoutsSkipped} déjà présent(s), ${result.layoutsErrors} erreur(s)`,
       metadata: {
         entity,
         fieldName,
         layoutTypes,
-        layoutsModified: successCount,
-        results,
-        timestamp: new Date().toISOString()
+        layoutsModified: result.layoutsModified,
+        layoutsSkipped: result.layoutsSkipped,
+        layoutsErrors: result.layoutsErrors,
+        results: result.results,
+        timestamp: result.timestamp
       }
     };
 
