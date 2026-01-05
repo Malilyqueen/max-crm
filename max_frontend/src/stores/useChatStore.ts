@@ -102,7 +102,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   // Envoyer un message à M.A.X.
-  sendMessage: async (message: string, useStreaming = true) => {
+  sendMessage: async (message: string, useStreaming = false) => {
     if (!message.trim()) {
       throw new Error('Le message ne peut pas être vide');
     }
@@ -211,9 +211,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         // Le vrai M.A.X. retourne { ok, answer, sessionId, pendingConsent?, ... }
         const data = response.data || response;
+        console.log('[CHAT_STORE] 📦 Réponse complète du backend:', data);
         const answer = data.answer || data.message || '';
         const newSessionId = data.sessionId;
         const pendingConsent = data.pendingConsent; // 🔐 Consent Gate
+        console.log('[CHAT_STORE] 🔍 pendingConsent extrait:', pendingConsent);
 
         // Sauvegarder sessionId pour continuité
         if (newSessionId) {
@@ -228,14 +230,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
         // 🔐 CONSENT GATE: Si pendingConsent, injecter message type "consent"
         if (pendingConsent) {
           console.log('[CHAT_STORE] 🚨 Consent requis détecté:', pendingConsent);
-          get().injectMessage({
+          const consentMessage = {
             role: 'consent',
             type: 'consent',
             consentId: pendingConsent.consentId,
             operation: pendingConsent.operation,
             expiresIn: pendingConsent.expiresIn,
             timestamp: Date.now()
-          });
+          };
+          console.log('[CHAT_STORE] 💉 Injection du message consent:', consentMessage);
+          get().injectMessage(consentMessage);
+          console.log('[CHAT_STORE] ✅ Message consent injecté. Messages actuels:', get().messages.length);
+        } else {
+          console.log('[CHAT_STORE] ℹ️ Pas de pendingConsent dans cette réponse');
         }
 
         set({ isLoading: false });
