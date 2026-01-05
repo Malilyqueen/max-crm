@@ -24,8 +24,26 @@ export async function modifyLayout(params) {
   console.log(`   ConsentId: ${consentId}`);
   console.log(`   Layouts: ${layoutTypes.join(', ')}`);
 
+  // 🔐 CONSENT GATE: Cette action nécessite TOUJOURS un consentId valide
   if (!consentId) {
-    throw new Error('ConsentId requis pour modifier un layout (opération sensible)');
+    console.error('[MODIFY_LAYOUT] ❌ BLOQUÉ: ConsentId manquant');
+    return {
+      success: false,
+      error: 'CONSENT_REQUIRED',
+      httpCode: 412,
+      requiresConsent: true,
+      operation: {
+        type: 'layout_modification',
+        description: `Ajouter le champ "${fieldName}" aux layouts ${entity}`,
+        details: {
+          entity,
+          fieldName,
+          layoutTypes,
+          action: 'modify_layout'
+        }
+      },
+      message: `⚠️ Cette opération nécessite un consentement. Utilise d'abord request_consent({ type: "layout_modification", description: "Ajouter le champ ${fieldName} aux layouts ${entity}", details: {...} })`
+    };
   }
 
   if (!entity || !fieldName) {
