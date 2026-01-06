@@ -14,14 +14,14 @@
 |---------|-------------|--------|
 | `routes/greenapi-webhook.js` | Webhook entrant Green-API WhatsApp | ✅ Créé |
 | `routes/twilio-sms-webhook.js` | Webhook entrant + status Twilio SMS | ✅ Créé |
-| `lib/messageEventLogger.js` | Persistence events (DB/JSON) | ✅ Créé |
+| `lib/messageEventLogger.js` | Persistence events (DB/JSON) | ✅ Créé + Fixé |
 | `server.js` | Routes montées (lignes 78-79, 150-151) | ✅ Modifié |
 
 ### Infrastructure
 
-| Fichier | Description | Action Requise |
-|---------|-------------|----------------|
-| `scripts/create-message-events-table.sql` | Schéma SQL Supabase | ⚠️ **À EXÉCUTER** |
+| Fichier | Description | Statut |
+|---------|-------------|--------|
+| `scripts/create-message-events-table.sql` | Schéma SQL Supabase | ✅ **PRÊT** (mot réservé corrigé) |
 | `nginx-twilio-sms-route.conf` | Routes nginx SMS | ⚠️ **À AJOUTER** |
 
 ### Tests E2E
