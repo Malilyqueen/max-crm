@@ -1,0 +1,6 @@
+{
+  "program_type": "coach_programType",
+  "objective": "coach_objective",
+  "session_count": "coach_sessionCount",
+  "last_session": "coach_lastSession"
+}

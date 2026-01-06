@@ -1,0 +1,6 @@
+{
+  "campaign": "b2b_campaignName",
+  "lead_score": "b2b_leadScore",
+  "last_contact": "b2b_lastContact",
+  "conversion_value": "b2b_conversionValue"
+}

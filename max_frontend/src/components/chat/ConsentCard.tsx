@@ -7,6 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { AlertTriangle, Clock, CheckCircle, XCircle, FileText } from 'lucide-react';
 import { useThemeColors } from '../../hooks/useThemeColors';
+import { API_BASE_URL } from '../../config/api';
 
 interface Operation {
   type: string;
@@ -64,7 +65,7 @@ export const ConsentCard: React.FC<ConsentCardProps> = ({
     try {
       // POST direct à /api/consent/execute/:consentId
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/consent/execute/${consentId}`,
+        `${API_BASE_URL}/api/consent/execute/${consentId}`,
         {
           method: 'POST',
           headers: {

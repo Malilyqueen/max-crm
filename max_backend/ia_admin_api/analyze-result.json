@@ -1,0 +1,37 @@
+{
+  "items": [
+    {
+      "id": "sophie@example.com",
+      "fullName": "Sophie Ramaroson",
+      "tags": ["Instagram", "routine peau", "sensible"],
+      "status": "a_contacter",
+      "email": "sophie@example.com",
+      "whatsapp": "+33600000000",
+      "emailMessage": "Bonjour Sophie, nous avons bien reçu votre demande d'information sur la routine pour peau sensible. Notre équipe vous contactera sous peu pour vous fournir des conseils personnalisés.",
+      "whatsappMessage": "Bonjour Sophie 👋, merci pour votre intérêt pour nos routines de soin pour peau sensible. Nous sommes là pour vous aider !",
+      "confidence": 0.8
+    },
+    {
+      "id": "andy.med@example.com",
+      "fullName": "Andy Med",
+      "tags": ["Referral", "RDV semaine pro", "budget 150€"],
+      "status": "a_contacter",
+      "email": "andy.med@example.com",
+      "whatsapp": "",
+      "emailMessage": "Bonjour Andy, nous avons bien noté votre demande de rendez-vous pour la semaine prochaine avec un budget de 150€. Nous vous contacterons très bientôt pour confirmer le jour et l'heure de votre rendez-vous.",
+      "whatsappMessage": "Salut Andy 👋, nous avons bien reçu votre demande de RDV pour la semaine prochaine. Nous allons vous recontacter pour les détails et la confirmation.",
+      "confidence": 0.9
+    },
+    {
+      "id": "marcelo@ex.org",
+      "fullName": "Marcelo —",
+      "tags": ["Event", "pack lancement"],
+      "status": "lent",
+      "email": "marcelo@ex.org",
+      "whatsapp": "",
+      "emailMessage": "Bonjour, nous avons pris connaissance de votre intérêt pour notre pack de lancement. Nous sommes ravis de vous compter parmi nos contacts et reviendrons vers vous avec plus d'informations.",
+      "whatsappMessage": "Bonjour Marcelo 👋, votre intérêt pour notre pack de lancement a bien été noté. Nous ne manquerons pas de vous tenir informé des prochaines étapes !",
+      "confidence": 0.7
+    }
+  ]
+}

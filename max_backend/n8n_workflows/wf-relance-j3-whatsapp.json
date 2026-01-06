@@ -1,0 +1,198 @@
+{
+  "name": "wf-relance-j3-whatsapp",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "wf-relance-j3-whatsapp",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [256, 304],
+      "webhookId": "wf-relance-j3-whatsapp"
+    },
+    {
+      "parameters": {
+        "amount": 10,
+        "unit": "seconds"
+      },
+      "id": "wait-test",
+      "name": "Wait 10 Seconds (TEST)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [464, 304],
+      "webhookId": "e883d4cd-1bd2-4e05-9cfe-032d025f6331"
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "prep-phone",
+              "name": "leadPhone",
+              "value": "={{ $json.body?.data?.leadPhone || $json.data?.leadPhone || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "prep-message",
+              "name": "messageSuggestion",
+              "value": "={{ $json.body?.data?.messageSuggestion || $json.data?.messageSuggestion || '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "prepare-data",
+      "name": "Préparer Données",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [672, 304]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.leadPhone }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "check-phone-exists",
+      "name": "Vérifier Téléphone",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [880, 304]
+    },
+    {
+      "parameters": {
+        "from": "+14155238886",
+        "to": "={{ $json.leadPhone }}",
+        "toWhatsapp": true,
+        "message": "={{ $json.messageSuggestion }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [1088, 204],
+      "id": "twilio-send",
+      "name": "Send WhatsApp",
+      "credentials": {
+        "twilioApi": {
+          "id": "KlPgqGVJewogj2MJ",
+          "name": "Twilio account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "log-result",
+      "name": "Log Résultat",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [1296, 204],
+      "notes": "Prochaine étape: mettre à jour le lead dans EspoCRM"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "log-no-phone",
+      "name": "Log Erreur (Pas de Téléphone)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [1088, 404],
+      "notes": "Le téléphone est manquant, ne pas envoyer"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Wait 10 Seconds (TEST)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 10 Seconds (TEST)": {
+      "main": [
+        [
+          {
+            "node": "Préparer Données",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Préparer Données": {
+      "main": [
+        [
+          {
+            "node": "Vérifier Téléphone",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vérifier Téléphone": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Erreur (Pas de Téléphone)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Log Résultat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "M.A.X.",
+      "createdAt": "2025-11-28T00:00:00.000Z",
+      "updatedAt": "2025-11-28T00:00:00.000Z",
+      "id": "1"
+    }
+  ],
+  "triggerCount": 0,
+  "updatedAt": "2025-11-28T00:00:00.000Z",
+  "versionId": "1"
+}

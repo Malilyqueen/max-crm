@@ -30,7 +30,7 @@ const router = express.Router();
 router.post('/log', async (req, res) => {
   try {
     const { leadId, channel, direction, status, messageSnippet, meta } = req.body;
-    const tenantId = req.headers['x-tenant'] || 'macrea';
+    const tenantId = req.ctx?.tenant || req.headers['x-tenant'] || 'macrea';
 
     // Validation
     if (!leadId) {
@@ -112,7 +112,7 @@ router.post('/log', async (req, res) => {
  */
 router.get('/active', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant'] || 'macrea';
+    const tenantId = req.ctx?.tenant || req.headers['x-tenant'] || 'macrea';
     const { severity, type } = req.query;
 
     console.log(`[Activities] 🔔 Récupération alertes actives (tenant: ${tenantId})`);

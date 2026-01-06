@@ -1,0 +1,135 @@
+{
+  "name": "wf-relance-j3",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "wf-relance-j3",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "wf-relance-j3"
+    },
+    {
+      "parameters": {
+        "unit": "seconds",
+        "amount": 10
+      },
+      "id": "wait-test",
+      "name": "Wait 10 Seconds (TEST)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "field1",
+              "name": "leadId",
+              "value": "={{ $json.data.leadId }}",
+              "type": "string"
+            },
+            {
+              "id": "field2",
+              "name": "messageSuggestion",
+              "value": "={{ $json.data.messageSuggestion }}",
+              "type": "string"
+            },
+            {
+              "id": "field3",
+              "name": "canal",
+              "value": "={{ $json.data.canal }}",
+              "type": "string"
+            },
+            {
+              "id": "field4",
+              "name": "delayMinutes",
+              "value": "={{ $json.data.delayMinutes }}",
+              "type": "number"
+            },
+            {
+              "id": "field5",
+              "name": "status",
+              "value": "ready_to_send",
+              "type": "string"
+            },
+            {
+              "id": "field6",
+              "name": "executedAt",
+              "value": "={{ $now }}",
+              "type": "string"
+            },
+            {
+              "id": "field7",
+              "name": "tenant",
+              "value": "={{ $json.tenant }}",
+              "type": "string"
+            },
+            {
+              "id": "field8",
+              "name": "runId",
+              "value": "={{ $json.context.runId }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "test-log",
+      "name": "Test Log (Remplacer par WhatsApp/Email)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [650, 300],
+      "notes": "Ce node sera remplacé par un vrai envoi WhatsApp ou Email dans la prochaine phase"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Wait 10 Seconds (TEST)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 10 Seconds (TEST)": {
+      "main": [
+        [
+          {
+            "node": "Test Log (Remplacer par WhatsApp/Email)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "M.A.X.",
+      "createdAt": "2025-11-28T00:00:00.000Z",
+      "updatedAt": "2025-11-28T00:00:00.000Z",
+      "id": "1"
+    }
+  ],
+  "triggerCount": 0,
+  "updatedAt": "2025-11-28T00:00:00.000Z",
+  "versionId": "1"
+}

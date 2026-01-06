@@ -106,6 +106,13 @@ function validateConsent(consentId) {
     consent.status = 'approved';
     consent.usedAt = Date.now();
 
+    // Auto-cleanup du consent approuvé après la grâce période (10min)
+    const GRACE_PERIOD_MS = 10 * 60 * 1000;
+    setTimeout(() => {
+        activeConsents.delete(consentId);
+        console.log(`[ConsentManager] Consent ${consentId} grace period expired - cleaned up`);
+    }, GRACE_PERIOD_MS);
+
     console.log(`[ConsentManager] ✅ Consent ${consentId} validated and consumed`);
 
     return consent;
@@ -213,10 +220,11 @@ async function createAuditReport(consentId, operationResult) {
 
     console.log(`[ConsentManager] 📄 Audit report created: ${reportPath}`);
 
-    // Cleanup consent from memory after audit created
-    if (consent) {
-        activeConsents.delete(consentId);
-    }
+    // NE PAS supprimer le consent ici pour permettre la réutilisation pendant 10min
+    // Le consent sera auto-nettoyé après expiration (voir setTimeout dans createConsentRequest)
+    // if (consent) {
+    //     activeConsents.delete(consentId);
+    // }
 
     return reportPath;
 }

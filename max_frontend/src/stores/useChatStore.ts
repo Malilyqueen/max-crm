@@ -13,6 +13,7 @@ import type {
 } from '../types/chat';
 import { apiClient } from '../api/client';
 import { useToastStore } from '../hooks/useToast';
+import { API_BASE_URL } from '../config/api';
 
 // Clé de storage pour persistence
 const STORAGE_KEY = 'max_chat_session';
@@ -120,7 +121,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         // Le vrai M.A.X. n'utilise pas d'auth JWT, juste sessionId
         const eventSource = new EventSource(
-          `${import.meta.env.VITE_API_URL}/api/chat/stream?message=${encodedMessage}&sessionId=${currentState.sessionId || ''}`
+          `${API_BASE_URL}/api/chat/stream?message=${encodedMessage}&sessionId=${currentState.sessionId || ''}`
         );
 
         let fullContent = '';

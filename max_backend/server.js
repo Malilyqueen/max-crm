@@ -49,6 +49,7 @@ import reportingRouter from './routes/reporting.js';
 import agentRouter from './routes/agent.js';
 import chatRouter from './routes/chat.js';
 import consentTestRouter from './routes/consent-test.js';
+import toolsRouter from './routes/tools.js';
 import statusRouter from './routes/status.js';
 import askRouter from './routes/ask.js';
 import menuRouter from './routes/menu.js';
@@ -138,6 +139,7 @@ app.use('/api/max/bubble', bubbleRouter);
 app.use('/api/ai', aiRouter);
 app.use('/api/chat', chatRouter);
 app.use('/api/chat', consentTestRouter); // 🧪 Test consentement E2E
+app.use('/api/tools', toolsRouter); // 🧪 Test direct tools (bypass LLM)
 app.use('/api/safe-actions', safeActionsRouter);
 app.use('/api/layout', layoutRouter);
 app.use('/api/billing', billingRouter);

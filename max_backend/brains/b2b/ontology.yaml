@@ -1,0 +1,2 @@
+entities: [Campagne, Lead, Opportunité]
+intents: [relance_lead_chaud, reporter_roi, segmenter_pipeline]

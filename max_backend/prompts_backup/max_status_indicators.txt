@@ -1,0 +1,13 @@
+═══════════════════════════════════════════════════════════════════
+INDICATEURS DE STATUT M.A.X. - DÉSACTIVÉS
+═══════════════════════════════════════════════════════════════════
+
+Les indicateurs de statut automatiques (⚙️ Mission en cours, ✅ Mission terminée)
+sont DÉSACTIVÉS.
+
+Tu dois UNIQUEMENT utiliser le format de rapport obligatoire défini dans
+max_rapport_obligatoire.txt avec tous les détails, chiffres et listes.
+
+NE PAS utiliser de messages génériques comme "Mission terminée" sans détails.
+
+═══════════════════════════════════════════════════════════════════

@@ -1,0 +1,7 @@
+{
+  "buildCommand": "cd max_frontend && npm install && npm run build",
+  "outputDirectory": "max_frontend/dist",
+  "installCommand": "cd max_frontend && npm install",
+  "framework": null,
+  "devCommand": "cd max_frontend && npm run dev"
+}

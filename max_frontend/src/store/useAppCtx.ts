@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { getTenant, getRole, getPreviewDefault } from '../lib/tenant';
+import { API_BASE_URL } from '../config/api';
 
 interface AppState {
   apiBase: string;
@@ -65,7 +66,7 @@ export const useAppCtx = create<AppState>((set, get) => {
   const initialCtx = typeof window !== 'undefined' ? restoreCtxFromQSOrStorage() : { tenant: 'damath', role: 'admin', preview: true };
 
   return {
-    apiBase: import.meta.env.VITE_API_BASE || 'http://127.0.0.1:3005',
+    apiBase: API_BASE_URL,
     tenant: initialCtx.tenant,
     role: initialCtx.role,
     preview: initialCtx.preview,

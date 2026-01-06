@@ -1,0 +1,9 @@
+{
+  "budgetTotal": 20000000,
+  "inputTotal": 10174590,
+  "outputTotal": 33784,
+  "total": 10208374,
+  "calls": 302,
+  "avgTokensPerTask": 27892,
+  "costUsd": 1.54646
+}

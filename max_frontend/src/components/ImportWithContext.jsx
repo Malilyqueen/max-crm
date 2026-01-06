@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { API_BASE_URL } from '../config/api';
 
 export default function ImportWithContext({ onAnalyze, onAfterSuccess }) {
   const [file, setFile] = useState(null);
@@ -17,7 +18,7 @@ export default function ImportWithContext({ onAnalyze, onAfterSuccess }) {
     formData.append('prompt', prompt);
 
     try {
-      const res = await fetch('http://localhost:3005/api/ask-task-with-file', {
+      const res = await fetch(`${API_BASE_URL}/api/ask-task-with-file`, {
         method: 'POST',
         body: formData,
       });

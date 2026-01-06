@@ -4,6 +4,7 @@
  */
 
 import { create } from 'zustand';
+import { API_BASE_URL as BASE_URL } from '../config/api';
 import type { Workflow, AutomationFilters, WorkflowStatus } from '../types/automation';
 
 interface AutoGuardConfig {
@@ -42,7 +43,7 @@ interface AutomationState {
   clearError: () => void;
 }
 
-const API_BASE_URL = `${import.meta.env.VITE_API_URL || 'http://127.0.0.1:3005'}/api`;
+const API_BASE_URL = `${BASE_URL}/api`;
 
 // Helpers pour mapper les workflows n8n vers l'UI
 function getWorkflowLabel(code: string): string {

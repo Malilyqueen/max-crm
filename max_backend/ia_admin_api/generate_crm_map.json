@@ -1,0 +1,7 @@
+{
+  "task": "generate_crm_map",
+  "description": "Analyser la structure complète du projet MaCréa CRM",
+  "root": "D:/Macrea/CRMACREA",
+  "output": "project-map.json",
+  "include": ["clients", "shared_services", "scripts", "backups"]
+}

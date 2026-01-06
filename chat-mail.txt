@@ -1,0 +1,172 @@
+Voici **le message complet, clair et structuré** que tu peux **copier-coller directement à Claude**.
+Il regroupe TOUT ce que tu veux qu’il comprenne :
+
+* synchronicité bulle ↔ chat
+* IMAP
+* création automatique de templates email
+* tool manquant
+* prochaine mission
+* ce qu’il doit préparer en architecture
+* ce qu’il doit vérifier
+
+C’est la **version parfaite**, sans bruit, sans ambiguïté.
+
+---
+
+# 🧠 **🔵 Message complet à envoyer à Claude**
+
+Claude, voilà ce que je veux que tu intègres maintenant dans l’architecture de MAX, en une seule vision cohérente :
+
+---
+
+# 🌐 **1. Synchronicité totale — une seule mémoire pour la bulle et le chat**
+
+Je veux que **la bulle MAX dans EspoCRM**
+et **l’espace chat MAX**
+soient deux interfaces différentes,
+mais qu’ils partagent **une seule mémoire réelle**, basée sur le CRM.
+
+### 🔹 Règles obligatoires
+
+1. **Toute action que MAX exécute dans la bulle** (suggestion acceptée, enrichissement, diagnostic, prochaine action, etc.)
+   → doit créer une entrée **MissionMAX** avec :
+
+   * `leadId`
+   * `type`
+   * `contenu`
+   * `etat` (proposé, appliqué, refusé)
+   * `timestamp`
+
+2. Quand je reparle à MAX dans **le chat**, il doit **relire** :
+
+   * le Lead (API Espo)
+   * les MissionMAX associées
+   * les DiagnosticIA associés
+     → **pas** son historique de conversation.
+     → L’historique CRM = unique source de vérité.
+
+3. Le chat doit être capable de dire :
+
+   > “Voici ce que j’ai fait récemment pour ce lead.”
+   > → en lisant MissionMAX, jamais en devinant.
+
+4. La bulle = interface contextuelle
+   Le chat = interface globale
+   → mais **même cerveau**, même mémoire.
+
+---
+
+# 📧 **2. IMAP — vérification & intégration**
+
+Tu dois vérifier et préparer :
+
+1. **Est-ce que l’IMAP est configuré dans EspoCRM ?**
+   (Paramètres email → IMAP → connexion valide ?)
+
+2. Si oui :
+   M.A.X. doit pouvoir lire :
+
+   * emails reçus liés au lead (par adresse email)
+   * historiques de communication
+   * et utiliser cette info dans son diagnostic et ses suggestions.
+
+3. Si non :
+   M.A.X. doit afficher un **message clair** :
+
+   > “IMAP n’est pas configuré dans EspoCRM, je ne peux pas lire les emails entrants.”
+
+---
+
+# 🧰 **3. TOOL obligatoire pour M.A.X. : création automatique de template email dans Espo**
+
+Tu dois ajouter un tool appelé :
+
+### **`create_email_template`**
+
+Il doit :
+
+* créer un enregistrement `EmailTemplate` dans Espo
+* contenir :
+
+  * `name`
+  * `subject`
+  * `bodyHtml`
+  * `category` (“MaCréa CORE”)
+
+But :
+👉 Quand je demande un template d’email,
+MAX doit me générer le HTML **ET** l’enregistrer dans EspoCRM automatiquement.
+Sans copier-coller.
+
+C’est une brique essentielle pour la partie “copilot email”.
+
+---
+
+# 🫧 **4. La BULLE MAX — comportement à implémenter**
+
+(la prochaine grosse mission)
+
+Quand l’utilisateur clique sur la bulle en bas à droite :
+
+1. Le frontend transmet le **leadId** (récupéré via l’URL de l’iframe)
+2. MAX doit :
+
+   * relire le lead (API Espo)
+   * relire les MissionMAX récentes
+   * relire DiagnosticIA s’il existe
+3. MAX propose **une suggestion intelligente**, par exemple :
+
+   * enrichissement (remplir champs)
+   * tags stratégiques
+   * statut nurturing
+   * prochaine action
+   * proposition d’email
+4. L’utilisateur a 2 boutons :
+
+   * “Accepter” → MAX applique (update fields + MissionMAX état = appliqué)
+   * “Refuser” → rien ne change (MissionMAX état = refusé)
+
+💡 La bulle n’a pas besoin d’être complexe :
+juste une fenêtre simple avec suggestions + 2 boutons.
+
+---
+
+# 🚀 **5. Ce que tu dois préparer pour la suite (architecture)**
+
+### ✔ API “context lead”
+
+Endpoint côté backend :
+→ `/max/context`
+Pour transmettre à MAX l’entity + id de la fiche actuelle.
+
+### ✔ API “apply suggestion”
+
+→ `/max/apply-suggestion`
+Pour exécuter les tools d’update Espo.
+
+### ✔ Lecture centralisée des MissionMAX
+
+Tool → `get_missions_for_lead(leadId)`
+
+### ✔ Séparation :
+
+* mémoire métier = CRM
+* mémoire discussion = chat (éphémère, non bloquante)
+
+---
+
+# 📌 **En résumé pour toi, Claude :**
+
+**Objectif général :**
+
+> “Une seule intelligence MAX, plusieurs interfaces.
+> Tout ce que la bulle fait doit être enregistré dans MissionMAX.
+> Le chat doit relire MissionMAX, DiagnosticIA et le Lead pour rester synchro.”
+
+Et :
+
+> “Prépare les tools IMAP, email template, et bulle MAX comme prochaine mission.”
+
+---
+
+Si tu veux, je peux aussi te rédiger **le prompt système exact** à ajouter à `agent_identity.json` pour activer ce comportement.

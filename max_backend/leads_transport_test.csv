@@ -1,0 +1,11 @@
+firstName;lastName;emailAddress;phoneNumber;accountName;addressCity;source;status;description
+Ali;Hassan;ali.hassan@logistic-pro.com;+33645678901;Logistic Pro SARL;Lyon;Website;New;Demande de devis pour transport Paris-Lyon régulier (2x/semaine). Volume: 5 palettes. Urgent.
+Sophie;Marceau;sophie.m@trans-europe.fr;+33678901234;Trans-Europe;Marseille;Referral;Assigned;Client récurrent. Transport international France-Allemagne. Marchandise frigorifique.
+Mohamed;Ben Salah;mohamed.bs@express-delivery.com;+33612345678;Express Delivery;Paris;Cold Call;In Process;Nouveau client. Besoin express 24h pour livraison Paris-Bruxelles. Volume: 10 colis.
+Isabelle;Dubois;i.dubois@cargo-france.fr;+33698765432;Cargo France;Toulouse;Web Site;New;Demande info pour transport vrac. Trajet Toulouse-Bordeaux. Volume important (20 tonnes).
+Jean-Pierre;Martin;jp.martin@fret-express.com;+33687654321;Fret Express;Lille;Partner;Qualified;Partenaire existant. Recherche solution transport conteneur maritime Le Havre-Lille.
+Fatima;El Amrani;f.elamrani@logistics-med.com;+33656781234;Logistics Med;Nice;Web Site;New;Nouveau lead. Transport marchandise dangereuse ADR. Nice-Lyon. Demande certification.
+Thomas;Lefebvre;t.lefebvre@rapid-trans.fr;+33634567890;Rapid Trans;Strasbourg;Web Site;New;Demande devis transport express Strasbourg-Munich. Palette eurostandard. Livraison demain.
+Amina;Benali;a.benali@cargo-sud.com;+33667890123;Cargo Sud;Montpellier;Referral;Assigned;Client régulier. Augmentation du volume +30%. Négociation tarif préférentiel.
+Pierre;Rousseau;p.rousseau@logistics-nord.fr;+33656789012;Logistics Nord;Lille;Cold Call;In Process;Prospect intéressé. Transport frigorifique Lille-Paris. Certifications à jour.
+Nadia;Khalil;n.khalil@trans-med.com;+33689012345;Trans-Med;Marseille;Web Site;Qualified;Devis accepté. Transport conteneur port Marseille vers Alger. Départ prévu dans 10 jours.

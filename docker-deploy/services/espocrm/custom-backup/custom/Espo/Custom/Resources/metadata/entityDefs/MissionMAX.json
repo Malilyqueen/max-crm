@@ -1,0 +1,113 @@
+{
+  "fields": {
+    "name": {
+      "type": "varchar",
+      "required": true,
+      "trim": true,
+      "maxLength": 255,
+      "label": "Titre Mission"
+    },
+    "typeAction": {
+      "type": "varchar",
+      "maxLength": 100,
+      "label": "Type Action",
+      "tooltip": "Type d'action effectuée (enrichissement, création, suggestion, campagne, etc.)"
+    },
+    "description": {
+      "type": "text",
+      "label": "Description",
+      "rows": 4
+    },
+    "resultat": {
+      "type": "text",
+      "label": "Résultat",
+      "rows": 6,
+      "tooltip": "Résultat détaillé de l'action M.A.X."
+    },
+    "lead": {
+      "type": "link",
+      "entity": "Lead",
+      "label": "Lead Concerné"
+    },
+    "account": {
+      "type": "link",
+      "entity": "Account",
+      "label": "Compte Concerné"
+    },
+    "dateExecution": {
+      "type": "datetime",
+      "label": "Date Exécution",
+      "default": "javascript: return this.dateTime.getNow(1);"
+    },
+    "statutExecution": {
+      "type": "enum",
+      "options": ["En cours", "Réussi", "Échec", "Annulé"],
+      "default": "En cours",
+      "label": "Statut Exécution",
+      "style": {
+        "En cours": "warning",
+        "Réussi": "success",
+        "Échec": "danger",
+        "Annulé": "default"
+      }
+    },
+    "tokensUtilises": {
+      "type": "int",
+      "label": "Tokens Utilisés",
+      "tooltip": "Nombre de tokens consommés pour cette mission",
+      "min": 0
+    },
+    "dureeExecution": {
+      "type": "int",
+      "label": "Durée (secondes)",
+      "tooltip": "Durée d'exécution en secondes",
+      "min": 0
+    },
+    "createdAt": {
+      "type": "datetime",
+      "readOnly": true,
+      "label": "Créé le"
+    },
+    "modifiedAt": {
+      "type": "datetime",
+      "readOnly": true,
+      "label": "Modifié le"
+    },
+    "createdBy": {
+      "type": "link",
+      "readOnly": true,
+      "entity": "User",
+      "label": "Créé par"
+    }
+  },
+  "links": {
+    "lead": {
+      "type": "belongsTo",
+      "entity": "Lead",
+      "foreign": "missionsMAX"
+    },
+    "account": {
+      "type": "belongsTo",
+      "entity": "Account"
+    },
+    "createdBy": {
+      "type": "belongsTo",
+      "entity": "User"
+    }
+  },
+  "collection": {
+    "orderBy": "dateExecution",
+    "order": "desc"
+  },
+  "indexes": {
+    "lead": {
+      "columns": ["leadId"]
+    },
+    "dateExecution": {
+      "columns": ["dateExecution"]
+    },
+    "typeAction": {
+      "columns": ["typeAction"]
+    }
+  }
+}

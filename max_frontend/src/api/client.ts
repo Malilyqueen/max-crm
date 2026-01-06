@@ -5,10 +5,9 @@
 
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import { useSettingsStore } from '../stores/useSettingsStore';
+import { API_BASE_URL as BASE_URL } from '../config/api';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE
-  ? `${import.meta.env.VITE_API_BASE}/api`
-  : 'http://localhost:3005/api';
+const API_BASE_URL = `${BASE_URL}/api`;
 
 // Créer instance axios
 export const apiClient: AxiosInstance = axios.create({

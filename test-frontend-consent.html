@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test E2E Consentement Frontend</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      max-width: 900px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #2563eb;
+      margin-bottom: 10px;
+    }
+    .subtitle {
+      color: #64748b;
+      margin-bottom: 30px;
+    }
+    button {
+      background: #2563eb;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      margin-right: 10px;
+      margin-bottom: 10px;
+    }
+    button:hover {
+      background: #1d4ed8;
+    }
+    button:disabled {
+      background: #cbd5e1;
+      cursor: not-allowed;
+    }
+    .step {
+      margin: 20px 0;
+      padding: 15px;
+      background: #f8fafc;
+      border-left: 4px solid #2563eb;
+      border-radius: 4px;
+    }
+    .step h3 {
+      margin: 0 0 10px 0;
+      color: #1e293b;
+    }
+    .step.success {
+      border-left-color: #10b981;
+      background: #f0fdf4;
+    }
+    .step.error {
+      border-left-color: #ef4444;
+      background: #fef2f2;
+    }
+    .step.pending {
+      border-left-color: #f59e0b;
+      background: #fffbeb;
+    }
+    .result {
+      margin-top: 10px;
+      padding: 10px;
+      background: white;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-left: 8px;
+    }
+    .badge.success { background: #10b981; color: white; }
+    .badge.error { background: #ef4444; color: white; }
+    .badge.pending { background: #f59e0b; color: white; }
+    .badge.info { background: #3b82f6; color: white; }
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    .instructions {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+    .instructions ul {
+      margin: 10px 0;
+      padding-left: 20px;
+    }
+    .instructions li {
+      margin: 5px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🧪 Test E2E - Système de Consentement M.A.X.</h1>
+    <p class="subtitle">Test du flux complet frontend/backend</p>
+
+    <div class="instructions">
+      <strong>📋 Instructions:</strong>
+      <ul>
+        <li>Ce test vérifie que le frontend peut recevoir et afficher les messages de consentement</li>
+        <li>Cliquez sur les boutons dans l'ordre pour tester chaque étape</li>
+        <li>Les résultats JSON s'afficheront automatiquement ci-dessous</li>
+      </ul>
+    </div>
+
+    <div>
+      <button id="btnStep1" onclick="testStep1()">Étape 1: Demande de consentement</button>
+      <button id="btnStep2" onclick="testStep2()" disabled>Étape 2: Approuver et exécuter</button>
+      <button id="btnStep3" onclick="testStep3()" disabled>Étape 3: Récupérer l'audit</button>
+      <button onclick="resetTest()" style="background: #64748b;">🔄 Recommencer</button>
+    </div>
+
+    <!-- ÉTAPE 1 -->
+    <div id="step1" class="step" style="display: none;">
+      <h3>Étape 1: Demande de consentement <span id="badge1" class="badge pending">EN COURS</span></h3>
+      <p><strong>Endpoint:</strong> POST /api/chat/test-consent</p>
+      <p><strong>Objectif:</strong> Vérifier que le backend retourne un message avec <code>type: 'consent'</code></p>
+      <div id="result1" class="result"></div>
+    </div>
+
+    <!-- ÉTAPE 2 -->
+    <div id="step2" class="step" style="display: none;">
+      <h3>Étape 2: Approbation et exécution <span id="badge2" class="badge pending">EN COURS</span></h3>
+      <p><strong>Endpoint:</strong> POST /api/consent/execute/:consentId</p>
+      <p><strong>Objectif:</strong> Exécuter l'opération et générer l'audit</p>
+      <div id="result2" class="result"></div>
+    </div>
+
+    <!-- ÉTAPE 3 -->
+    <div id="step3" class="step" style="display: none;">
+      <h3>Étape 3: Récupération audit <span id="badge3" class="badge pending">EN COURS</span></h3>
+      <p><strong>Endpoint:</strong> GET /api/consent/audit/:consentId</p>
+      <p><strong>Objectif:</strong> Vérifier que l'audit est complet et persisté</p>
+      <div id="result3" class="result"></div>
+    </div>
+
+    <!-- RÉSUMÉ -->
+    <div id="summary" class="step" style="display: none; margin-top: 30px;">
+      <h3>✨ Résumé du test</h3>
+      <div id="summaryContent"></div>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = 'https://max-api.studiomacrea.cloud';
+    const TENANT = 'macrea-admin';
+    const SESSION_ID = `test_frontend_${Date.now()}`;
+
+    let consentId = null;
+    let step1Data = null;
+    let step2Data = null;
+    let step3Data = null;
+
+    async function testStep1() {
+      const step = document.getElementById('step1');
+      const badge = document.getElementById('badge1');
+      const result = document.getElementById('result1');
+      const btn = document.getElementById('btnStep1');
+
+      step.style.display = 'block';
+      step.className = 'step';
+      badge.className = 'badge pending';
+      badge.textContent = 'EN COURS';
+      btn.disabled = true;
+
+      try {
+        const response = await fetch(`${API_URL}/api/chat/test-consent`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Tenant': TENANT
+          },
+          body: JSON.stringify({
+            sessionId: SESSION_ID,
+            description: 'Ajouter le champ secteur aux layouts Lead'
+          })
+        });
+
+        const data = await response.json();
+        step1Data = data;
+
+        if (data.success && data.message && data.message.type === 'consent') {
+          consentId = data.message.consentId;
+
+          step.className = 'step success';
+          badge.className = 'badge success';
+          badge.textContent = '✓ SUCCÈS';
+
+          result.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+
+          // Activer étape 2
+          document.getElementById('btnStep2').disabled = false;
+
+          // Vérifications critiques
+          const checks = [];
+          checks.push(`✓ Message type = 'consent'`);
+          checks.push(`✓ ConsentId généré: ${consentId}`);
+          checks.push(`✓ Operation décrite: ${data.message.operation?.description}`);
+          checks.push(`✓ Status initial: ${data.message.consentStatus}`);
+
+          const checksHtml = `<div style="margin-top: 10px; padding: 10px; background: #ecfdf5; border-radius: 4px;">${checks.join('<br>')}</div>`;
+          result.innerHTML += checksHtml;
+
+        } else {
+          throw new Error('Format de réponse invalide: type !== "consent"');
+        }
+
+      } catch (error) {
+        step.className = 'step error';
+        badge.className = 'badge error';
+        badge.textContent = '✗ ERREUR';
+        result.innerHTML = `<pre style="color: #dc2626;">${error.message}\n\n${error.stack || ''}</pre>`;
+      }
+    }
+
+    async function testStep2() {
+      if (!consentId) {
+        alert('Vous devez d\'abord compléter l\'étape 1');
+        return;
+      }
+
+      const step = document.getElementById('step2');
+      const badge = document.getElementById('badge2');
+      const result = document.getElementById('result2');
+      const btn = document.getElementById('btnStep2');
+
+      step.style.display = 'block';
+      step.className = 'step';
+      badge.className = 'badge pending';
+      badge.textContent = 'EN COURS';
+      btn.disabled = true;
+
+      try {
+        const response = await fetch(`${API_URL}/api/consent/execute/${consentId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Tenant': TENANT
+          }
+        });
+
+        const data = await response.json();
+        step2Data = data;
+
+        if (data.success || data.status === 'executed') {
+          step.className = 'step success';
+          badge.className = 'badge success';
+          badge.textContent = '✓ SUCCÈS';
+
+          result.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+
+          // Activer étape 3
+          document.getElementById('btnStep3').disabled = false;
+
+          // Vérifications
+          const checks = [];
+          checks.push(`✓ Exécution réussie`);
+          checks.push(`✓ Layouts modifiés: ${data.result?.layoutsModified || 0}`);
+          if (data.audit) {
+            checks.push(`✓ Audit créé: ${data.audit.consentId}`);
+          }
+
+          const checksHtml = `<div style="margin-top: 10px; padding: 10px; background: #ecfdf5; border-radius: 4px;">${checks.join('<br>')}</div>`;
+          result.innerHTML += checksHtml;
+
+        } else {
+          throw new Error(data.error || 'Exécution échouée');
+        }
+
+      } catch (error) {
+        step.className = 'step error';
+        badge.className = 'badge error';
+        badge.textContent = '✗ ERREUR';
+        result.innerHTML = `<pre style="color: #dc2626;">${error.message}\n\n${error.stack || ''}</pre>`;
+      }
+    }
+
+    async function testStep3() {
+      if (!consentId) {
+        alert('Vous devez d\'abord compléter les étapes précédentes');
+        return;
+      }
+
+      const step = document.getElementById('step3');
+      const badge = document.getElementById('badge3');
+      const result = document.getElementById('result3');
+      const btn = document.getElementById('btnStep3');
+
+      step.style.display = 'block';
+      step.className = 'step';
+      badge.className = 'badge pending';
+      badge.textContent = 'EN COURS';
+      btn.disabled = true;
+
+      try {
+        const response = await fetch(`${API_URL}/api/consent/audit/${consentId}`, {
+          method: 'GET',
+          headers: {
+            'X-Tenant': TENANT
+          }
+        });
+
+        const data = await response.json();
+        step3Data = data;
+
+        if (data.success && data.audit) {
+          step.className = 'step success';
+          badge.className = 'badge success';
+          badge.textContent = '✓ SUCCÈS';
+
+          result.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+
+          // Vérifications
+          const audit = data.audit;
+          const checks = [];
+          checks.push(`✓ Audit récupéré: ${audit.consentId}`);
+          checks.push(`✓ Opération: ${audit.operation?.description}`);
+          checks.push(`✓ Résultat: ${audit.result?.success ? 'Succès' : 'Échec'}`);
+          checks.push(`✓ Layouts modifiés: ${audit.result?.layoutsModified || 0}`);
+          checks.push(`✓ Durée: ${audit.metadata?.execution_time_ms}ms`);
+
+          const checksHtml = `<div style="margin-top: 10px; padding: 10px; background: #ecfdf5; border-radius: 4px;">${checks.join('<br>')}</div>`;
+          result.innerHTML += checksHtml;
+
+          // Afficher résumé
+          showSummary();
+
+        } else {
+          throw new Error(data.error || 'Audit non trouvé');
+        }
+
+      } catch (error) {
+        step.className = 'step error';
+        badge.className = 'badge error';
+        badge.textContent = '✗ ERREUR';
+        result.innerHTML = `<pre style="color: #dc2626;">${error.message}\n\n${error.stack || ''}</pre>`;
+      }
+    }
+
+    function showSummary() {
+      const summary = document.getElementById('summary');
+      const content = document.getElementById('summaryContent');
+
+      summary.style.display = 'block';
+      summary.className = 'step success';
+
+      const html = `
+        <p style="margin-bottom: 15px;"><strong>🎉 Test E2E terminé avec succès !</strong></p>
+
+        <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+          <strong>📊 Résultats:</strong>
+          <ul style="margin: 10px 0; padding-left: 20px;">
+            <li>✅ Backend retourne bien des messages <code>type: 'consent'</code></li>
+            <li>✅ ConsentId généré: <code>${consentId}</code></li>
+            <li>✅ Exécution réussie avec audit persisté</li>
+            <li>✅ Tous les endpoints fonctionnent</li>
+          </ul>
+        </div>
+
+        <div style="background: #fffbeb; padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b;">
+          <strong>🎯 Prochaine étape:</strong>
+          <p style="margin: 10px 0;">Tester depuis ChatPage du frontend MAX pour vérifier que:</p>
+          <ul style="margin: 10px 0; padding-left: 20px;">
+            <li>ConsentCard s'affiche quand un message <code>type: 'consent'</code> arrive</li>
+            <li>Le bouton "Approuver" appelle <code>handleApproveConsent()</code></li>
+            <li>AuditReportModal affiche le rapport après exécution</li>
+            <li>ActivityPanel montre les logs en temps réel</li>
+          </ul>
+        </div>
+
+        <div style="margin-top: 15px; padding: 15px; background: #f0f9ff; border-radius: 8px;">
+          <strong>🔗 Pour tester dans ChatPage:</strong>
+          <ol style="margin: 10px 0; padding-left: 20px;">
+            <li>Ouvrir https://max-frontend-plum.vercel.app/chat</li>
+            <li>Dans la console du navigateur, exécuter:
+              <pre style="background: white; padding: 10px; margin: 10px 0; border-radius: 4px; overflow-x: auto;">fetch('https://max-api.studiomacrea.cloud/api/chat/test-consent', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-Tenant': 'macrea-admin'
+  },
+  body: JSON.stringify({
+    sessionId: sessionStorage.getItem('sessionId'),
+    description: 'Test consentement depuis ChatPage'
+  })
+}).then(r => r.json()).then(console.log)</pre>
+            </li>
+            <li>Vérifier que ConsentCard apparaît dans la conversation</li>
+          </ol>
+        </div>
+      `;
+
+      content.innerHTML = html;
+    }
+
+    function resetTest() {
+      consentId = null;
+      step1Data = null;
+      step2Data = null;
+      step3Data = null;
+
+      document.getElementById('step1').style.display = 'none';
+      document.getElementById('step2').style.display = 'none';
+      document.getElementById('step3').style.display = 'none';
+      document.getElementById('summary').style.display = 'none';
+
+      document.getElementById('btnStep1').disabled = false;
+      document.getElementById('btnStep2').disabled = true;
+      document.getElementById('btnStep3').disabled = true;
+    }
+
+    // Message d'introduction
+    console.log(`
+🧪 Test E2E Consentement M.A.X.
+================================
+
+Session ID: ${SESSION_ID}
+API URL: ${API_URL}
+Tenant: ${TENANT}
+
+Prêt à tester le flux de consentement !
+    `);
+  </script>
+</body>
+</html>

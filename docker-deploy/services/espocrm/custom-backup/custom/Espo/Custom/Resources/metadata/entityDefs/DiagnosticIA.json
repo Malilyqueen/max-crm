@@ -1,0 +1,110 @@
+{
+  "fields": {
+    "name": {
+      "type": "varchar",
+      "required": true,
+      "trim": true,
+      "maxLength": 255,
+      "label": "Titre Diagnostic"
+    },
+    "lead": {
+      "type": "link",
+      "entity": "Lead",
+      "label": "Lead"
+    },
+    "account": {
+      "type": "link",
+      "entity": "Account",
+      "label": "Compte"
+    },
+    "syntheseIA": {
+      "type": "text",
+      "label": "Synthèse IA",
+      "tooltip": "Résumé intelligent du lead/compte généré par M.A.X.",
+      "rows": 8
+    },
+    "forcesDetectees": {
+      "type": "text",
+      "label": "Forces Détectées",
+      "rows": 4,
+      "tooltip": "Points forts identifiés par M.A.X."
+    },
+    "opportunites": {
+      "type": "text",
+      "label": "Opportunités",
+      "rows": 4,
+      "tooltip": "Opportunités commerciales identifiées"
+    },
+    "risques": {
+      "type": "text",
+      "label": "Risques / Freins",
+      "rows": 4,
+      "tooltip": "Risques ou freins détectés"
+    },
+    "recommandations": {
+      "type": "text",
+      "label": "Recommandations M.A.X.",
+      "rows": 6,
+      "tooltip": "Recommandations stratégiques de M.A.X."
+    },
+    "scoreConfiance": {
+      "type": "int",
+      "min": 0,
+      "max": 100,
+      "default": 70,
+      "label": "Score Confiance",
+      "tooltip": "Niveau de confiance du diagnostic (0-100)"
+    },
+    "dateGeneration": {
+      "type": "datetime",
+      "label": "Date Génération",
+      "default": "javascript: return this.dateTime.getNow(1);"
+    },
+    "validePar": {
+      "type": "link",
+      "entity": "User",
+      "label": "Validé par"
+    },
+    "dateValidation": {
+      "type": "datetime",
+      "label": "Date Validation"
+    },
+    "createdAt": {
+      "type": "datetime",
+      "readOnly": true,
+      "label": "Créé le"
+    },
+    "modifiedAt": {
+      "type": "datetime",
+      "readOnly": true,
+      "label": "Modifié le"
+    }
+  },
+  "links": {
+    "lead": {
+      "type": "belongsTo",
+      "entity": "Lead",
+      "foreign": "diagnosticsIA"
+    },
+    "account": {
+      "type": "belongsTo",
+      "entity": "Account"
+    },
+    "validePar": {
+      "type": "belongsTo",
+      "entity": "User"
+    }
+  },
+  "collection": {
+    "orderBy": "dateGeneration",
+    "order": "desc"
+  },
+  "indexes": {
+    "lead": {
+      "columns": ["leadId"]
+    },
+    "dateGeneration": {
+      "columns": ["dateGeneration"]
+    }
+  }
+}

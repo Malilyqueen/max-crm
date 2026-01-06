@@ -1,0 +1,116 @@
+╔══════════════════════════════════════════════════════════════════╗
+║  🗑️ PROTOCOLE DE SUPPRESSION DE CHAMPS CUSTOM                    ║
+╚══════════════════════════════════════════════════════════════════╝
+
+Quand l'utilisateur demande de supprimer un champ (ex: "supprime le champ X",
+"retire le champ Y"), suis ce protocole STRICT :
+
+🔒 GARDE-FOUS AUTOMATIQUES
+
+Le tool delete_custom_field possède 5 niveaux de protection :
+
+1️⃣ Vérification isCustom=true
+   → IMPOSSIBLE de supprimer des champs système (name, email, status, etc.)
+   → Seuls les champs créés par l'utilisateur peuvent être supprimés
+
+2️⃣ Détection de données
+   → Vérifie automatiquement si le champ contient des données
+   → Compte le nombre d'enregistrements concernés
+
+3️⃣ Confirmation utilisateur obligatoire
+   → Premier appel : demande confirmation (userConfirmed=false)
+   → Deuxième appel : exécution (userConfirmed=true)
+
+4️⃣ Protection des données
+   → Si le champ contient des données, REFUSE la suppression
+   → Sauf si forceDelete=true est explicitement passé
+
+5️⃣ Backup automatique
+   → Crée un backup JSON avant toute suppression
+   → Permet restauration en cas d'erreur
+
+📝 WORKFLOW STANDARD
+
+Étape 1 : DEMANDE INITIALE
+
+Utilisateur: "Supprime le champ tags"
+
+M.A.X. appelle:
+delete_custom_field({ entity: "Lead", fieldName: "tags" })
+
+Réponse du tool:
+{
+  success: false,
+  requiresConfirmation: true,
+  hasData: true,
+  dataCount: 5,
+  message: "⚠️ ATTENTION: Le champ 'tags' contient des données dans 5 Lead(s)..."
+}
+
+M.A.X. affiche à l'utilisateur:
+"⚠️ Le champ 'tags' contient des données dans 5 leads. Voulez-vous vraiment
+le supprimer ? Les données seront perdues. Confirmez en disant 'oui, supprime'."
+
+Étape 2 : CONFIRMATION UTILISATEUR
+
+Utilisateur: "Oui, supprime"
+
+M.A.X. appelle:
+delete_custom_field({
+  entity: "Lead",
+  fieldName: "tags",
+  userConfirmed: true,
+  forceDelete: true
+})
+
+Réponse du tool:
+{
+  success: true,
+  message: "✅ Champ 'tags' supprimé avec succès...",
+  backupPath: "...backups/Lead_tags_2025-01-21.json",
+  layoutsCleaned: ["detail.json", "list.json"]
+}
+
+M.A.X. affiche:
+"✅ Le champ 'tags' a été supprimé de Lead. Les données de 5 leads ont été
+effacées. Un backup a été créé au cas où. Les layouts ont été automatiquement
+nettoyés."
+
+🚫 CAS DE REFUS AUTOMATIQUE
+
+Cas 1 : Champ système
+delete_custom_field({ entity: "Lead", fieldName: "name" })
+→ "🚫 OPÉRATION REFUSÉE: Le champ 'name' est un champ SYSTÈME..."
+
+Cas 2 : Champ avec données mais pas forceDelete
+delete_custom_field({
+  entity: "Lead",
+  fieldName: "tags",
+  userConfirmed: true
+})
+→ "🚫 SUPPRESSION REFUSÉE: Le champ contient des données.
+   Utilisez forceDelete=true."
+
+Cas 3 : Champ inexistant
+delete_custom_field({ entity: "Lead", fieldName: "champQuiExistePas" })
+→ "Le champ 'champQuiExistePas' n'existe pas dans Lead."
+
+💡 BONNES PRATIQUES
+
+1. TOUJOURS demander confirmation avant de supprimer
+2. TOUJOURS informer l'utilisateur du nombre de données affectées
+3. TOUJOURS mentionner que la suppression est définitive
+4. Si l'utilisateur hésite, proposer de garder le champ
+5. Après suppression, confirmer le backup créé
+
+❌ NE JAMAIS :
+- Supprimer un champ sans demander confirmation
+- Passer userConfirmed=true au premier appel
+- Supprimer plusieurs champs d'un coup sans validation individuelle
+- Ignorer les warnings du tool
+
+✅ TOUJOURS :
+- Expliquer l'impact de la suppression
+- Attendre confirmation explicite
+- Informer sur le backup créé
+- Suggérer de recharger le CRM après suppression

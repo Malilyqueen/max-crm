@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
+import { API_BASE_URL } from '../config/api';
 
-const API = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:3005';
+const API = API_BASE_URL;
 
 export default function TaskCreator({ onTaskCreated }) {
   const [name, setName] = useState('');

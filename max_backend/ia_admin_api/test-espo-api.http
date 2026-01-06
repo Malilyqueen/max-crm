@@ -1,0 +1,4 @@
+### 📥 Lire les leads avec API Key
+GET http://localhost:8081/api/v1/Lead
+Content-Type: application/json
+Authorization: Bearer c574d6abbad81cd51a7394ee1f39ea28

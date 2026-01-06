@@ -1,0 +1,6 @@
+{
+  "enabled": true,
+  "allowed": ["wf-relance-j3", "wf-tag-chaud", "wf-newsletter-segment"],
+  "rateLimitPerHour": 50,
+  "schedule": { "start": "09:00", "end": "19:00" }
+}

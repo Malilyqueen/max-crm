@@ -1,0 +1,6 @@
+{
+  "devis_date": "btp_devisDate",
+  "devis_status": "btp_devisStatus",
+  "progress": "btp_chantierProgress",
+  "next_visit": "btp_nextVisit"
+}

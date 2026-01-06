@@ -8,6 +8,7 @@ import { useDashboardStore } from '../stores/useDashboardStore';
 import { StatCard } from '../components/dashboard/StatCard';
 import { RecentActivityList } from '../components/dashboard/RecentActivityList';
 import { QuickActions } from '../components/dashboard/QuickActions';
+import AlertsWidget from '../components/dashboard/AlertsWidget';
 import { useThemeColors } from '../hooks/useThemeColors';
 
 export function DashboardPage() {
@@ -189,6 +190,9 @@ export function DashboardPage() {
         <h2 className="text-xl font-semibold mb-4" style={{ color: colors.textPrimary }}>Actions rapides</h2>
         <QuickActions />
       </div>
+
+      {/* Alertes vivantes M.A.X. */}
+      <AlertsWidget />
 
       {/* Activité récente */}
       <div className="rounded-lg shadow p-6" style={{ background: colors.cardBg }}>

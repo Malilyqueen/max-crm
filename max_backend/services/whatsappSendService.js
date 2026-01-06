@@ -1,0 +1,325 @@
+/**
+ * Service d'envoi WhatsApp (Phase 1 MVP)
+ *
+ * Ce service gère l'envoi de messages WhatsApp via Twilio.
+ * Pour le MVP, il utilise les ContentSid existants (déjà créés manuellement dans Twilio).
+ *
+ * Phase 2: Ce service sera étendu pour créer automatiquement les templates dans Twilio.
+ *
+ * Fonctionnalités MVP:
+ * - Envoi de messages avec un ContentSid existant
+ * - Envoi de messages texte libres (sans template)
+ * - Mapping des variables MAX → Twilio
+ * - Construction des payloads de boutons
+ */
+
+import twilio from 'twilio';
+import WhatsAppMessage from '../models/WhatsAppMessage.js';
+
+const accountSid = process.env.TWILIO_ACCOUNT_SID;
+const authToken = process.env.TWILIO_AUTH_TOKEN;
+const fromNumber = process.env.TWILIO_WHATSAPP_FROM || 'whatsapp:+14155238886';
+
+// Vérifier que les credentials Twilio sont configurés
+if (!accountSid || !authToken) {
+  console.warn('⚠️  TWILIO_ACCOUNT_SID et TWILIO_AUTH_TOKEN non configurés dans .env');
+}
+
+const client = twilio(accountSid, authToken);
+
+/**
+ * Envoie un message WhatsApp configuré depuis WhatsAppMessage
+ *
+ * @param {string} messageId - ID du WhatsAppMessage
+ * @param {string} toPhoneNumber - Numéro du destinataire (format: +33648662734)
+ * @param {string} leadId - ID du lead dans EspoCRM
+ * @param {object} variableValues - Valeurs des variables (ex: {prenom: 'Jean', date: '15/12/2025'})
+ * @returns {object} Résultat de l'envoi { success, messageSid, error }
+ */
+export async function sendWhatsAppMessage(messageId, toPhoneNumber, leadId, variableValues = {}) {
+  console.log(`\n📤 Envoi WhatsApp message ${messageId}`);
+  console.log(`   Destinataire: ${toPhoneNumber}`);
+  console.log(`   Lead: ${leadId}`);
+
+  try {
+    // Récupérer le message configuré
+    const message = WhatsAppMessage.findById(messageId);
+    if (!message) {
+      throw new Error(`Message ${messageId} introuvable`);
+    }
+
+    console.log(`   Message: ${message.name}`);
+    console.log(`   Type: ${message.type}`);
+
+    // Vérifier que le message est actif
+    if (message.status !== 'active') {
+      throw new Error(`Le message ${messageId} n'est pas actif (status: ${message.status})`);
+    }
+
+    // Formater le numéro de téléphone
+    const to = formatPhoneNumber(toPhoneNumber);
+
+    // Cas 1: Message avec ContentSid (template Twilio approuvé)
+    if (message.contentSid) {
+      return await sendTemplateMessage(message, to, leadId, variableValues);
+    }
+    // Cas 2: Message libre (pas de ContentSid)
+    else {
+      return await sendFreeformMessage(message, to, leadId, variableValues);
+    }
+
+  } catch (error) {
+    console.error(`❌ Erreur lors de l'envoi WhatsApp:`, error.message);
+    console.error(`   Code Twilio:`, error.code);
+    console.error(`   Status:`, error.status);
+    console.error(`   More Info:`, error.moreInfo);
+    console.error(`   Détails complets:`, JSON.stringify(error, null, 2));
+    return {
+      success: false,
+      messageSid: null,
+      error: error.message
+    };
+  }
+}
+
+/**
+ * Envoie un message utilisant un template Twilio (ContentSid)
+ */
+async function sendTemplateMessage(message, to, leadId, variableValues) {
+  console.log(`   📋 Envoi via template Twilio (ContentSid: ${message.contentSid})`);
+
+  // Interpoler les variables dans le texte
+  const messageText = message.interpolateVariables(variableValues);
+
+  // Mapper les variables MAX vers le format Twilio
+  // Twilio attend: ContentVariables: {"1": "valeur1", "2": "valeur2"}
+  // IMPORTANT: Filtrer SEULEMENT les variables du template body (pas leadId/tenantId qui sont dans les boutons)
+  const templateBodyVariables = message.variables.filter(v => v !== 'leadId' && v !== 'tenantId');
+  const twilioVariables = mapVariablesToTwilio(templateBodyVariables, variableValues);
+
+  console.log(`   Variables Twilio:`, JSON.stringify(twilioVariables));
+
+  // Construire les boutons avec payloads
+  const buttons = message.buttons.map(btn => ({
+    type: 'QUICK_REPLY',
+    payload: message.buildButtonPayload(btn.action, leadId)
+  }));
+
+  console.log(`   Boutons: ${message.buttons.length}`);
+
+  // Construire le payload exact qui sera envoyé à Twilio
+  // IMPORTANT: Pour WhatsApp templates avec variables, Twilio attend:
+  // - contentSid: L'ID du template approuvé
+  // - contentVariables: Les variables au format JSON string
+  const twilioPayload = {
+    from: fromNumber,
+    to: to,
+    contentSid: message.contentSid,
+    contentVariables: JSON.stringify(twilioVariables)
+  };
+
+  // LOG DÉTAILLÉ DU PAYLOAD TWILIO (pour debugging erreur 63027)
+  console.log('\n' + '='.repeat(80));
+  console.log('🔍 PAYLOAD EXACT ENVOYÉ À TWILIO:');
+  console.log('='.repeat(80));
+  console.log(`   from: ${twilioPayload.from}`);
+  console.log(`   to: ${twilioPayload.to}`);
+  console.log(`   contentSid: ${twilioPayload.contentSid}`);
+  console.log(`   contentVariables (type): ${typeof twilioPayload.contentVariables}`);
+  console.log(`   contentVariables (value): ${twilioPayload.contentVariables}`);
+  console.log(`   Payload complet JSON:`);
+  console.log(JSON.stringify(twilioPayload, null, 2));
+  console.log('='.repeat(80) + '\n');
+
+  // Envoyer via Twilio
+  const twilioMessage = await client.messages.create(twilioPayload);
+
+  console.log(`   ✅ Message envoyé (SID: ${twilioMessage.sid})`);
+
+  return {
+    success: true,
+    messageSid: twilioMessage.sid,
+    status: twilioMessage.status,
+    to: to,
+    messageText: messageText
+  };
+}
+
+/**
+ * Envoie un message texte libre (sans template)
+ */
+async function sendFreeformMessage(message, to, leadId, variableValues) {
+  console.log(`   💬 Envoi message libre (sans ContentSid)`);
+
+  // Interpoler les variables dans le texte
+  const messageText = message.interpolateVariables(variableValues);
+
+  console.log(`   Texte: ${messageText.substring(0, 100)}...`);
+
+  // Envoyer via Twilio (message texte simple)
+  const twilioMessage = await client.messages.create({
+    from: fromNumber,
+    to: to,
+    body: messageText
+  });
+
+  console.log(`   ✅ Message envoyé (SID: ${twilioMessage.sid})`);
+
+  return {
+    success: true,
+    messageSid: twilioMessage.sid,
+    status: twilioMessage.status,
+    to: to,
+    messageText: messageText
+  };
+}
+
+/**
+ * Envoie un message WhatsApp simple (texte libre, pas de template)
+ * Utilisé par l'outil send_whatsapp_message de M.A.X.
+ *
+ * @param {string} toPhoneNumber - Numéro du destinataire
+ * @param {string} messageText - Texte du message
+ * @returns {object} Résultat { success, messageSid, error }
+ */
+export async function sendSimpleWhatsAppMessage(toPhoneNumber, messageText) {
+  console.log(`\n📤 Envoi WhatsApp simple`);
+  console.log(`   Destinataire: ${toPhoneNumber}`);
+  console.log(`   Message: ${messageText.substring(0, 100)}...`);
+
+  try {
+    const to = formatPhoneNumber(toPhoneNumber);
+
+    const twilioMessage = await client.messages.create({
+      from: fromNumber,
+      to: to,
+      body: messageText
+    });
+
+    console.log(`   ✅ Message envoyé (SID: ${twilioMessage.sid})`);
+
+    return {
+      success: true,
+      messageSid: twilioMessage.sid,
+      status: twilioMessage.status,
+      to: to
+    };
+
+  } catch (error) {
+    console.error(`❌ Erreur lors de l'envoi WhatsApp:`, error.message);
+    return {
+      success: false,
+      messageSid: null,
+      error: error.message
+    };
+  }
+}
+
+/**
+ * Mappe les variables MAX vers le format Twilio
+ * MAX: {prenom: 'Jean', date: '15/12/2025'}
+ * Twilio: {"1": "Jean", "2": "15/12/2025"}
+ */
+function mapVariablesToTwilio(variableNames, variableValues) {
+  const twilioVars = {};
+
+  variableNames.forEach((varName, index) => {
+    const twilioIndex = (index + 1).toString(); // Twilio commence à 1
+    twilioVars[twilioIndex] = variableValues[varName] || '';
+  });
+
+  return twilioVars;
+}
+
+/**
+ * Formate un numéro de téléphone pour WhatsApp
+ * Entrée: +33648662734 ou 0648662734
+ * Sortie: whatsapp:+33648662734
+ */
+function formatPhoneNumber(phoneNumber) {
+  let formatted = phoneNumber.trim();
+
+  // Enlever les espaces, points, tirets
+  formatted = formatted.replace(/[\s\.\-]/g, '');
+
+  // Ajouter le + si manquant
+  if (!formatted.startsWith('+')) {
+    // Si commence par 0, remplacer par +33 (France par défaut)
+    if (formatted.startsWith('0')) {
+      formatted = '+33' + formatted.substring(1);
+    } else {
+      formatted = '+' + formatted;
+    }
+  }
+
+  // Ajouter le préfixe whatsapp:
+  if (!formatted.startsWith('whatsapp:')) {
+    formatted = 'whatsapp:' + formatted;
+  }
+
+  return formatted;
+}
+
+/**
+ * Récupère le statut d'un message Twilio
+ *
+ * @param {string} messageSid - SID du message Twilio
+ * @returns {object} Statut { status, dateCreated, dateSent, errorCode, errorMessage }
+ */
+export async function getMessageStatus(messageSid) {
+  try {
+    const message = await client.messages(messageSid).fetch();
+
+    return {
+      status: message.status,
+      dateCreated: message.dateCreated,
+      dateSent: message.dateSent,
+      errorCode: message.errorCode,
+      errorMessage: message.errorMessage,
+      price: message.price,
+      priceUnit: message.priceUnit
+    };
+
+  } catch (error) {
+    console.error(`❌ Erreur lors de la récupération du statut:`, error.message);
+    return {
+      status: 'unknown',
+      error: error.message
+    };
+  }
+}
+
+/**
+ * Liste les messages envoyés récemment
+ *
+ * @param {number} limit - Nombre de messages à récupérer (max 1000)
+ * @returns {array} Liste des messages
+ */
+export async function listRecentMessages(limit = 20) {
+  try {
+    const messages = await client.messages.list({
+      limit: limit
+    });
+
+    return messages.map(msg => ({
+      sid: msg.sid,
+      from: msg.from,
+      to: msg.to,
+      status: msg.status,
+      dateCreated: msg.dateCreated,
+      dateSent: msg.dateSent,
+      body: msg.body ? msg.body.substring(0, 100) : null
+    }));
+
+  } catch (error) {
+    console.error(`❌ Erreur lors de la récupération des messages:`, error.message);
+    return [];
+  }
+}
+
+export default {
+  sendWhatsAppMessage,
+  sendSimpleWhatsAppMessage,
+  getMessageStatus,
+  listRecentMessages
+};

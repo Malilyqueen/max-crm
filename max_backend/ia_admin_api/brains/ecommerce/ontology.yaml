@@ -1,0 +1,2 @@
+entities: [Panier, Commande, TicketSAV]
+intents: [recuperer_panier, statut_commande, ouvrir_ticket]

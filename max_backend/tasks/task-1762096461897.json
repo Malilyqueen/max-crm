@@ -1,0 +1,51 @@
+{
+  "id": "task-1762096461897",
+  "_filename": "task-1762096461897.json",
+  "type": "sms",
+  "mode": "assist",
+  "status": "success",
+  "prompt": "Pr�parer et envoyer un SMS de test",
+  "payload": {
+    "text": "Bonjour depuis M.A.X. (test local).",
+    "to": "+33600000000"
+  },
+  "crmLinks": {
+    "leadId": "TEST-LEAD-ID"
+  },
+  "logs": [
+    {
+      "t": 1762096461915,
+      "level": "info",
+      "msg": "Task created",
+      "meta": {
+        "step": "create"
+      }
+    },
+    {
+      "t": 1762096462095,
+      "level": "info",
+      "msg": "Task validated -> queued",
+      "meta": {
+        "step": "validate"
+      }
+    },
+    {
+      "t": 1762096462261,
+      "level": "info",
+      "msg": "dispatcher ok",
+      "meta": {
+        "step": "dispatch"
+      }
+    },
+    {
+      "t": 1762096462439,
+      "level": "info",
+      "msg": "done",
+      "meta": {
+        "step": "send-sms"
+      }
+    }
+  ],
+  "createdAt": "2025-11-02T15:14:21.897Z",
+  "updatedAt": "2025-11-02T15:14:22.439Z"
+}

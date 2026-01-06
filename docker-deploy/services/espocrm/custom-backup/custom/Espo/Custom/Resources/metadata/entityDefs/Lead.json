@@ -1,0 +1,150 @@
+{
+    "fields": {
+        "source": {
+            "type": "varchar",
+            "maxLength": 255,
+            "isCustom": true,
+            "label": "Source Lead",
+            "tooltip": "Origine du lead (Facebook Ads, Google, Référencement, Salon, etc.)",
+            "view": "views/fields/varchar"
+        },
+        "tagsIA": {
+            "type": "array",
+            "isCustom": true,
+            "label": "Tags IA",
+            "tooltip": "Tags générés automatiquement par M.A.X. selon le contexte du lead",
+            "displayAsLabel": true,
+            "view": "views/fields/array"
+        },
+        "notesIA": {
+            "type": "text",
+            "isCustom": true,
+            "label": "Notes IA (M.A.X.)",
+            "tooltip": "Synthèse intelligente générée par M.A.X.",
+            "rows": 8,
+            "view": "views/fields/text"
+        },
+        "objectifsClient": {
+            "type": "text",
+            "isCustom": true,
+            "label": "Objectifs Client",
+            "tooltip": "Objectifs déclarés ou déduits par M.A.X.",
+            "rows": 4,
+            "view": "views/fields/text"
+        },
+        "servicesSouhaites": {
+            "type": "text",
+            "isCustom": true,
+            "label": "Services Souhaités",
+            "tooltip": "Liste des services demandés (libre)",
+            "rows": 3,
+            "view": "views/fields/text"
+        },
+        "secteurInfere": {
+            "type": "varchar",
+            "maxLength": 255,
+            "isCustom": true,
+            "label": "Secteur Inféré (IA)",
+            "tooltip": "Secteur d'activité déduit automatiquement par M.A.X.",
+            "view": "views/fields/varchar"
+        },
+        "typeClient": {
+            "type": "varchar",
+            "maxLength": 100,
+            "isCustom": true,
+            "label": "Type Client",
+            "tooltip": "Typologie client déduite par M.A.X. (B2B, B2C, diaspora, etc.)",
+            "view": "views/fields/varchar"
+        },
+        "niveauMaturite": {
+            "type": "varchar",
+            "maxLength": 50,
+            "isCustom": true,
+            "label": "Niveau Maturité",
+            "tooltip": "Maturité commerciale déduite par M.A.X. (froid, chaud, tiède, VIP, etc.)",
+            "view": "views/fields/varchar"
+        },
+        "canalPrefere": {
+            "type": "varchar",
+            "maxLength": 50,
+            "isCustom": true,
+            "label": "Canal Préféré",
+            "tooltip": "Canal de communication préféré (WhatsApp, Email, Appel, etc.)",
+            "view": "views/fields/varchar"
+        },
+        "prochaineAction": {
+            "type": "text",
+            "isCustom": true,
+            "label": "Prochaine Action",
+            "tooltip": "Prochaine action recommandée par M.A.X.",
+            "rows": 3,
+            "view": "views/fields/text"
+        },
+        "prochaineRelance": {
+            "type": "date",
+            "isCustom": true,
+            "label": "Prochaine Relance",
+            "tooltip": "Date de prochaine relance planifiée",
+            "view": "views/fields/date"
+        },
+        "statutNurturing": {
+            "type": "enum",
+            "options": [
+                "Nouveau",
+                "À qualifier",
+                "Engagé",
+                "Inactif",
+                "Converti"
+            ],
+            "default": "Nouveau",
+            "isCustom": true,
+            "label": "Statut Nurturing",
+            "tooltip": "Statut dans le parcours client (générique)",
+            "style": {
+                "Nouveau": "primary",
+                "À qualifier": "warning",
+                "Engagé": "success",
+                "Inactif": "default",
+                "Converti": "success"
+            },
+            "view": "views/fields/enum"
+        },
+        "scoreIA": {
+            "type": "int",
+            "min": 0,
+            "max": 100,
+            "default": 50,
+            "isCustom": true,
+            "label": "Score IA",
+            "tooltip": "Score de priorité calculé par M.A.X. (0-100)",
+            "view": "views/fields/int"
+        },
+        "secteurActivite": {
+            "type": "varchar",
+            "isCustom": true,
+            "maxLength": 255
+        },
+        "maxTags": {
+            "type": "array",
+            "storeArrayValues": true,
+            "isCustom": true
+        },
+        "nomEntreprise": {
+            "type": "varchar",
+            "isCustom": true,
+            "maxLength": 255
+        }
+    },
+    "links": {
+        "missionsMAX": {
+            "type": "hasMany",
+            "entity": "MissionMAX",
+            "foreign": "lead"
+        },
+        "diagnosticsIA": {
+            "type": "hasMany",
+            "entity": "DiagnosticIA",
+            "foreign": "lead"
+        }
+    }
+}

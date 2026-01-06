@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ExternalLink, RefreshCw, Maximize2 } from 'lucide-react';
+import { ESPO_BASE_URL } from '../config/api';
 
 export function EspoCRMPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [showMaxSuggestion, setShowMaxSuggestion] = useState(false);
 
-  const ESPOCRM_URL = 'http://localhost:8081/espocrm';
+  const ESPOCRM_URL = ESPO_BASE_URL;
 
   useEffect(() => {
     // Simuler chargement iframe

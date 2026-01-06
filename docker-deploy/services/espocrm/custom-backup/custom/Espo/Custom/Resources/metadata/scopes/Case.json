@@ -1,0 +1,10 @@
+{
+    "stream": true,
+    "disabled": false,
+    "statusField": "status",
+    "kanbanStatusIgnoreList": null,
+    "stars": false,
+    "preserveAuditLog": false,
+    "collaborators": true,
+    "assignedUsers": true
+}

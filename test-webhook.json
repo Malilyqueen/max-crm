@@ -1,0 +1,21 @@
+{
+  "typeWebhook": "incomingMessageReceived",
+  "instanceData": {
+    "idInstance": 7105440259,
+    "wid": "261349105259@c.us",
+    "typeInstance": "whatsapp"
+  },
+  "timestamp": 1735063200,
+  "idMessage": "TEST123456789ABCDEF",
+  "senderData": {
+    "chatId": "15146412055@c.us",
+    "sender": "15146412055@c.us",
+    "chatName": "RAMAHA Rija",
+    "senderName": "RAMAHA Rija"
+  },
+  "messageData": {
+    "textMessageData": {
+      "textMessage": "Bonjour MAX! Je teste la reception depuis Montreal. Est-ce que tu me recois?"
+    }
+  }
+}

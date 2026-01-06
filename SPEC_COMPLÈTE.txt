@@ -1,0 +1,1273 @@
+SPEC COMPLÈTE — Système de Mémoire Longue Durée pour M.A.X.
+Version : 1.0
+Date : 2025-12-10
+Statut : Proposition technique (non exécutée)
+🎯 Objectif du système
+Permettre à M.A.X. de mémoriser, classer, et exploiter intelligemment trois types d'informations durables :
+Objectifs (résultats à atteindre, KPIs, ambitions chiffrées)
+Profil (préférences, contraintes, style de communication, secteur)
+Notes longues (réflexions, contexte business, nuances stratégiques)
+Le système doit :
+✅ Détecter l'intention de mémorisation en langage naturel
+✅ Classifier automatiquement l'information (avec confirmation si ambiguë)
+✅ Éviter les hallucinations (ne mémoriser que ce qui est explicite)
+✅ Permettre l'oubli (soft delete avec archivage)
+✅ Charger automatiquement ces mémoires pour contextualiser les réponses
+PARTIE A — FONDATIONS DATA
+1. Schéma SQL de référence
+Table tenant_goals (Objectifs mesurables)
+Voici à quoi pourrait ressembler le schéma pour stocker les objectifs business :
+-- Table pour les objectifs business du tenant
+CREATE TABLE tenant_goals (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id VARCHAR(255) NOT NULL,
+  
+  -- Contenu de l'objectif
+  goal_text TEXT NOT NULL, -- Description complète de l'objectif
+  goal_category VARCHAR(50), -- Ex: 'conversion', 'retention', 'acquisition', 'automation'
+  
+  -- Mesures & progression
+  target_value NUMERIC, -- Valeur cible (ex: 5000 clients)
+  current_value NUMERIC, -- Progression actuelle (ex: 3200 clients)
+  unit VARCHAR(50), -- Unité de mesure (ex: 'clients', 'euros', 'pourcentage')
+  
+  -- Temporalité
+  deadline TIMESTAMP, -- Date limite (ex: '2025-03-31')
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW(),
+  
+  -- Statut & priorité
+  status VARCHAR(20) DEFAULT 'actif', -- 'actif' / 'atteint' / 'abandonné' / 'archivé'
+  priority INTEGER DEFAULT 50, -- 1-100 (100 = max priorité)
+  
+  -- Soft delete
+  archived BOOLEAN DEFAULT FALSE,
+  archived_at TIMESTAMP,
+  
+  -- Métadonnées
+  created_by VARCHAR(255), -- ID utilisateur qui a créé l'objectif
+  metadata JSONB -- Infos additionnelles flexibles
+);
+
+-- Index pour performances
+CREATE INDEX idx_tenant_goals_tenant ON tenant_goals(tenant_id);
+CREATE INDEX idx_tenant_goals_status ON tenant_goals(status);
+CREATE INDEX idx_tenant_goals_archived ON tenant_goals(archived);
+CREATE INDEX idx_tenant_goals_priority ON tenant_goals(priority DESC);
+Table tenant_memory (existante, avec nouveaux memory_type)
+La table tenant_memory existe déjà. Voici comment elle serait utilisée pour Profil et Notes :
+-- Table existante tenant_memory (pour rappel)
+-- On ajoute conceptuellement de nouveaux memory_type :
+
+-- Nouveaux memory_type possibles :
+-- - 'identity' (déjà existant - business model, secteur)
+-- - 'profile' (NOUVEAU - préférences, canaux, contraintes)
+-- - 'note' (NOUVEAU - notes longues contextuelles)
+-- - 'business_context' (déjà existant - objectifs, contraintes)
+-- - 'preference' (déjà existant - ton, langue)
+
+-- Exemple de structure (référence) :
+/*
+CREATE TABLE tenant_memory (
+  id UUID PRIMARY KEY,
+  tenant_id VARCHAR(255) NOT NULL,
+  memory_key VARCHAR(255) NOT NULL,
+  memory_value JSONB NOT NULL,
+  memory_type VARCHAR(50) NOT NULL, -- 'identity', 'profile', 'note', etc.
+  scope VARCHAR(50) DEFAULT 'global',
+  priority INTEGER DEFAULT 50,
+  expires_at TIMESTAMP, -- NULL pour mémoire permanente
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW(),
+  last_accessed_at TIMESTAMP,
+  access_count INTEGER DEFAULT 0,
+  
+  -- Soft delete (à ajouter si pas déjà présent)
+  archived BOOLEAN DEFAULT FALSE,
+  archived_at TIMESTAMP
+);
+*/
+Table max_long_term_notes (optionnelle, alternative à tenant_memory)
+Si on veut une table dédiée pour les notes longues (non structurées), voici à quoi elle pourrait ressembler :
+-- ALTERNATIVE : Table dédiée pour notes longues
+-- (Ou bien utiliser tenant_memory avec memory_type = 'note')
+
+CREATE TABLE max_long_term_notes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id VARCHAR(255) NOT NULL,
+  
+  -- Contenu de la note
+  note_text TEXT NOT NULL,
+  note_category VARCHAR(50), -- 'reflexion', 'contexte', 'nuance', 'emotion'
+  
+  -- Contexte
+  related_to VARCHAR(50), -- 'lead', 'objectif', 'general'
+  related_id UUID, -- ID de l'entité liée (si applicable)
+  
+  -- Métadonnées
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW(),
+  
+  -- Soft delete
+  archived BOOLEAN DEFAULT FALSE,
+  archived_at TIMESTAMP,
+  
+  -- Métadonnées flexibles
+  metadata JSONB
+);
+
+CREATE INDEX idx_notes_tenant ON max_long_term_notes(tenant_id);
+CREATE INDEX idx_notes_archived ON max_long_term_notes(archived);
+Recommandation : Utiliser tenant_memory avec memory_type = 'note' pour l'instant (plus simple, moins de tables).
+2. Exemples de données
+Exemple 1 : Objectif dans tenant_goals
+Cas utilisateur : "Note que mon objectif est d'atteindre 5000 clients avant mars 2025."
+-- Ligne INSERT de référence
+INSERT INTO tenant_goals (
+  tenant_id,
+  goal_text,
+  goal_category,
+  target_value,
+  current_value,
+  unit,
+  deadline,
+  status,
+  priority
+) VALUES (
+  'macrea',
+  'Atteindre 5000 clients actifs',
+  'acquisition',
+  5000,
+  3200, -- progression actuelle (si connue)
+  'clients',
+  '2025-03-31 23:59:59',
+  'actif',
+  90
+);
+Payload JSON (API) :
+{
+  "tenant_id": "macrea",
+  "goal_text": "Atteindre 5000 clients actifs",
+  "goal_category": "acquisition",
+  "target_value": 5000,
+  "current_value": 3200,
+  "unit": "clients",
+  "deadline": "2025-03-31T23:59:59Z",
+  "status": "actif",
+  "priority": 90
+}
+Exemple 2 : Préférence dans tenant_memory
+Cas utilisateur : "Retiens que je préfère WhatsApp aux emails pour contacter mes leads."
+-- Ligne INSERT de référence
+INSERT INTO tenant_memory (
+  tenant_id,
+  memory_key,
+  memory_value,
+  memory_type,
+  scope,
+  priority,
+  expires_at
+) VALUES (
+  'macrea',
+  'canal_contact_prefere',
+  '"WhatsApp"'::jsonb,
+  'profile',
+  'global',
+  80,
+  NULL -- Jamais expirée
+);
+Payload JSON (API) :
+{
+  "tenant_id": "macrea",
+  "memory_key": "canal_contact_prefere",
+  "memory_value": "WhatsApp",
+  "memory_type": "profile",
+  "scope": "global",
+  "priority": 80,
+  "expires_at": null
+}
+Exemple 3 : Contrainte dans tenant_memory
+Cas utilisateur : "Note que je ne fais jamais de publicité Facebook, budget trop limité."
+INSERT INTO tenant_memory (
+  tenant_id,
+  memory_key,
+  memory_value,
+  memory_type,
+  scope,
+  priority,
+  expires_at
+) VALUES (
+  'macrea',
+  'contrainte_marketing',
+  '{"interdiction": "publicité Facebook", "raison": "budget limité"}'::jsonb,
+  'profile',
+  'global',
+  85,
+  NULL
+);
+Payload JSON (API) :
+{
+  "tenant_id": "macrea",
+  "memory_key": "contrainte_marketing",
+  "memory_value": {
+    "interdiction": "publicité Facebook",
+    "raison": "budget limité"
+  },
+  "memory_type": "profile",
+  "scope": "global",
+  "priority": 85,
+  "expires_at": null
+}
+Exemple 4 : Note longue dans tenant_memory
+Cas utilisateur : "Garde en tête que je suis en plein pivot business, je passe du B2C au B2B."
+INSERT INTO tenant_memory (
+  tenant_id,
+  memory_key,
+  memory_value,
+  memory_type,
+  scope,
+  priority,
+  expires_at
+) VALUES (
+  'macrea',
+  'note_pivot_b2b',
+  '{"contexte": "pivot B2C vers B2B", "date": "2025-12-10", "impact": "stratégie leads à adapter"}'::jsonb,
+  'note',
+  'global',
+  70,
+  NULL
+);
+Payload JSON (API) :
+{
+  "tenant_id": "macrea",
+  "memory_key": "note_pivot_b2b",
+  "memory_value": {
+    "contexte": "pivot B2C vers B2B",
+    "date": "2025-12-10",
+    "impact": "stratégie leads à adapter"
+  },
+  "memory_type": "note",
+  "scope": "global",
+  "priority": 70,
+  "expires_at": null
+}
+3. Exemples de requêtes SQL (lecture)
+Récupérer tous les objectifs actifs d'un tenant
+SELECT 
+  id,
+  goal_text,
+  goal_category,
+  target_value,
+  current_value,
+  unit,
+  deadline,
+  status,
+  priority
+FROM tenant_goals
+WHERE tenant_id = 'macrea'
+  AND archived = FALSE
+  AND status = 'actif'
+ORDER BY priority DESC, deadline ASC NULLS LAST;
+Récupérer le profil complet d'un tenant
+SELECT 
+  memory_key,
+  memory_value,
+  priority,
+  created_at,
+  updated_at
+FROM tenant_memory
+WHERE tenant_id = 'macrea'
+  AND memory_type = 'profile'
+  AND (archived IS NULL OR archived = FALSE)
+  AND (expires_at IS NULL OR expires_at > NOW())
+ORDER BY priority DESC;
+Récupérer les notes longues récentes
+SELECT 
+  memory_key,
+  memory_value,
+  created_at
+FROM tenant_memory
+WHERE tenant_id = 'macrea'
+  AND memory_type = 'note'
+  AND (archived IS NULL OR archived = FALSE)
+ORDER BY created_at DESC
+LIMIT 10;
+PARTIE B — LOGIQUE IA & TOOLS (RÈGLE #8)
+1. Détection de l'intention de mémorisation
+M.A.X. doit identifier qu'une phrase contient une intention de mémorisation via deux mécanismes complémentaires :
+A. Détection lexicale (déclencheurs explicites)
+Liste de patterns à détecter dans le message utilisateur : Déclencheurs directs :
+"note que..."
+"retiens que..."
+"garde en tête..."
+"enregistre..."
+"prends note..."
+"souviens-toi que..."
+"n'oublie pas..."
+"à partir de maintenant..."
+"considère que..."
+"place ça dans..."
+Déclencheurs d'importance :
+"c'est important pour moi"
+"c'est crucial"
+"c'est essentiel"
+Déclencheurs de catégorie :
+"mon objectif est..."
+"ajoute ça à mes objectifs"
+"dans mon profil..."
+"ma préférence c'est..."
+B. Détection sémantique (déclencheurs implicites)
+Même sans mot-clé explicite, certaines formulations structurelles indiquent une information à mémoriser : Patterns objectifs :
+"Mon objectif [période] est [résultat mesurable]"
+Ex: "Mon objectif cette année est 200 clients"
+"Je veux atteindre [métrique]"
+Ex: "Je veux atteindre 50k€ de CA mensuel"
+"Augmenter [chose] de [pourcentage/valeur]"
+Ex: "Augmenter mes conversions WhatsApp de 30%"
+Patterns profil/préférences :
+"Je préfère [option A] à [option B]"
+Ex: "Je préfère WhatsApp aux emails"
+"Je travaille avec [cible]"
+Ex: "Je travaille principalement avec des boutiques afro"
+"Ma cible c'est [description]"
+Ex: "Ma cible ce sont les mamans entrepreneures"
+"Je ne fais jamais [action]"
+Ex: "Je ne fais jamais de cold calling"
+Patterns notes longues :
+"Je suis en [situation]"
+Ex: "Je suis en plein pivot"
+"Actuellement, [contexte]"
+Ex: "Actuellement, je manque de temps"
+Phrases contenant émotion + contexte business
+Ex: "Je stresse avec les tâches techniques"
+2. Classification automatique
+Une fois l'intention détectée, M.A.X. doit classifier l'information dans l'une des 3 catégories :
+🟧 A. OBJECTIF (tenant_goals)
+Critères de classification : ✅ Contient un résultat mesurable ✅ Peut être associé à une métrique/KPI ✅ A une notion de progression (avant/après, actuel/cible) ✅ Peut avoir une deadline ✅ Exprime une ambition business claire Exemples :
+"Atteindre 5000 clients" → goal_text, target_value: 5000, unit: clients
+"Augmenter mes conversions de 20%" → goal_category: conversion, target_value: 20, unit: pourcentage
+"Automatiser mes relances avant mars" → goal_text, deadline: 2025-03-31
+Stockage : Table tenant_goals
+🟦 B. PROFIL / PRÉFÉRENCE (tenant_memory avec memory_type='profile')
+Critères de classification : ✅ Décrit une préférence stable ✅ Définit un canal favorisé ✅ Exprime une contrainte/interdiction ✅ Décrit un style de communication ✅ Définit une cible client ✅ Informations business stables (secteur, modèle) Exemples :
+"Je préfère WhatsApp" → memory_key: canal_contact_prefere, memory_value: "WhatsApp"
+"Je ne fais jamais de pub Facebook" → memory_key: contrainte_marketing, memory_value: {...}
+"Je tutoie mes prospects" → memory_key: style_communication, memory_value: "tutoiement"
+"Ma cible = mamans entrepreneures" → memory_key: cible_client, memory_value: "mamans entrepreneures"
+Stockage : Table tenant_memory avec memory_type = 'profile'
+🟩 C. NOTE LONGUE (tenant_memory avec memory_type='note')
+Critères de classification : ✅ Contexte évolutif (pas permanent) ✅ Réflexion personnelle ✅ Élément émotionnel ✅ Nuance stratégique ✅ Information importante mais non structurée Exemples :
+"Je suis en plein pivot B2B" → memory_key: note_pivot, memory_value: {...}
+"Je manque de temps actuellement" → memory_key: note_contrainte_temps, memory_value: {...}
+"Je stresse avec les tâches techniques" → memory_key: note_emotion_tech, memory_value: {...}
+Stockage : Table tenant_memory avec memory_type = 'note'
+3. Gestion des ambiguïtés et contradictions
+Cas 1 : Information ambiguë (peut être objectif OU préférence)
+Exemple : "Je veux automatiser mes relances"
+Objectif ? (résultat à atteindre : "automatiser")
+Préférence ? (méthode de travail : "automatisation")
+Réponse M.A.X. :
+Je peux enregistrer ceci de deux façons :
+
+1️⃣ Comme un **objectif** : "Automatiser les relances clients"
+   → Suivi de progression, deadline possible
+
+2️⃣ Comme une **préférence stratégique** : "Privilégier l'automatisation"
+   → Appliqué à toutes les recommandations futures
+
+Comment veux-tu que je le classe ?
+Cas 2 : Information contradictoire (mise à jour)
+Exemple : L'utilisateur avait dit "Je préfère WhatsApp", puis dit "Finalement, je préfère les emails" Réponse M.A.X. :
+📝 Je note que tu préfères maintenant les emails.
+
+Actuellement, j'ai enregistré : "Canal préféré = WhatsApp"
+
+Souhaites-tu que je mette à jour cette préférence vers "Email" ?
+Action après confirmation :
+UPDATE tenant_memory SET memory_value = 'Email', updated_at = NOW() WHERE memory_key = 'canal_contact_prefere'
+Cas 3 : Objectif déjà existant
+Exemple : L'utilisateur avait "Atteindre 3000 clients", puis dit "Mon objectif est 5000 clients" Réponse M.A.X. :
+📊 Ton objectif actuel est : "Atteindre 3000 clients" (progression : 65%)
+
+Tu viens de mentionner un nouvel objectif : "Atteindre 5000 clients"
+
+Options :
+1️⃣ **Remplacer** l'objectif actuel (3000 → 5000)
+2️⃣ **Ajouter** un nouvel objectif distinct (garder les deux)
+3️⃣ **Archiver** l'ancien et créer le nouveau
+
+Quelle option préfères-tu ?
+4. Soft Delete (archivage)
+Logique d'archivage
+Quand l'utilisateur demande d'oublier une information :
+"Supprime cet objectif"
+"Oublie cette préférence"
+"Efface cette note"
+"Je n'ai plus cet objectif"
+Action M.A.X. :
+Identifier l'élément concerné
+Marquer comme archivé (archived = TRUE, archived_at = NOW())
+Confirmer à l'utilisateur
+Exemple SQL :
+-- Archiver un objectif
+UPDATE tenant_goals
+SET archived = TRUE, 
+    archived_at = NOW(), 
+    status = 'abandonné'
+WHERE id = 'uuid-de-lobjectif'
+  AND tenant_id = 'macrea';
+
+-- Archiver une préférence
+UPDATE tenant_memory
+SET archived = TRUE, 
+    archived_at = NOW()
+WHERE memory_key = 'canal_contact_prefere'
+  AND tenant_id = 'macrea';
+Lecture (ignorer les archives)
+Toutes les requêtes de lecture doivent filtrer archived = FALSE :
+-- Objectifs actifs uniquement
+SELECT * FROM tenant_goals
+WHERE tenant_id = 'macrea'
+  AND archived = FALSE;
+
+-- Profil actif uniquement
+SELECT * FROM tenant_memory
+WHERE tenant_id = 'macrea'
+  AND memory_type = 'profile'
+  AND (archived IS NULL OR archived = FALSE);
+5. Architecture des Tools M.A.X.
+Voici à quoi pourraient ressembler les tools permettant à M.A.X. de gérer la mémoire longue :
+Tool 1 : store_tenant_goal
+Description : Enregistrer un nouvel objectif business Signature :
+{
+  "name": "store_tenant_goal",
+  "description": "Enregistrer un objectif business mesurable dans la mémoire long terme du tenant",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "goal_text": {
+        "type": "string",
+        "description": "Description complète de l'objectif"
+      },
+      "goal_category": {
+        "type": "string",
+        "enum": ["acquisition", "conversion", "retention", "automation", "revenue", "other"],
+        "description": "Catégorie de l'objectif"
+      },
+      "target_value": {
+        "type": "number",
+        "description": "Valeur cible (optionnel)"
+      },
+      "unit": {
+        "type": "string",
+        "description": "Unité de mesure (clients, euros, pourcentage, etc.)"
+      },
+      "deadline": {
+        "type": "string",
+        "format": "date-time",
+        "description": "Date limite (optionnel)"
+      },
+      "priority": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 100,
+        "description": "Priorité (1-100, défaut 50)"
+      }
+    },
+    "required": ["goal_text"]
+  }
+}
+Exemple d'appel :
+{
+  "goal_text": "Atteindre 5000 clients actifs",
+  "goal_category": "acquisition",
+  "target_value": 5000,
+  "unit": "clients",
+  "deadline": "2025-03-31T23:59:59Z",
+  "priority": 90
+}
+Tool 2 : store_tenant_profile
+Description : Enregistrer une préférence, contrainte, ou information de profil durable Signature :
+{
+  "name": "store_tenant_profile",
+  "description": "Enregistrer une préférence ou contrainte dans le profil long terme du tenant",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "profile_key": {
+        "type": "string",
+        "description": "Clé identifiant la préférence (ex: canal_contact_prefere)"
+      },
+      "profile_value": {
+        "type": ["string", "object"],
+        "description": "Valeur de la préférence (texte simple ou objet JSON)"
+      },
+      "category": {
+        "type": "string",
+        "enum": ["canal", "style_communication", "contrainte", "cible_client", "methode_travail", "other"],
+        "description": "Catégorie de la préférence"
+      },
+      "priority": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 100,
+        "description": "Priorité (1-100, défaut 80)"
+      }
+    },
+    "required": ["profile_key", "profile_value"]
+  }
+}
+Exemple d'appel :
+{
+  "profile_key": "canal_contact_prefere",
+  "profile_value": "WhatsApp",
+  "category": "canal",
+  "priority": 85
+}
+Tool 3 : store_long_term_note
+Description : Enregistrer une note contextuelle, réflexion, ou nuance stratégique Signature :
+{
+  "name": "store_long_term_note",
+  "description": "Enregistrer une note longue durée (contexte, réflexion, nuance)",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "note_text": {
+        "type": "string",
+        "description": "Contenu de la note"
+      },
+      "note_category": {
+        "type": "string",
+        "enum": ["reflexion", "contexte", "nuance", "emotion", "pivot", "other"],
+        "description": "Type de note"
+      },
+      "related_to": {
+        "type": "string",
+        "enum": ["lead", "objectif", "general"],
+        "description": "Contexte lié (optionnel)"
+      },
+      "related_id": {
+        "type": "string",
+        "description": "ID de l'entité liée (optionnel)"
+      }
+    },
+    "required": ["note_text"]
+  }
+}
+Exemple d'appel :
+{
+  "note_text": "Je suis en plein pivot business, je passe du B2C au B2B",
+  "note_category": "pivot",
+  "related_to": "general"
+}
+Tool 4 : update_tenant_goal
+Description : Mettre à jour un objectif existant (progression, statut, deadline) Signature :
+{
+  "name": "update_tenant_goal",
+  "description": "Mettre à jour un objectif existant (progression, statut, ou modification)",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "goal_id": {
+        "type": "string",
+        "description": "ID de l'objectif à mettre à jour"
+      },
+      "current_value": {
+        "type": "number",
+        "description": "Nouvelle valeur de progression (optionnel)"
+      },
+      "status": {
+        "type": "string",
+        "enum": ["actif", "atteint", "abandonné", "archivé"],
+        "description": "Nouveau statut (optionnel)"
+      },
+      "goal_text": {
+        "type": "string",
+        "description": "Nouvelle description (optionnel)"
+      },
+      "deadline": {
+        "type": "string",
+        "format": "date-time",
+        "description": "Nouvelle deadline (optionnel)"
+      }
+    },
+    "required": ["goal_id"]
+  }
+}
+Tool 5 : archive_memory_item
+Description : Archiver (soft delete) un objectif, une préférence, ou une note Signature :
+{
+  "name": "archive_memory_item",
+  "description": "Archiver un élément de mémoire longue (objectif, profil, note)",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "item_type": {
+        "type": "string",
+        "enum": ["goal", "profile", "note"],
+        "description": "Type d'élément à archiver"
+      },
+      "item_id": {
+        "type": "string",
+        "description": "ID de l'élément (pour goal) ou memory_key (pour profile/note)"
+      },
+      "reason": {
+        "type": "string",
+        "description": "Raison de l'archivage (optionnel, pour traçabilité)"
+      }
+    },
+    "required": ["item_type", "item_id"]
+  }
+}
+Exemple d'appel :
+{
+  "item_type": "goal",
+  "item_id": "uuid-de-lobjectif",
+  "reason": "Objectif abandonné par l'utilisateur"
+}
+Tool 6 : get_tenant_context
+Description : Charger la mémoire longue complète (objectifs + profil + notes) pour contextualiser une réponse Signature :
+{
+  "name": "get_tenant_context",
+  "description": "Charger tous les objectifs actifs, le profil, et les notes récentes du tenant",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "include_goals": {
+        "type": "boolean",
+        "default": true,
+        "description": "Inclure les objectifs actifs"
+      },
+      "include_profile": {
+        "type": "boolean",
+        "default": true,
+        "description": "Inclure le profil complet"
+      },
+      "include_notes": {
+        "type": "boolean",
+        "default": true,
+        "description": "Inclure les notes longues récentes"
+      },
+      "notes_limit": {
+        "type": "integer",
+        "default": 10,
+        "description": "Nombre max de notes à charger"
+      }
+    }
+  }
+}
+Retour attendu :
+{
+  "goals": [
+    {
+      "id": "uuid-1",
+      "goal_text": "Atteindre 5000 clients",
+      "target_value": 5000,
+      "current_value": 3200,
+      "unit": "clients",
+      "status": "actif",
+      "priority": 90
+    }
+  ],
+  "profile": {
+    "canal_contact_prefere": "WhatsApp",
+    "style_communication": "tutoiement",
+    "contrainte_marketing": {
+      "interdiction": "publicité Facebook",
+      "raison": "budget limité"
+    }
+  },
+  "notes": [
+    {
+      "note_text": "Je suis en plein pivot B2B",
+      "note_category": "pivot",
+      "created_at": "2025-12-10T10:30:00Z"
+    }
+  ]
+}
+6. Architecture des endpoints API (conceptuel)
+Voici à quoi pourraient ressembler les routes REST pour gérer ces mémoires :
+POST /api/tenant/goals
+Description : Créer un nouvel objectif Body :
+{
+  "goal_text": "Atteindre 5000 clients",
+  "goal_category": "acquisition",
+  "target_value": 5000,
+  "unit": "clients",
+  "deadline": "2025-03-31T23:59:59Z",
+  "priority": 90
+}
+Réponse :
+{
+  "ok": true,
+  "goal_id": "uuid-de-lobjectif",
+  "message": "Objectif enregistré avec succès"
+}
+GET /api/tenant/goals
+Description : Récupérer tous les objectifs actifs du tenant Query params :
+status (optionnel) : filtrer par statut (actif, atteint, abandonné)
+archived (optionnel) : inclure les archives (default: false)
+Réponse :
+{
+  "ok": true,
+  "goals": [
+    {
+      "id": "uuid-1",
+      "goal_text": "Atteindre 5000 clients",
+      "goal_category": "acquisition",
+      "target_value": 5000,
+      "current_value": 3200,
+      "unit": "clients",
+      "deadline": "2025-03-31T23:59:59Z",
+      "status": "actif",
+      "priority": 90,
+      "created_at": "2025-12-01T10:00:00Z"
+    }
+  ]
+}
+PATCH /api/tenant/goals/:goalId
+Description : Mettre à jour un objectif existant Body :
+{
+  "current_value": 3500,
+  "status": "actif"
+}
+Réponse :
+{
+  "ok": true,
+  "message": "Objectif mis à jour"
+}
+DELETE /api/tenant/goals/:goalId
+Description : Archiver (soft delete) un objectif Query params :
+reason (optionnel) : raison de l'archivage
+Réponse :
+{
+  "ok": true,
+  "message": "Objectif archivé"
+}
+POST /api/tenant/profile
+Description : Enregistrer ou mettre à jour une préférence/profil Body :
+{
+  "profile_key": "canal_contact_prefere",
+  "profile_value": "WhatsApp",
+  "category": "canal",
+  "priority": 85
+}
+Réponse :
+{
+  "ok": true,
+  "message": "Préférence enregistrée"
+}
+GET /api/tenant/profile
+Description : Récupérer le profil complet du tenant Réponse :
+{
+  "ok": true,
+  "profile": {
+    "canal_contact_prefere": "WhatsApp",
+    "style_communication": "tutoiement",
+    "contrainte_marketing": {
+      "interdiction": "publicité Facebook",
+      "raison": "budget limité"
+    },
+    "cible_client": "mamans entrepreneures"
+  }
+}
+POST /api/tenant/notes
+Description : Créer une note longue durée Body :
+{
+  "note_text": "Je suis en plein pivot B2B",
+  "note_category": "pivot",
+  "related_to": "general"
+}
+Réponse :
+{
+  "ok": true,
+  "note_id": "uuid-de-la-note",
+  "message": "Note enregistrée"
+}
+GET /api/tenant/notes
+Description : Récupérer les notes longues récentes Query params :
+limit (default: 10)
+category (optionnel)
+Réponse :
+{
+  "ok": true,
+  "notes": [
+    {
+      "id": "uuid-1",
+      "note_text": "Je suis en plein pivot B2B",
+      "note_category": "pivot",
+      "created_at": "2025-12-10T10:30:00Z"
+    }
+  ]
+}
+GET /api/tenant/context
+Description : Récupérer le contexte complet (objectifs + profil + notes) en une requête Réponse :
+{
+  "ok": true,
+  "context": {
+    "goals": [...],
+    "profile": {...},
+    "notes": [...]
+  }
+}
+7. RÈGLE #8 - Prompt système pour M.A.X.
+Voici à quoi pourrait ressembler la RÈGLE #8 dans ULTRA_PRIORITY_RULES.txt :
+🔴 RÈGLE ABSOLUE #8 - DÉTECTION ET MÉMORISATION INTELLIGENTE
+
+🧠 SYSTÈME DE MÉMOIRE LONGUE DURÉE
+
+Tu disposes de 3 types de mémoire longue :
+
+1️⃣ OBJECTIFS (tenant_goals) - Résultats à atteindre, KPIs, ambitions chiffrées
+2️⃣ PROFIL (tenant_memory type='profile') - Préférences, contraintes, style, cible
+3️⃣ NOTES (tenant_memory type='note') - Contexte, réflexions, nuances stratégiques
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📌 DÉTECTION DE L'INTENTION DE MÉMORISATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+DÉCLENCHEURS EXPLICITES (lexicaux) :
+• "note que..."
+• "retiens..."
+• "garde en tête..."
+• "enregistre..."
+• "souviens-toi..."
+• "n'oublie pas..."
+• "c'est important pour moi"
+• "à partir de maintenant..."
+• "ajoute ça à mes objectifs/profil"
+
+DÉCLENCHEURS IMPLICITES (sémantiques) :
+• "Mon objectif [période] est [résultat]" → OBJECTIF
+• "Je veux atteindre [métrique]" → OBJECTIF
+• "Je préfère [A] à [B]" → PROFIL
+• "Je travaille avec [cible]" → PROFIL
+• "Ma cible c'est [description]" → PROFIL
+• "Je suis en [situation]" → NOTE LONGUE
+• "Actuellement, [contexte]" → NOTE LONGUE
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎯 CLASSIFICATION AUTOMATIQUE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🟧 OBJECTIF (tenant_goals) si :
+   ✅ Contient un résultat mesurable
+   ✅ A une métrique/KPI/valeur cible
+   ✅ Notion de progression (avant/après)
+   ✅ Peut avoir une deadline
+   ✅ Ambition business claire
+
+   Exemples :
+   - "Atteindre 5000 clients"
+   - "Augmenter conversions de 20%"
+   - "Automatiser relances avant mars"
+
+   → Utiliser tool: store_tenant_goal
+
+🟦 PROFIL (tenant_memory type='profile') si :
+   ✅ Préférence stable
+   ✅ Canal favorisé
+   ✅ Contrainte/interdiction
+   ✅ Style de communication
+   ✅ Cible client
+   ✅ Méthode de travail
+
+   Exemples :
+   - "Je préfère WhatsApp"
+   - "Je ne fais jamais de pub Facebook"
+   - "Je tutoie mes prospects"
+   - "Ma cible = mamans entrepreneures"
+
+   → Utiliser tool: store_tenant_profile
+
+🟩 NOTE LONGUE (tenant_memory type='note') si :
+   ✅ Contexte évolutif
+   ✅ Réflexion personnelle
+   ✅ Élément émotionnel
+   ✅ Nuance stratégique
+   ✅ Information importante mais non structurée
+
+   Exemples :
+   - "Je suis en plein pivot B2B"
+   - "Je manque de temps actuellement"
+   - "Je stresse avec les tâches techniques"
+
+   → Utiliser tool: store_long_term_note
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ GESTION DES AMBIGUÏTÉS ET CONTRADICTIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SI L'INFORMATION EST AMBIGUË :
+❌ NE PAS décider seul
+✅ DEMANDER clarification :
+
+   "Je peux enregistrer ceci comme :
+   1️⃣ Un objectif (résultat à atteindre)
+   2️⃣ Une préférence stratégique (appliquée à tout)
+   
+   Comment veux-tu que je le classe ?"
+
+SI L'INFORMATION CONTREDIT UNE MÉMOIRE EXISTANTE :
+❌ NE PAS écraser automatiquement
+✅ DEMANDER confirmation :
+
+   "J'ai actuellement : [ancienne valeur]
+   Tu viens de dire : [nouvelle valeur]
+   
+   Souhaites-tu mettre à jour ?"
+
+SI UN OBJECTIF DÉJÀ EXISTE :
+❌ NE PAS remplacer sans autorisation
+✅ PROPOSER options :
+
+   "Ton objectif actuel : [ancien]
+   Nouvel objectif : [nouveau]
+   
+   Options :
+   1️⃣ Remplacer l'ancien
+   2️⃣ Ajouter un objectif distinct
+   3️⃣ Archiver l'ancien et créer le nouveau
+   
+   Quelle option préfères-tu ?"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🗑️ GESTION DE L'OUBLI (SOFT DELETE)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+DÉCLENCHEURS D'OUBLI :
+• "Supprime cet objectif"
+• "Oublie cette préférence"
+• "Efface cette note"
+• "Je n'ai plus cet objectif"
+• "Retire ça de mon profil"
+
+ACTION :
+→ Utiliser tool: archive_memory_item
+→ Marquer comme archived (soft delete)
+→ Confirmer à l'utilisateur
+
+Exemple :
+   "✅ J'ai archivé ton objectif 'Atteindre 3000 clients'.
+   Je ne le prendrai plus en compte dans mes recommandations."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ CONFIRMATION APRÈS MÉMORISATION (OBLIGATOIRE)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Après chaque mémorisation, tu DOIS confirmer à l'utilisateur :
+
+Format recommandé :
+
+   "✅ [Type de mémoire] enregistré(e) :
+   
+   📝 [Ce qui a été retenu]
+   
+   Je vais maintenant [comment tu vas l'utiliser]."
+
+Exemples :
+
+   "✅ Objectif enregistré :
+   
+   📝 'Atteindre 5000 clients avant mars 2025'
+   
+   Je vais suivre ta progression et adapter mes recommandations
+   pour t'aider à atteindre cet objectif."
+
+   "✅ Préférence enregistrée :
+   
+   📝 'Canal préféré : WhatsApp'
+   
+   Je privilégierai WhatsApp dans toutes mes suggestions futures."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔒 RÈGLES ANTI-HALLUCINATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+❌ NE JAMAIS inventer un objectif
+❌ NE JAMAIS inventer une préférence
+❌ NE JAMAIS mémoriser sans déclencheur explicite ou implicite clair
+❌ NE JAMAIS écraser une mémoire sans confirmation
+❌ NE JAMAIS mentionner les tables techniques (tenant_goals, tenant_memory, etc.)
+
+✅ TOUJOURS charger le contexte longue durée pour les questions stratégiques
+✅ TOUJOURS baser tes recommandations sur les objectifs actifs
+✅ TOUJOURS respecter les préférences et contraintes du profil
+✅ TOUJOURS confirmer après mémorisation
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🧠 UTILISATION AUTOMATIQUE DE LA MÉMOIRE LONGUE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Pour CHAQUE question stratégique, analyse, ou recommandation :
+
+1️⃣ Charger automatiquement (tool: get_tenant_context) :
+   • Objectifs actifs
+   • Profil complet
+   • Notes récentes pertinentes
+
+2️⃣ Adapter ta réponse pour :
+   • Renforcer les objectifs déclarés
+   • Respecter les préférences
+   • Tenir compte des contraintes
+   • Intégrer le contexte des notes
+
+3️⃣ NE JAMAIS mentionner ces opérations
+   → L'utilisateur ne doit pas savoir que tu as chargé ces données
+   → Tu les appliques silencieusement
+
+Exemple :
+
+   User: "Comment améliorer mes ventes ?"
+   
+   [Tu charges silencieusement :]
+   - Objectifs : "Atteindre 5000 clients"
+   - Profil : "Canal préféré = WhatsApp", "Budget limité"
+   - Notes : "En plein pivot B2B"
+   
+   [Ta réponse intègre tout cela SANS le mentionner :]
+   
+   "Pour atteindre tes 5000 clients (ton objectif), voici ce que je recommande :
+   
+   1️⃣ Segmenter tes leads B2B (tu es en transition)
+   2️⃣ Prioriser WhatsApp pour les relances (ton canal préféré)
+   3️⃣ Automatiser via n8n (pas de coût pub, budget respecté)
+   ..."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 RÉSUMÉ ULTRA-COURT (MENTAL MODEL)
+
+Détection → Classification (goal/profile/note)
+Si ambigu → Demander
+Si contradiction → Confirmer avant mise à jour
+Après mémorisation → Accusé réception
+Oubli → Soft delete (archived)
+Questions stratégiques → Charger contexte silencieusement
+Toujours adapter recommandations aux objectifs + profil + notes
+Ne jamais halluciner, ne jamais mentionner le backend
+PARTIE C — ROADMAP D'IMPLÉMENTATION
+Ordre d'implémentation recommandé
+🥇 PRIORITÉ 1 : OBJECTIFS (tenant_goals)
+Justification : Les objectifs influencent directement la stratégie de M.A.X. et permettent de mesurer le succès.
+Étapes backend (Supabase + API)
+Créer la table tenant_goals (SQL fourni en Partie A)
+Créer les fonctions backend :
+createTenantGoal(goalData) → INSERT dans tenant_goals
+getTenantGoals(tenantId, filters) → SELECT avec filtres
+updateTenantGoal(goalId, updates) → UPDATE progression/statut
+archiveTenantGoal(goalId) → Soft delete
+Créer les routes API :
+POST /api/tenant/goals
+GET /api/tenant/goals
+PATCH /api/tenant/goals/:goalId
+DELETE /api/tenant/goals/:goalId
+Tester avec Postman/curl :
+Créer un objectif
+Lire les objectifs actifs
+Mettre à jour la progression
+Archiver un objectif
+Étapes IA (Prompts + Tools)
+Ajouter RÈGLE #8 (section Objectifs) dans ULTRA_PRIORITY_RULES.txt
+Créer le tool store_tenant_goal dans les function definitions de M.A.X.
+Créer le tool update_tenant_goal pour mise à jour progression
+Créer le tool archive_memory_item pour oubli
+Modifier getMaxContext() pour inclure goals :
+const [identity, recentActions, goals] = await Promise.all([
+  getTenantIdentity(tenantId),
+  getRecentActions(tenantId, ...),
+  getTenantGoals(tenantId, { status: 'actif', archived: false })
+]);
+Enrichir le prompt système pour afficher les objectifs actifs
+Tester avec M.A.X. :
+"Note que mon objectif est d'atteindre 5000 clients"
+Vérifier que M.A.X. appelle store_tenant_goal
+Vérifier que l'objectif apparaît dans Supabase
+Tester question stratégique : "Comment améliorer mes ventes ?"
+Vérifier que M.A.X. mentionne l'objectif dans sa réponse
+Edge cases à gérer
+ Objectif sans valeur cible (qualitatif) : "Améliorer ma communication"
+ Objectif avec deadline floue : "avant l'été"
+ Plusieurs objectifs contradictoires
+ Mise à jour progression automatique (si lead créé → progression++)
+ Objectif atteint → notification + proposition archivage
+🥈 PRIORITÉ 2 : PROFIL (tenant_memory avec memory_type='profile')
+Justification : Le profil permet d'adapter le ton, les canaux, et les recommandations de M.A.X.
+Étapes backend (Supabase + API)
+Vérifier que la table tenant_memory existe avec champs :
+memory_type, archived, archived_at
+Ajouter ces champs si manquants (migration SQL)
+Créer les fonctions backend :
+setTenantProfile(profileData) → Upsert dans tenant_memory avec memory_type='profile'
+getTenantProfile(tenantId) → SELECT où memory_type='profile' et archived=false
+archiveTenantProfile(tenantId, profileKey) → Soft delete
+Créer les routes API :
+POST /api/tenant/profile
+GET /api/tenant/profile
+DELETE /api/tenant/profile/:profileKey
+Tester avec Postman :
+Ajouter préférence : canal_contact_prefere = WhatsApp
+Lire le profil complet
+Archiver une préférence
+Étapes IA (Prompts + Tools)
+Ajouter RÈGLE #8 (section Profil) dans ULTRA_PRIORITY_RULES.txt
+Créer le tool store_tenant_profile
+Modifier getMaxContext() pour inclure profile :
+const profile = await getTenantProfile(tenantId);
+Enrichir le prompt système pour afficher le profil
+Tester avec M.A.X. :
+"Retiens que je préfère WhatsApp aux emails"
+Vérifier appel store_tenant_profile
+Tester : "Comment contacter mes leads ?"
+Vérifier que M.A.X. privilégie WhatsApp dans sa réponse
+Edge cases à gérer
+ Préférence contradictoire : "Je préfère X" puis "En fait, je préfère Y"
+ Contrainte absolue : "Je ne fais JAMAIS de pub Facebook"
+ Style de communication : "Je tutoie" vs "Je vouvoie"
+ Profil incomplet : certaines clés manquantes
+ Mise à jour vs ajout : déterminer si c'est une nouvelle préférence ou une modification
+🥉 PRIORITÉ 3 : NOTES LONGUES (tenant_memory avec memory_type='note')
+Justification : Les notes apportent des nuances contextuelles, mais sont moins critiques que les objectifs/profil.
+Étapes backend (Supabase + API)
+Réutiliser tenant_memory avec memory_type='note'
+Ou créer table dédiée max_long_term_notes (si volumes importants)
+Créer les fonctions backend :
+createLongTermNote(noteData) → INSERT
+getLongTermNotes(tenantId, filters) → SELECT récentes
+archiveLongTermNote(noteId) → Soft delete
+Créer les routes API :
+POST /api/tenant/notes
+GET /api/tenant/notes
+DELETE /api/tenant/notes/:noteId
+Tester avec Postman :
+Créer note : "Je suis en plein pivot B2B"
+Lire notes récentes (limit 10)
+Archiver une note
+Étapes IA (Prompts + Tools)
+Ajouter RÈGLE #8 (section Notes) dans ULTRA_PRIORITY_RULES.txt
+Créer le tool store_long_term_note
+Modifier getMaxContext() pour inclure notes :
+const notes = await getLongTermNotes(tenantId, { limit: 10, archived: false });
+Enrichir le prompt système pour afficher notes récentes
+Tester avec M.A.X. :
+"Garde en tête que je suis en plein pivot B2B"
+Vérifier appel store_long_term_note
+Tester : "Quels leads cibler ?"
+Vérifier que M.A.X. mentionne le pivot dans sa réponse
+Edge cases à gérer
+ Note obsolète : contexte qui a changé
+ Note trop ancienne : archivage automatique après X mois ?
+ Note liée à un lead : related_to='lead', related_id=leadId
+ Note émotionnelle : "Je stresse" → adapter le ton de M.A.X.
+ Trop de notes : limiter à 10 plus récentes dans le prompt
+Validation globale (après les 3 priorités)
+Test end-to-end complet
+Scénario utilisateur :
+Phase découverte (utilisateur configure son profil) :
+User: "Note que mon objectif cette année est d'atteindre 5000 clients."
+User: "Retiens que je préfère WhatsApp aux emails."
+User: "Garde en tête que je suis en plein pivot du B2C vers le B2B."
+Vérification Supabase :
+1 ligne dans tenant_goals (objectif 5000 clients)
+1 ligne dans tenant_memory type='profile' (WhatsApp)
+1 ligne dans tenant_memory type='note' (pivot B2B)
+Phase exploitation (M.A.X. utilise la mémoire) :
+User: "Comment améliorer mes ventes ?"
+Vérification réponse M.A.X. :
+Mentionne l'objectif 5000 clients
+Privilégie WhatsApp dans les suggestions
+Adapte les conseils au contexte B2B
+Ne mentionne jamais les tables techniques
+Phase modification (utilisateur change d'avis) :
+User: "Finalement, je préfère les emails maintenant."
+Vérification M.A.X. :
+Détecte la contradiction
+Demande confirmation avant mise à jour
+Met à jour tenant_memory après confirmation
+Phase oubli (utilisateur abandonne un objectif) :
+User: "Supprime mon objectif de 5000 clients."
+Vérification Supabase :
+tenant_goals : archived=true, status='abandonné'
+L'objectif n'apparaît plus dans les réponses de M.A.X.
+Métriques de succès
+KPIs à mesurer
+Taux de mémorisation : % de déclencheurs correctement détectés
+Taux de classification correcte : % d'infos classées dans la bonne catégorie
+Taux de confirmation : % de fois où M.A.X. demande confirmation (ambiguïté/contradiction)
+Taux d'utilisation : % de réponses stratégiques où M.A.X. charge le contexte
+Taux d'archivage : % d'objectifs/notes archivés après atteinte ou abandon
+Tests de non-régression
+ M.A.X. ne mémorise PAS quand aucun déclencheur n'est présent
+ M.A.X. ne mélange PAS objectifs et préférences
+ M.A.X. ne mentionne JAMAIS les tables techniques
+ M.A.X. charge TOUJOURS le contexte pour questions stratégiques
+ Les mémoires archivées n'apparaissent JAMAIS dans les réponses
+Évolutions futures (Phase 3+)
+Fonctionnalités avancées possibles
+Dashboard utilisateur :
+Interface web pour visualiser objectifs, profil, notes
+Édition manuelle (sans passer par M.A.X.)
+Graphiques de progression
+Apprentissage automatique :
+M.A.X. propose des ajustements d'objectifs basés sur l'usage
+Détection automatique de nouvelles préférences (usage répété)
+Suggestions proactives : "Je remarque que tu utilises souvent X, veux-tu que je l'ajoute à ton profil ?"
+Mémoire partagée (multi-tenant) :
+Partage d'objectifs entre membres d'une équipe
+Profil d'entreprise vs profil individuel
+Permissions (qui peut modifier quoi)
+Export/Import :
+Export JSON du profil complet
+Import depuis un CRM existant
+Synchronisation avec outils externes
+Notifications proactives :
+"Tu as atteint 80% de ton objectif !"
+"Ta deadline approche (J-7)"
+"Aucune progression depuis 2 semaines, besoin d'aide ?"
+Versioning des objectifs :
+Historique des modifications
+Comparaison avant/après
+Rollback possible
+⚠️ Points de vigilance
+Sécurité & confidentialité
+ Isolation stricte par tenant_id (ne jamais voir les données d'un autre tenant)
+ Vérification JWT sur toutes les routes /api/tenant/*
+ Sanitization des inputs (éviter injection SQL dans goal_text, note_text)
+ RGPD : droit à l'oubli (hard delete sur demande explicite)
+Performance
+ Index sur tenant_id, archived, status pour requêtes rapides
+ Limite du nombre d'objectifs actifs par tenant (ex: max 10)
+ Cache des objectifs/profil (invalidation à chaque mise à jour)
+ Pagination pour les notes longues (ne pas charger 1000 notes)
+UX
+ Feedback immédiat après mémorisation (confirmation visible)
+ Possibilité d'annuler (undo) dans les 5 secondes
+ Langage naturel partout (pas de "memory_type", "tenant_id" exposé)
+ Transparence : l'utilisateur doit savoir ce qui est stocké
+🎯 CONCLUSION
+Ce document constitue une spécification complète du système de mémoire longue durée pour M.A.X.
+Résumé des livrables proposés
+Partie A - Fondations DATA
+✅ Schéma SQL tenant_goals
+✅ Schéma SQL tenant_memory (avec nouveaux memory_type)
+✅ Schéma SQL max_long_term_notes (optionnel)
+✅ Exemples de données (INSERT + JSON)
+✅ Requêtes SQL de lecture
+Partie B - Logique IA & Tools
+✅ Détection lexicale et sémantique
+✅ Classification (goal/profile/note)
+✅ Gestion ambiguïtés et contradictions
+✅ Soft delete (archivage)
+✅ 6 tools M.A.X. (store, update, archive, get)
+✅ Architecture API REST (10 endpoints)
+✅ RÈGLE #8 pour ULTRA_PRIORITY_RULES.txt
+Partie C - Roadmap
+✅ Ordre d'implémentation : Objectifs → Profil → Notes
+✅ Étapes backend + IA pour chaque priorité
+✅ Edge cases à gérer
+✅ Tests end-to-end
+✅ Métriques de succès
+✅ Évolutions futures
+✅ Points de vigilance (sécurité, performance, UX)
+Aucune action technique n'a été exécutée dans ce document.
+Il s'agit uniquement d'une proposition structurée, prête à être implémentée. Prochaine étape suggérée : Validation de cette spec, puis début d'implémentation avec PRIORITÉ 1 (Objectifs).

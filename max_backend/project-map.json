@@ -1,0 +1,32 @@
+{
+  "ia-admin-ui": {
+    "type": "react-frontend",
+    "path": "D:/Macrea/CRMACREA/ia-admin-ui/src",
+    "files": [
+      "App.jsx",
+      "PromptInput.jsx",
+      "TaskList.jsx"
+    ]
+  },
+  "ia_admin_api": {
+    "type": "express-backend",
+    "path": "D:/Macrea/CRMACREA/ia_admin_api",
+    "files": [
+      "server.js"
+    ]
+  },
+  "tasks_autogen": {
+    "type": "ia-task-json",
+    "path": "D:/Macrea/CRMACREA/ia_admin/tasks_autogen",
+    "files": [
+      "generate-map-001.json"
+    ]
+  },
+  "utils": {
+    "type": "agent-utils",
+    "path": "D:/Macrea/CRMACREA/ia_admin_api/utils",
+    "files": [
+      "say.js"
+    ]
+  }
+}

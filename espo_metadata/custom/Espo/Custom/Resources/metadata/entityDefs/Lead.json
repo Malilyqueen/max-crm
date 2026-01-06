@@ -1,0 +1,16 @@
+{
+  "fields": {
+    "etiquettes": {
+      "type": "linkMultiple",
+      "relation": "Etiquette",
+      "audited": false
+    }
+  },
+  "links": {
+    "etiquettes": {
+      "type": "hasMany",
+      "entity": "Etiquette",
+      "foreign": "leads"
+    }
+  }
+}

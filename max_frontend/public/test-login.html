@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Login API</title>
+    <style>
+        body {
+            font-family: system-ui;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f3f4f6;
+        }
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        button:hover { background: #2563eb; }
+        pre {
+            background: #1f2937;
+            color: #10b981;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .error { color: #ef4444; }
+        .success { color: #10b981; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>🧪 Test Login API</h1>
+        <p>Teste directement l'API d'authentification</p>
+
+        <div style="margin: 20px 0;">
+            <button onclick="testLogin()">Test Login Admin</button>
+            <button onclick="clearStorage()">Clear localStorage</button>
+            <button onclick="showStorage()">Voir localStorage</button>
+        </div>
+
+        <h3>Résultat :</h3>
+        <pre id="output">Clique sur "Test Login Admin" pour commencer...</pre>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:3005/api';
+        const output = document.getElementById('output');
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const color = type === 'error' ? '#ef4444' : type === 'success' ? '#10b981' : '#60a5fa';
+            output.innerHTML += `<span style="color: ${color}">[${timestamp}] ${message}</span>\n`;
+            output.scrollTop = output.scrollHeight;
+        }
+
+        async function testLogin() {
+            output.innerHTML = '';
+            log('🚀 Démarrage test login...', 'info');
+
+            try {
+                log('📤 POST /api/auth/login', 'info');
+                log('Body: {"email":"admin@macrea.fr","password":"admin123"}', 'info');
+
+                const response = await fetch(`${API_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: 'admin@macrea.fr',
+                        password: 'admin123'
+                    })
+                });
+
+                log(`📥 Response status: ${response.status}`, response.ok ? 'success' : 'error');
+
+                const data = await response.json();
+                log('📦 Response data:', 'info');
+                log(JSON.stringify(data, null, 2), 'success');
+
+                if (data.success && data.token) {
+                    log('✅ Login réussi !', 'success');
+                    log('Token: ' + data.token.substring(0, 50) + '...', 'success');
+                    log('User: ' + data.user.name + ' (' + data.user.email + ')', 'success');
+
+                    // Sauver dans localStorage comme le fait le store
+                    const authData = {
+                        state: {
+                            user: data.user,
+                            token: data.token,
+                            isAuthenticated: true
+                        },
+                        version: 0
+                    };
+                    localStorage.setItem('auth-storage', JSON.stringify(authData));
+                    log('💾 Token sauvé dans localStorage', 'success');
+
+                    // Test /me
+                    await testMe(data.token);
+                } else {
+                    log('❌ Login échoué: ' + (data.error || 'Erreur inconnue'), 'error');
+                }
+            } catch (error) {
+                log('❌ Erreur: ' + error.message, 'error');
+                log(error.stack, 'error');
+            }
+        }
+
+        async function testMe(token) {
+            try {
+                log('\n🔐 Test GET /api/auth/me avec token...', 'info');
+
+                const response = await fetch(`${API_URL}/auth/me`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                log(`📥 Response status: ${response.status}`, response.ok ? 'success' : 'error');
+
+                const data = await response.json();
+                log('📦 Response data:', 'info');
+                log(JSON.stringify(data, null, 2), 'success');
+
+                if (data.success) {
+                    log('✅ Token valide !', 'success');
+                } else {
+                    log('❌ Token invalide', 'error');
+                }
+            } catch (error) {
+                log('❌ Erreur /me: ' + error.message, 'error');
+            }
+        }
+
+        function clearStorage() {
+            localStorage.clear();
+            log('🧹 localStorage nettoyé', 'success');
+            showStorage();
+        }
+
+        function showStorage() {
+            output.innerHTML = '';
+            log('📦 Contenu localStorage:', 'info');
+
+            if (localStorage.length === 0) {
+                log('(vide)', 'info');
+            } else {
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    const value = localStorage.getItem(key);
+                    log(`${key}:`, 'info');
+                    try {
+                        const parsed = JSON.parse(value);
+                        log(JSON.stringify(parsed, null, 2), 'success');
+                    } catch {
+                        log(value, 'success');
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>

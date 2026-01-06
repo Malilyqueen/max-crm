@@ -1,0 +1,6 @@
+{
+  "enabled": true,
+  "allowed": ["wf-relance-j3", "tag-hot", "email-seq-optimize"],
+  "rateLimitPerHour": 50,
+  "schedule": { "start": "09:00", "end": "19:00" }
+}

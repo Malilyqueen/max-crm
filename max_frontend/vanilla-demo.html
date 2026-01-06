@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MAX UI – Vanilla Demo</title>
+  <style>
+    body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; padding: 16px; }
+    .row { display:flex; gap:8px; flex-wrap: wrap; }
+    .btn { padding: 6px 10px; border-radius: 8px; border: 1px solid #ccc; background: #f7f7f7; cursor: pointer; }
+    .card { border:1px solid #eee; border-radius:12px; padding:12px; margin-top:12px; }
+    [hidden] { display:none !important; }
+    :focus-visible { outline: 2px solid #2f80ed; outline-offset: 2px; }
+    /* Mobile responsive */
+    @media (max-width: 480px) {
+      .row { flex-direction: column; }
+      .card { width: 100%; box-sizing: border-box; }
+      #task-tray { position: fixed !important; left: 8px !important; right: 8px !important; top: auto !important; bottom: 8px !important; width: auto !important; max-height: 45vh !important; }
+    }
+  </style>
+  <script type="module" src="/src/main.js"></script>
+  <!-- The script will run on DOMContentLoaded -->
+  <script>document.addEventListener('DOMContentLoaded',()=>{
+    // no-op, everything is driven by MAXUI.initTenant
+  });</script>
+  </head>
+<body>
+  <!-- Admin controls injected by script when role=admin -->
+  <div id="admin-controls" style="position:fixed; left:12px; top:12px; z-index:9990; background:rgba(255,255,255,.9); border:1px solid #eee; padding:6px 8px; border-radius:8px"></div>
+  <h1>MAX UI – Vanilla Demo</h1>
+  <p>Cette page de test démontre le boot multi-tenant, le masquage des extensions et le reporting.</p>
+
+  <div class="row" aria-label="Onglets">
+    <button class="btn">Standard</button>
+    <button class="btn" data-extension data-scope="ecommerce">E‑commerce</button>
+    <button class="btn" data-extension data-scope="logistique">Logistique</button>
+    <button class="btn" data-extension data-scope="coaching">Coaching</button>
+  </div>
+
+  <div class="card" id="espace-max" style="margin-top:12px">
+    <h2>Espace M.A.X.</h2>
+    <div class="row" role="tablist" aria-label="Espace M.A.X. onglets">
+      <button class="btn" data-max-tab="explorer" aria-selected="true">Explorer</button>
+      <button class="btn" data-max-tab="gerer">Gérer</button>
+    </div>
+
+    <!-- Chat (only here, not in CRM) -->
+    <div id="max-chat" class="card" style="margin-top:8px">
+      <div><strong>Chat</strong></div>
+      <div style="display:flex; gap:6px; margin-top:6px">
+        <input id="chat-input" type="text" placeholder="Écrire un message..." style="flex:1; padding:6px 8px; border:1px solid #ccc; border-radius:8px" aria-label="Message de chat" />
+        <button class="btn" id="chat-send">Envoyer</button>
+      </div>
+    </div>
+
+    <!-- Exec log below chat -->
+    <div id="exec-log" class="card" style="margin-top:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <strong>Execution Log</strong>
+        <span style="opacity:.6;font-size:12px">Dernières actions</span>
+      </div>
+      <div id="exec-log-list" style="margin-top:6px"></div>
+    </div>
+
+    <div id="explorer" class="card" style="margin-top:12px">
+      <h3>Explorer</h3>
+      <!-- Cards injected here by hydrateDiscovery() -->
+    </div>
+
+    <div id="manager" class="card" style="margin-top:12px; display:none">
+      <h3>Gérer</h3>
+      <div style="opacity:.7">Propriétés intelligentes (mock) – tableau à venir.</div>
+    </div>
+  </div>
+
+  <div id="automation" class="card" style="margin-top:12px">
+    <h2>Automatisation (Workflows)</h2>
+    <div class="row" aria-label="Actions d'automatisation">
+      <button class="btn" data-auto-action="create-wf">Créer un workflow</button>
+      <button class="btn" data-auto-action="ask-max">Demander à M.A.X.</button>
+      <button class="btn" data-auto-action="import">Importer</button>
+      <button class="btn" data-auto-action="duplicate">Dupliquer template</button>
+    </div>
+    <!-- Cards injected here by hydrateDiscovery() -->
+  </div>
+
+  <div id="explorer" class="card" style="margin-top:12px">
+    <h2>Espace M.A.X. — Explorer</h2>
+    <!-- Cards injected here by hydrateDiscovery() -->
+  </div>
+
+  <div id="reporting" class="card" aria-live="polite">
+    <h2>Reporting</h2>
+    <div class="row">
+      <div>KPI – Leads entrants: <strong data-kpi="leadsIn">—</strong></div>
+      <div>KPI – Taux conversion: <strong data-kpi="conv">—</strong></div>
+      <div>KPI – Temps réponse: <strong data-kpi="resp">—</strong></div>
+      <div>KPI – Automations: <strong data-kpi="auto">—</strong></div>
+    </div>
+    <div class="row" style="margin-top:8px;">
+      <div>Quota: <strong data-quota>— / —</strong></div>
+    </div>
+    <div style="margin-top:8px;">
+      <div>Activity Stream:</div>
+      <ul data-activity style="margin:8px 0 0 16px"></ul>
+    </div>
+  </div>
+
+  <div id="crm" class="card" style="margin-top:12px">
+    <h2>CRM</h2>
+    <div class="row" style="margin-bottom:8px">
+      <input type="text" placeholder="Rechercher..." aria-label="Recherche" style="flex:1; padding:6px 8px; border:1px solid #ccc; border-radius:8px" />
+      <button class="btn">Rechercher</button>
+    </div>
+    <div class="card">
+      <div><strong>Contact</strong></div>
+      <div style="font-size:12px; opacity:.8">Jean Dupont · jean@example.com · 06 12 34 56 78</div>
+    </div>
+    <div class="card" style="margin-top:8px">
+      <div><strong>Tâches liées</strong></div>
+      <ul id="crm-tasks" style="margin:6px 0 0 16px">
+        <li>Relance WhatsApp <button class="btn" data-crm-action-id="crm_relance_whatsapp">Exécuter</button></li>
+        <li>Nettoyage doublons <button class="btn" data-crm-action-id="crm_clean_dupes">Exécuter</button></li>
+        <li>Créer étiquette “chaud” <button class="btn" data-crm-action-id="crm_tag_hot">Exécuter</button></li>
+      </ul>
+    </div>
+  </div>
+
+  <p style="opacity:.6; margin-top:16px">Pour simuler différents rôles, envoyez les en-têtes X-Tenant/X-Role/X-Preview depuis un proxy ou configurez le backend.</p>
+  <!-- Task tray renders automatically on first action -->
+  <div id="task-tray" style="display:none"></div>
+
+  <!-- Generic modal root -->
+  <div id="maxui-modal-root" hidden></div>
+</body>
+</html>

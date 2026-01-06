@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { API_BASE_URL } from '../config/api';
 
 export default function ChatWindow() {
   const [messages, setMessages] = useState([]);
@@ -18,7 +19,7 @@ export default function ChatWindow() {
         // 🔹 Lire contenu fichier CSV
         const text = await file.text();
 
-        res = await fetch("http://localhost:3005/api/ask-task-with-file", {
+        res = await fetch(`${API_BASE_URL}/api/ask-task-with-file`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -40,7 +41,7 @@ export default function ChatWindow() {
         ]);
       } else {
         // 🔹 Cas normal sans fichier
-        res = await fetch("http://localhost:3005/api/ask-task", {
+        res = await fetch(`${API_BASE_URL}/api/ask-task`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ prompt: input }),
@@ -66,7 +67,7 @@ export default function ChatWindow() {
 
   const handleAction = async (action, preview) => {
     if (action === "import") {
-      const res = await fetch("http://localhost:3005/api/leads/add", {
+      const res = await fetch(`${API_BASE_URL}/api/leads/add`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ leads: preview }),

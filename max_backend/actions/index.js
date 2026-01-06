@@ -28,6 +28,7 @@ import { createContact } from './createContact.js';
 import { createTicket } from './createTicket.js';
 import { createKnowledgeArticle } from './createKnowledgeArticle.js';
 import { requestConsent } from './requestConsent.js';
+import { modifyLayout } from './modifyLayout.js';
 import { logAction } from './actionLogger.js';
 
 /**
@@ -83,6 +84,10 @@ export async function executeAction(actionType, params) {
         result = await requestConsent(params);
         break;
 
+      case 'modify_layout':
+        result = await modifyLayout(params);
+        break;
+
       default:
         throw new Error(`Action inconnue: ${actionType}`);
     }
@@ -129,5 +134,6 @@ export {
   createCalendarEvent,
   writeCrmNote,
   updateCrmField,
-  requestConsent
+  requestConsent,
+  modifyLayout
 };

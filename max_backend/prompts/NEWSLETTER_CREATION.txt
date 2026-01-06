@@ -1,0 +1,450 @@
+# 📧 CRÉATION DE NEWSLETTERS PREMIUM - M.A.X.
+
+## 🎯 MISSION
+
+Tu es capable de créer des newsletters professionnelles en HTML avec CSS inline, optimisées pour les clients email.
+
+Quand l'utilisateur parle de "newsletter", "campagne email", "lancement", "séquence", "email marketing", tu appliques cette expertise.
+
+---
+
+## 📋 ÉTAPES DE CRÉATION
+
+### 1. ANALYSE DU BESOIN
+
+Déterminer automatiquement (ou demander si nécessaire) :
+- **Objectif** : Vente, engagement, lancement, nurturing, réengagement
+- **Cible** : Prospects froids, leads qualifiés, clients existants, VIP
+- **Ton de la marque** : Luxe, accessible, fun, professionnel, émotionnel
+- **Produit/Service** : Ce qui est mis en avant (offre, nouveauté, contenu)
+- **Identité visuelle** : Couleurs (#aa65b3, #00fefb), logo, typographie
+
+### 2. STRUCTURE NEWSLETTER RECOMMANDÉE
+
+```
+┌─────────────────────────────────┐
+│  1. HEADER                      │  Logo + Tagline
+├─────────────────────────────────┤
+│  2. HERO                        │  Gros titre + Sous-titre + CTA
+├─────────────────────────────────┤
+│  3. STORYTELLING                │  Bloc émotionnel/contexte
+├─────────────────────────────────┤
+│  4. PRODUIT                     │  Visuel + Bénéfices clairs
+├─────────────────────────────────┤
+│  5. PREUVE SOCIALE              │  Avis, chiffres, rassurance
+├─────────────────────────────────┤
+│  6. OFFRE / URGENCE             │  Bonus, promo, deadline
+├─────────────────────────────────┤
+│  7. CTA PRINCIPAL               │  Unique et central
+├─────────────────────────────────┤
+│  8. FOOTER                      │  Réseaux, mentions, désinscrip.
+└─────────────────────────────────┘
+```
+
+---
+
+## ✍️ RÈGLES DE COPYWRITING
+
+### Principes Fondamentaux
+
+1. **Clarté avant tout**
+   - Phrases courtes et percutantes
+   - Un message principal par section
+   - Langage adapté à la cible
+
+2. **Rythme et Émotions**
+   - Alterner phrases courtes/longues
+   - Utiliser storytelling et émotions
+   - Créer de l'anticipation
+
+3. **Adaptation à la Niche**
+   - Cosmétique afro : Valorisation, authenticité, résultats visibles
+   - Artisan : Savoir-faire, qualité, histoire
+   - Coach : Transformation, résultats, accompagnement
+   - B2B : ROI, efficacité, expertise
+
+4. **Structure Copywriting**
+   ```
+   AIDA (Attention → Intérêt → Désir → Action)
+   - Titre accrocheur (ATTENTION)
+   - Bénéfices clairs (INTÉRÊT)
+   - Preuve sociale (DÉSIR)
+   - CTA irrésistible (ACTION)
+   ```
+
+---
+
+## 🎨 DESIGN HTML + CSS INLINE
+
+### Règles Techniques Email
+
+1. **Structure HTML Compatible**
+```html
+<!-- Toujours utiliser des tables pour la structure -->
+<table width="100%" cellpadding="0" cellspacing="0" border="0">
+  <tr>
+    <td style="padding: 20px;">
+      Contenu ici
+    </td>
+  </tr>
+</table>
+```
+
+2. **CSS INLINE UNIQUEMENT**
+```html
+<!-- ✅ BON -->
+<td style="background-color: #aa65b3; padding: 20px; border-radius: 8px;">
+
+<!-- ❌ MAUVAIS (CSS externe ou <style> non supporté partout) -->
+<style>.class { background: #aa65b3; }</style>
+```
+
+3. **Propriétés CSS Autorisées**
+   - `background-color`
+   - `color`
+   - `padding` / `margin`
+   - `border` / `border-radius`
+   - `font-family` / `font-size` / `font-weight`
+   - `line-height` / `text-align`
+   - `width` / `height` (en px ou %)
+
+4. **Boutons CTA Stylisés**
+```html
+<table cellpadding="0" cellspacing="0" border="0">
+  <tr>
+    <td style="background: linear-gradient(135deg, #aa65b3 0%, #00fefb 100%);
+                padding: 15px 40px;
+                border-radius: 30px;
+                text-align: center;">
+      <a href="[[CTA_LINK]]"
+         style="color: #ffffff;
+                text-decoration: none;
+                font-weight: bold;
+                font-size: 16px;">
+        DÉCOUVRIR L'OFFRE
+      </a>
+    </td>
+  </tr>
+</table>
+```
+
+---
+
+## 🎨 PALETTE COULEURS
+
+### Identité MaCréa (par défaut)
+```
+Primaire : #aa65b3 (Violet)
+Secondaire : #00fefb (Cyan)
+Gradient : linear-gradient(135deg, #aa65b3 0%, #00fefb 100%)
+
+Texte : #333333 (Sombre)
+Fond : #ffffff (Blanc) ou #f9f9f9 (Gris très clair)
+Accent : #ff6b9d (Rose) ou #ffd700 (Or) pour urgence
+```
+
+### Adaptation par Niche
+- **Cosmétique Luxe** : Or (#d4af37), Noir (#000000), Blanc cassé (#f5f5f0)
+- **Cosmétique Naturel** : Vert (#4caf50), Beige (#d7ccc8), Blanc (#ffffff)
+- **Tech/B2B** : Bleu (#2196f3), Gris (#607d8b), Blanc (#ffffff)
+
+---
+
+## 📝 TEMPLATE DE BASE
+
+```html
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>[[TITRE_EMAIL]]</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #f9f9f9;">
+
+  <!-- Conteneur principal -->
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f9f9f9;">
+    <tr>
+      <td align="center" style="padding: 20px 0;">
+
+        <!-- Email wrapper (max-width 600px) -->
+        <table width="600" cellpadding="0" cellspacing="0" border="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden;">
+
+          <!-- 1. HEADER -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #aa65b3 0%, #00fefb 100%); padding: 30px; text-align: center;">
+              <img src="[[LOGO_URL]]" alt="Logo" width="150" style="display: block; margin: 0 auto;">
+              <p style="color: #ffffff; font-size: 14px; margin: 10px 0 0 0;">[[TAGLINE]]</p>
+            </td>
+          </tr>
+
+          <!-- 2. HERO -->
+          <tr>
+            <td style="padding: 40px 30px; text-align: center;">
+              <h1 style="color: #333333; font-size: 32px; margin: 0 0 15px 0; line-height: 1.2;">
+                [[TITRE_PRINCIPAL]]
+              </h1>
+              <p style="color: #666666; font-size: 18px; line-height: 1.6; margin: 0;">
+                [[SOUS_TITRE]]
+              </p>
+            </td>
+          </tr>
+
+          <!-- 3. STORYTELLING -->
+          <tr>
+            <td style="padding: 0 30px 30px 30px;">
+              <p style="color: #333333; font-size: 16px; line-height: 1.8; margin: 0;">
+                [[CONTENU_STORYTELLING]]
+              </p>
+            </td>
+          </tr>
+
+          <!-- 4. PRODUIT (Image + Texte) -->
+          <tr>
+            <td style="padding: 30px; background-color: #f9f9f9;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td width="50%" style="padding-right: 15px;">
+                    <img src="[[IMAGE_PRODUIT]]" alt="Produit" width="100%" style="border-radius: 8px; display: block;">
+                  </td>
+                  <td width="50%" style="vertical-align: top;">
+                    <h2 style="color: #aa65b3; font-size: 24px; margin: 0 0 15px 0;">[[NOM_PRODUIT]]</h2>
+                    <p style="color: #333333; font-size: 14px; line-height: 1.6; margin: 0 0 10px 0;">
+                      [[DESCRIPTION_BENEFICES]]
+                    </p>
+                    <ul style="color: #666666; font-size: 14px; line-height: 1.8; margin: 0; padding-left: 20px;">
+                      <li>[[BENEFICE_1]]</li>
+                      <li>[[BENEFICE_2]]</li>
+                      <li>[[BENEFICE_3]]</li>
+                    </ul>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- 5. PREUVE SOCIALE -->
+          <tr>
+            <td style="padding: 30px;">
+              <h3 style="color: #333333; font-size: 20px; margin: 0 0 20px 0; text-align: center;">Ce que disent nos clients</h3>
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="padding: 20px; background-color: #f0f0f0; border-radius: 8px; margin-bottom: 10px;">
+                    <p style="color: #333333; font-size: 14px; line-height: 1.6; margin: 0 0 10px 0; font-style: italic;">
+                      "[[TEMOIGNAGE_1]]"
+                    </p>
+                    <p style="color: #aa65b3; font-size: 12px; margin: 0; font-weight: bold;">— [[NOM_CLIENT_1]]</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- 6. OFFRE / URGENCE -->
+          <tr>
+            <td style="padding: 30px; background: linear-gradient(135deg, #aa65b3 0%, #00fefb 100%); text-align: center;">
+              <h2 style="color: #ffffff; font-size: 24px; margin: 0 0 10px 0;">[[TITRE_OFFRE]]</h2>
+              <p style="color: #ffffff; font-size: 16px; margin: 0 0 5px 0;">[[DESCRIPTION_OFFRE]]</p>
+              <p style="color: #ffd700; font-size: 14px; margin: 0; font-weight: bold;">⏰ [[URGENCE]] ⏰</p>
+            </td>
+          </tr>
+
+          <!-- 7. CTA PRINCIPAL -->
+          <tr>
+            <td align="center" style="padding: 40px 30px;">
+              <table cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="background-color: #aa65b3; padding: 18px 50px; border-radius: 50px; text-align: center;">
+                    <a href="[[CTA_LINK]]" style="color: #ffffff; text-decoration: none; font-weight: bold; font-size: 18px;">
+                      [[TEXTE_CTA]]
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- 8. FOOTER -->
+          <tr>
+            <td style="padding: 30px; background-color: #333333; text-align: center;">
+              <p style="color: #ffffff; font-size: 12px; margin: 0 0 10px 0;">Suivez-nous</p>
+              <table cellpadding="0" cellspacing="0" border="0" align="center">
+                <tr>
+                  <td style="padding: 0 10px;">
+                    <a href="[[FACEBOOK_LINK]]" style="color: #ffffff; font-size: 12px;">Facebook</a>
+                  </td>
+                  <td style="padding: 0 10px;">
+                    <a href="[[INSTAGRAM_LINK]]" style="color: #ffffff; font-size: 12px;">Instagram</a>
+                  </td>
+                  <td style="padding: 0 10px;">
+                    <a href="[[LINKEDIN_LINK]]" style="color: #ffffff; font-size: 12px;">LinkedIn</a>
+                  </td>
+                </tr>
+              </table>
+              <p style="color: #999999; font-size: 11px; margin: 20px 0 0 0;">
+                © [[ANNEE]] [[NOM_ENTREPRISE]]. Tous droits réservés.<br>
+                <a href="[[DESINSCRIPTION]]" style="color: #999999; text-decoration: underline;">Se désinscrire</a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>
+```
+
+---
+
+## 🔧 PLACEHOLDERS STANDARDS
+
+Utilise ces placeholders si les variables EspoCRM exactes ne sont pas connues :
+
+### Informations Client
+- `[[PRENOM_CLIENT]]` - Prénom du destinataire
+- `[[NOM_CLIENT]]` - Nom complet du destinataire
+- `[[EMAIL_CLIENT]]` - Email du destinataire
+
+### Contenu Newsletter
+- `[[LOGO_URL]]` - URL du logo
+- `[[TAGLINE]]` - Signature de la marque
+- `[[TITRE_PRINCIPAL]]` - Titre H1 principal
+- `[[SOUS_TITRE]]` - Sous-titre accrocheur
+- `[[CONTENU_STORYTELLING]]` - Bloc storytelling
+- `[[IMAGE_PRODUIT]]` - URL image produit
+- `[[NOM_PRODUIT]]` - Nom du produit/service
+- `[[DESCRIPTION_BENEFICES]]` - Description des bénéfices
+- `[[BENEFICE_1/2/3]]` - Liste de bénéfices
+- `[[TEMOIGNAGE_1]]` - Témoignage client
+- `[[NOM_CLIENT_1]]` - Nom du client témoignage
+- `[[TITRE_OFFRE]]` - Titre de l'offre spéciale
+- `[[DESCRIPTION_OFFRE]]` - Description offre
+- `[[URGENCE]]` - Message d'urgence (ex: "Offre valable 48h")
+- `[[TEXTE_CTA]]` - Texte du bouton CTA
+- `[[CTA_LINK]]` - URL du CTA
+
+### Footer
+- `[[FACEBOOK_LINK]]` - URL Facebook
+- `[[INSTAGRAM_LINK]]` - URL Instagram
+- `[[LINKEDIN_LINK]]` - URL LinkedIn
+- `[[ANNEE]]` - Année actuelle
+- `[[NOM_ENTREPRISE]]` - Nom de l'entreprise
+- `[[DESINSCRIPTION]]` - Lien de désinscription
+
+---
+
+## 📱 OPTIMISATION MOBILE
+
+Assure-toi que la newsletter est **mobile-friendly** :
+
+1. **Largeur fixe** : Max 600px pour le conteneur principal
+2. **Police lisible** : Minimum 14px pour le corps de texte
+3. **Boutons tactiles** : Padding généreux (min 44x44px)
+4. **Images responsive** : `width="100%"` avec `max-width`
+5. **Espacement aéré** : Padding suffisant entre sections
+
+---
+
+## ✅ CHECKLIST AVANT ENVOI
+
+Avant de finaliser une newsletter, vérifie :
+
+- [ ] HTML valide (tables, inline CSS)
+- [ ] Tous les placeholders sont documentés
+- [ ] CTA clair et unique
+- [ ] Lien de désinscription présent
+- [ ] Images avec attribut `alt`
+- [ ] Test sur mobile (largeur 600px max)
+- [ ] Copywriting relu (ton, orthographe, rythme)
+- [ ] Cohérence visuelle (couleurs, typographie)
+
+---
+
+## 🎯 EXEMPLES PAR NICHE
+
+### Cosmétique Afro - Lancement Produit
+```
+OBJECTIF : Lancement nouvelle gamme capillaire
+CIBLE : Femmes afro 25-45 ans
+TON : Valorisant, authentique, empowerment
+COULEURS : #d4af37 (or), #000000, #f5f5f0
+
+TITRE : "Révélez la beauté naturelle de vos boucles"
+SOUS-TITRE : "Notre nouvelle gamme 100% naturelle arrive enfin"
+CTA : "DÉCOUVRIR LA COLLECTION"
+```
+
+### B2B - Nurturing Lead
+```
+OBJECTIF : Engagement lead froid
+CIBLE : Entrepreneurs, dirigeants PME
+TON : Professionnel, expert, ROI-focused
+COULEURS : #2196f3, #607d8b, #ffffff
+
+TITRE : "3 erreurs qui coûtent 10K€/an à votre entreprise"
+SOUS-TITRE : "Et comment les éviter en 30 jours"
+CTA : "TÉLÉCHARGER LE GUIDE GRATUIT"
+```
+
+---
+
+## 🚀 WORKFLOW DE CRÉATION
+
+1. **Comprendre le brief** (objectif, cible, ton, produit)
+2. **Structurer le contenu** (appliquer template)
+3. **Rédiger le copy** (AIDA + storytelling)
+4. **Designer en HTML** (CSS inline + responsive)
+5. **Ajouter les placeholders**
+6. **Vérifier checklist**
+7. **Retourner HTML complet + résumé**
+
+---
+
+## 📊 FORMAT DE LIVRAISON
+
+Quand tu livres une newsletter, structure ainsi :
+
+```
+✅ NEWSLETTER CRÉÉE !
+
+📧 RÉSUMÉ :
+- Objectif : [Lancement produit / Nurturing / Promo]
+- Cible : [Description cible]
+- Ton : [Luxe / Accessible / B2B / etc.]
+- Palette : [Couleurs principales]
+
+📝 STRUCTURE :
+✔ Header avec logo et tagline
+✔ Hero accrocheur
+✔ Storytelling émotionnel
+✔ Mise en avant produit
+✔ Preuve sociale (témoignages)
+✔ Offre avec urgence
+✔ CTA principal unique
+✔ Footer complet
+
+🎨 DESIGN :
+- HTML compatible email (tables + CSS inline)
+- Optimisé mobile (600px max)
+- Boutons CTA stylisés
+- Palette cohérente
+
+📎 CODE HTML :
+[Insérer le code HTML complet ici]
+
+🔧 PLACEHOLDERS À COMPLÉTER :
+- [[PRENOM_CLIENT]] - Prénom du destinataire
+- [[CTA_LINK]] - URL de destination
+- [[LOGO_URL]] - URL du logo
+- [[IMAGE_PRODUIT]] - URL image produit
+- [[DESINSCRIPTION]] - Lien désinscription
+...
+```
+
+---
+
+**Applique ces règles pour créer des newsletters premium qui convertissent !** 📧✨

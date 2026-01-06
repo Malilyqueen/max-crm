@@ -1,0 +1,112 @@
+[
+  {
+    "problem_id": "WF_CHAIN_FAIL",
+    "category": "Workflow / BPM",
+    "keywords": [
+      "workflow ne se déclenche pas",
+      "after record updated",
+      "chaînage workflow",
+      "workflow bloque"
+    ],
+    "symptoms_user": "Un workflow mis à jour ne déclenche pas le suivant.",
+    "cause_technical": "Protection anti-boucle d'EspoCRM.",
+    "solution": "Passer WF2 en 'Sequential' + ajouter 'Trigger Another Workflow' dans WF1.",
+    "max_mode": "CONSEIL",
+    "priority": 1
+  },
+  {
+    "problem_id": "WEB_TO_LEAD_FAIL",
+    "category": "Lead Capture",
+    "keywords": [
+      "lead non reçu",
+      "timeout 504",
+      "doublon lead",
+      "formulaire ne marche pas"
+    ],
+    "symptoms_user": "Le formulaire web renvoie une erreur ou n'enregistre rien.",
+    "cause_technical": "Timeout duplication + bug doublons.",
+    "solution": "Désactiver Duplicate Check + utiliser n8n comme capture robuste.",
+    "max_mode": "AUTO",
+    "priority": 1
+  },
+  {
+    "problem_id": "API_403_ASSIGNMENT",
+    "category": "API / Permissions",
+    "keywords": ["403", "permission denied", "assignment", "n8n error"],
+    "symptoms_user": "Impossible de créer un enregistrement via API.",
+    "cause_technical": "Assignment Permission manquante.",
+    "solution": "Activer Assignment Permission = all/team.",
+    "max_mode": "ASSISTÉ",
+    "priority": 1
+  },
+  {
+    "problem_id": "DB_SLOW",
+    "category": "Database / Performance",
+    "keywords": ["lent", "slow", "timeout", "note", "email"],
+    "symptoms_user": "Le CRM devient très lent.",
+    "cause_technical": "Tables énormes + absence d'index.",
+    "solution": "Activer slow_query_log + proposer index SQL.",
+    "max_mode": "AUTO",
+    "priority": 1
+  },
+  {
+    "problem_id": "IMAP_LIMIT",
+    "category": "Email / Limitations",
+    "keywords": ["imap", "pas synchronisé", "envoyés", "dossier"],
+    "symptoms_user": "Les emails ne se synchronisent pas comme Outlook.",
+    "cause_technical": "IMAP EspoCRM = import unidirectionnel.",
+    "solution": "Expliquer limitations + alternatives.",
+    "max_mode": "CONSEIL",
+    "priority": 2
+  },
+  {
+    "problem_id": "SCHEDULER_STUCK",
+    "category": "Workflow / Automation",
+    "keywords": ["scheduled", "cron", "planifié", "ne tourne plus"],
+    "symptoms_user": "Les workflows planifiés arrêtent de fonctionner.",
+    "cause_technical": "Scheduler interne bloqué.",
+    "solution": "Inactivate → Rebuild → Activate.",
+    "max_mode": "AUTO",
+    "priority": 1
+  },
+  {
+    "problem_id": "CUSTOM_FIELD_MISSING",
+    "category": "UI / Fields",
+    "keywords": ["champ invisible", "layout", "side panels"],
+    "symptoms_user": "Le champ n'apparaît pas dans Available Fields.",
+    "cause_technical": "Bug UI lié aux Side Panels.",
+    "solution": "Retirer panels → ajouter champ → remettre panels.",
+    "max_mode": "ASSISTÉ",
+    "priority": 2
+  },
+  {
+    "problem_id": "MULTI_ENUM_FAKE_TAGS",
+    "category": "Fields / Data",
+    "keywords": ["multi enum", "tag", "option disparaît"],
+    "symptoms_user": "Les tags ne sont pas sauvegardés.",
+    "cause_technical": "Multi-Enum ne sauvegarde pas les options.",
+    "solution": "Créer entité Tag + relation Many-to-Many.",
+    "max_mode": "CONSEIL",
+    "priority": 2
+  },
+  {
+    "problem_id": "TEAM_403",
+    "category": "Permissions / Roles",
+    "keywords": ["403", "disparaît", "assigned team"],
+    "symptoms_user": "L'enregistrement disparaît après création.",
+    "cause_technical": "createdBy n'accorde pas le droit de lecture.",
+    "solution": "Ajuster rôles + équipes.",
+    "max_mode": "ASSISTÉ",
+    "priority": 1
+  },
+  {
+    "problem_id": "CALENDAR_LIMIT",
+    "category": "Calendar / Sync",
+    "keywords": ["calendrier", "google", "outlook"],
+    "symptoms_user": "Participants ou récurrences non synchronisés.",
+    "cause_technical": "Limitations natives EspoCRM.",
+    "solution": "Événements simples ou n8n.",
+    "max_mode": "CONSEIL",
+    "priority": 3
+  }
+]

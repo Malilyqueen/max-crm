@@ -6,8 +6,9 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
+import { API_BASE_URL } from '../config/api';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3005';
+const API_BASE = API_BASE_URL;
 
 export default function ConnectWhatsApp() {
   // État de connexion WhatsApp

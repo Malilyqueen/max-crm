@@ -1,0 +1,6 @@
+﻿firstName;lastName;email;phone;source;note;company
+Léa;Martin;lea.martin@example.com;+33600000001;Instagram;Routine peau sensible;
+Ibrahim;Diallo;ibrahim.d@example.com;+33600000002;Facebook;Demande pack anti-taches;-
+Léa;Martin;lea.martin@example.com;+33600000001;Instagram;(doublon test);
+Zoë;Dupont;zoe.dupont@example.com;+33600000003;Referral;Intéressée par sérum;
+Mickaël;Bernard;mickael.bernard@example.com;+33600000004;Website;Form landing -20%;

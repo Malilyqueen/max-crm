@@ -36,8 +36,9 @@ import { batchUpsertLeads, upsertLead, validateMinimalLead, findExistingLead } f
 import { formatEnrichedLead, generateUpdateDiff, FIELD_MAPPING } from '../lib/fieldMapping.js';
 import { espoFetch, espoAdminFetch } from '../lib/espoClient.js';
 import { addFieldToAllLayouts } from '../lib/layoutManager.js';
-import { espoRebuild, espoClearCache } from '../lib/phpExecutor.js';
+import { espoRebuild, espoClearCache } from '../lib/phpExecutorAuto.js';
 import { logMaxActivity } from '../lib/activityLogger.js';
+import { validateConsent } from '../lib/consentGate.js';
 import { trigger } from '../services/n8n.js';
 import { WhatsAppMessage } from '../models/WhatsAppMessage.js';
 import { sendWhatsAppMessage } from '../services/whatsappSendService.js';
@@ -1301,8 +1302,36 @@ ${successList}${moreSuccess}
         options,
         maxLength,
         min,
-        max
+        max,
+        consentId
       } = args;
+
+      // 🔐 CONSENT GATE - Validation OBLIGATOIRE pour opérations structurelles
+      console.log('[create_custom_field] 🔍 DEBUG: validateConsent type:', typeof validateConsent);
+      console.log('[create_custom_field] 🔍 DEBUG: args:', JSON.stringify(args));
+      const consentValidation = await validateConsent(
+        args,
+        'field_creation',
+        `Créer le champ custom "${label || fieldName}" (${type}) sur ${entity}`
+      );
+      console.log('[create_custom_field] 🔍 DEBUG: consentValidation:', JSON.stringify(consentValidation));
+
+      if (!consentValidation.allowed) {
+        console.error('[create_custom_field] ❌ BLOQUÉ PAR CONSENT GATE');
+
+        // Retourner réponse 412 intelligente pour self-correction M.A.X.
+        return {
+          success: false,
+          error: consentValidation.error,
+          httpCode: consentValidation.httpCode,
+          requiresConsent: consentValidation.requiresConsent,
+          operation: consentValidation.operation,
+          message: consentValidation.message,
+          activityLog: consentValidation.activityLog
+        };
+      }
+
+      console.log('[create_custom_field] ✅ Consent validé - Opération autorisée');
 
       try {
         console.log(`[create_custom_field] Création champ ${fieldName} (${type}) sur ${entity}`);
@@ -1722,7 +1751,7 @@ ${successList}${moreSuccess}
     }
 
     case 'configure_entity_layout': {
-      const { entity = 'Lead', fieldName, createField = false, fieldDefinition = {} } = args;
+      const { entity = 'Lead', fieldName, createField = false, fieldDefinition = {}, consentId } = args;
 
       // Validate fieldName parameter
       if (!fieldName || typeof fieldName !== 'string' || fieldName.trim() === '' || fieldName === 'undefined' || fieldName === 'null') {
@@ -1734,6 +1763,34 @@ ${successList}${moreSuccess}
           fieldName
         };
       }
+
+      // 🔐 CONSENT GATE - Validation OBLIGATOIRE pour opérations structurelles
+      const operationDescription = createField
+        ? `Créer le champ "${fieldName}" ET l'ajouter aux layouts ${entity}`
+        : `Ajouter le champ "${fieldName}" aux layouts ${entity}`;
+
+      const consentValidation = await validateConsent(
+        args,
+        'layout_modification',
+        operationDescription
+      );
+
+      if (!consentValidation.allowed) {
+        console.error('[configure_entity_layout] ❌ BLOQUÉ PAR CONSENT GATE');
+
+        // Retourner réponse 412 intelligente pour self-correction M.A.X.
+        return {
+          success: false,
+          error: consentValidation.error,
+          httpCode: consentValidation.httpCode,
+          requiresConsent: consentValidation.requiresConsent,
+          operation: consentValidation.operation,
+          message: consentValidation.message,
+          activityLog: consentValidation.activityLog
+        };
+      }
+
+      console.log('[configure_entity_layout] ✅ Consent validé - Opération autorisée');
 
       try {
         console.log(`[configure_entity_layout] Configuration complète pour ${fieldName} sur ${entity}`);
@@ -4358,6 +4415,7 @@ ${ULTRA_PRIORITY_RULES}
 
     // Gérer les tool_calls si présents
     let statusMessage = null;
+    let pendingConsent = null; // 🔐 Déclaré ici pour être accessible dans tout le scope
     if (result.tool_calls && result.tool_calls.length > 0) {
       console.log(`[ChatRoute] Tool calls détectés: ${result.tool_calls.map(tc => tc.function.name).join(', ')}`);
 
@@ -4380,6 +4438,8 @@ ${ULTRA_PRIORITY_RULES}
 
       // Exécuter chaque tool call
       const toolResults = [];
+      // pendingConsent déjà déclaré en haut du scope (ligne 4415)
+
       for (const toolCall of result.tool_calls) {
         const toolName = toolCall.function.name;
         const args = JSON.parse(toolCall.function.arguments);
@@ -4388,12 +4448,58 @@ ${ULTRA_PRIORITY_RULES}
 
         try {
           const toolResult = await executeToolCall(toolName, args, sessionId);
-          toolResults.push({
-            tool_call_id: toolCall.id,
-            role: 'tool',
-            name: toolName,
-            content: JSON.stringify(toolResult)
-          });
+
+          // 🔐 CONSENT GATE: Détecter blocage 412 (CONSENT_REQUIRED)
+          if (toolResult.httpCode === 412 && toolResult.requiresConsent && toolResult.operation) {
+            console.log('[ChatRoute] 🚨 Tool bloqué par Consent Gate - Self-correction automatique');
+            console.log('[ChatRoute] 📋 Operation:', toolResult.operation);
+
+            // Créer automatiquement le consentement
+            const { createConsentRequest } = await import('../lib/consentManager.js');
+            const consentRequest = createConsentRequest({
+              type: toolResult.operation.type,
+              description: toolResult.operation.description,
+              details: toolResult.operation.details,
+              tenantId: req.tenantId || 'macrea-admin'
+            });
+
+            console.log('[ChatRoute] ✅ Consent créé:', consentRequest.consentId);
+
+            // Stocker les infos pour affichage ConsentCard
+            pendingConsent = {
+              consentId: consentRequest.consentId,
+              operation: toolResult.operation,
+              originalTool: toolName,
+              originalArgs: args,
+              toolCallId: toolCall.id,
+              expiresIn: consentRequest.expiresIn
+            };
+
+            // Ajouter résultat spécial pour M.A.X.
+            toolResults.push({
+              tool_call_id: toolCall.id,
+              role: 'tool',
+              name: toolName,
+              content: JSON.stringify({
+                success: false,
+                consentRequired: true,
+                consentId: consentRequest.consentId,
+                operation: toolResult.operation,
+                message: `✋ Cette opération nécessite votre autorisation. Un consentement a été créé (ID: ${consentRequest.consentId}). Veuillez approuver pour continuer.`
+              })
+            });
+
+            // Arrêter l'exécution des autres tools si consent requis
+            break;
+          } else {
+            // Résultat normal
+            toolResults.push({
+              tool_call_id: toolCall.id,
+              role: 'tool',
+              name: toolName,
+              content: JSON.stringify(toolResult)
+            });
+          }
         } catch (toolError) {
           console.error(`[ChatRoute] Erreur tool ${toolName}:`, toolError);
           toolResults.push({
@@ -4547,7 +4653,7 @@ ${ULTRA_PRIORITY_RULES}
     }
 
     // Retourner réponse M.A.X. avec boutons contextuels automatiques + toolStatus
-    res.json({
+    const responsePayload = {
       ok: true,
       sessionId,
       response: finalText,
@@ -4558,7 +4664,15 @@ ${ULTRA_PRIORITY_RULES}
       messageCount: loadConversation(sessionId)?.messages.length || 0,
       toolStatus,           // 'action_executed', 'query_executed', ou null
       executedTools         // Liste des tools appelés
-    });
+    };
+
+    // 🔐 CONSENT GATE: Ajouter pendingConsent si présent
+    if (pendingConsent) {
+      responsePayload.pendingConsent = pendingConsent;
+      console.log('[ChatRoute] ✅ Réponse avec pendingConsent:', pendingConsent.consentId);
+    }
+
+    res.json(responsePayload);
 
   } catch (error) {
     console.error('[ChatRoute] Erreur:', error);
@@ -5709,5 +5823,8 @@ router.post('/action', async (req, res) => {
     });
   }
 });
+
+// Export executeToolCall for consent.js to use
+export { executeToolCall };
 
 export default router;

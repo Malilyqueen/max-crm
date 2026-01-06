@@ -1,0 +1,42 @@
+{
+  "à_contacter": {
+    "if": {
+      "status": ["New", "Assigned"],
+      "source": ["Web", "Email", "Call"]
+    },
+    "action": "Envoyer un e-mail d’introduction"
+  },
+  "client_urgent": {
+    "if": {
+      "description_contains": ["urgent", "très pressé", "ASAP"],
+      "status": ["In Process"]
+    },
+    "action": "Alerter le commercial référent par SMS ou WhatsApp"
+  },
+  "maritime": {
+    "if": {
+      "industry": ["transport maritime", "logistique", "import/export"]
+    },
+    "action": "Attribuer au commercial secteur maritime"
+  },
+  "injoignable": {
+    "if": {
+      "description_contains": ["pas répondu", "injoignable", "aucune réponse"],
+      "status": ["In Process"]
+    },
+    "action": "Déclencher message WhatsApp via Andromède"
+  },
+  "client_gagné": {
+    "if": {
+      "status": ["Converted"]
+    },
+    "action": "Archiver + envoyer message de remerciement"
+  },
+  "à_relancer": {
+    "if": {
+      "status": ["Recycled"],
+      "description_contains": ["relancer", "à suivre"]
+    },
+    "action": "Créer une tâche de relance dans EspoCRM"
+  }
+}

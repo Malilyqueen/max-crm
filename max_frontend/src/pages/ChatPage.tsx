@@ -21,6 +21,7 @@ import { ActivityPanel, Activity } from '../components/chat/ActivityPanel';
 import { useThemeColors } from '../hooks/useThemeColors';
 import { useConsent } from '../hooks/useConsent';
 import { ChatMessage } from '../types/chat';
+import { API_BASE_URL } from '../config/api';
 
 export function ChatPage() {
   const {
@@ -89,7 +90,7 @@ export function ChatPage() {
     const fetchActivities = async () => {
       try {
         const response = await fetch(
-          `${import.meta.env.VITE_API_URL}/api/chat/activities?sessionId=${sessionId}`
+          `${API_BASE_URL}/api/chat/activities?sessionId=${sessionId}`
         );
         const data = await response.json();
 
@@ -206,7 +207,7 @@ export function ChatPage() {
       console.log('[TEST_CONSENT] Appel endpoint test-consent...');
       addActivity('flask', 'Test consentement démarré');
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/chat/test-consent`, {
+      const response = await fetch(`${API_BASE_URL}/api/chat/test-consent`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -1,0 +1,53 @@
+=== CORRECTIF À APPLIQUER ===
+
+FICHIER 1 : max_backend/data/agent_identity.json
+LIGNE 38 : Remplacer
+    "allowed": ["update_lead_fields", "get_lead_snapshot", "configure_entity_layout", "create_custom_field"],
+
+Par :
+    "allowed": ["update_lead_fields", "get_lead_snapshot", "configure_entity_layout", "create_custom_field", "query_espo_leads"],
+
+LIGNE 48 : Remplacer
+      "for_data_updates": "update_lead_fields"
+    }
+
+Par :
+      "for_data_updates": "update_lead_fields",
+      "for_listing_leads": "query_espo_leads"
+    }
+
+========================================
+
+FICHIER 2 : max_backend/prompts/max_system_prompt_v2.txt
+APRÈS LA LIGNE 1, AJOUTER CES LIGNES :
+
+# ⚡ RÈGLE CRITIQUE : PHP vs API REST
+
+## UTILISE API REST pour les opérations de DONNÉES :
+- Lister des leads → query_espo_leads
+- Lire un lead spécifique → get_lead_snapshot
+- Mettre à jour des données → update_lead_fields
+- ❌ JAMAIS configure_entity_layout pour lire/lister des données
+
+## UTILISE PHP LOCAL pour les opérations STRUCTURELLES :
+- Créer un champ custom → configure_entity_layout avec createField: true
+- Modifier les layouts (list/detail/detailSmall) → configure_entity_layout
+- ⚠️ TOUJOURS fournir fieldName (string non-vide, jamais "undefined")
+
+Si tu appelles configure_entity_layout SANS fieldName ou pour lister des données, tu recevras une erreur.
+
+========================================
+
+FICHIER 3 : max_backend/data/agent_identity.json
+LIGNE 79 (dans capacites_local_admin.ce_que_je_peux_faire), AJOUTER À LA FIN :
+      "Lister et filtrer les leads via query_espo_leads (✅ API)"
+
+========================================
+
+RÉSUMÉ DES CHANGEMENTS :
+1. Ajouter "query_espo_leads" aux outils autorisés
+2. Documenter "for_listing_leads": "query_espo_leads"
+3. Ajouter règles PHP vs API REST au début du prompt système
+4. Documenter la capacité de listing dans agent_identity.json
+
+EFFET : M.A.X. saura utiliser query_espo_leads pour lister au lieu de configure_entity_layout

@@ -1,0 +1,13 @@
+{
+  "phases": ["a_contacter", "en_attente", "relance", "qualifie", "perdu"],
+  "rules": [
+    { "match": "budget|€", "tag": "chaud", "status": "qualifie" },
+    { "match": "rdv|rendez-vous", "tag": "a_rappeler", "status": "en_attente" },
+    { "match": "tard|répond tard", "tag": "lent", "status": "relance" },
+    { "match": "sensible|acné|hyperpigmentation", "tag": "peau_sensible", "status": "a_contacter" }
+  ],
+  "channels": {
+    "email": { "enabled": true },
+    "whatsapp": { "enabled": true }
+  }
+}

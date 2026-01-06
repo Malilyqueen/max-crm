@@ -1,0 +1,43 @@
+{
+  "id": "task-1762097965792",
+  "type": "crm.createLead",
+  "mode": "assist",
+  "status": "running",
+  "prompt": "Cr�er un lead Sarah Koffi",
+  "payload": {
+    "email": "sarah@test.com",
+    "phoneNumber": "+33600000000",
+    "firstName": "Sarah",
+    "lastName": "Koffi"
+  },
+  "crmLinks": {},
+  "logs": [
+    {
+      "t": 1762097965793,
+      "level": "info",
+      "msg": "Task created from chat",
+      "meta": {
+        "step": "ask-task"
+      }
+    },
+    {
+      "t": 1762097965885,
+      "level": "info",
+      "msg": "Validated by user",
+      "meta": {
+        "step": "validate"
+      }
+    },
+    {
+      "t": 1762097965885,
+      "level": "info",
+      "msg": "Dispatch to n8n",
+      "meta": {
+        "url": "http://127.0.0.1:5678/webhook/dummy"
+      }
+    }
+  ],
+  "createdAt": "2025-11-02T15:39:25.792Z",
+  "updatedAt": "2025-11-02T15:39:25.885Z",
+  "_filename": "task-1762097965792.json"
+}

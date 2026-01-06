@@ -1,0 +1,61 @@
+{
+  "consentId": "consent_1767177068422_4d0d1a6dda58c0f4",
+  "timestamp": "2025-12-31T10:31:19.848Z",
+  "consent": {
+    "operation": {
+      "type": "layout_modification",
+      "description": "Ajouter le champ secteur aux layouts Lead",
+      "details": {
+        "entity": "Lead",
+        "fieldName": "secteur",
+        "layoutTypes": [
+          "detail",
+          "list"
+        ]
+      },
+      "tenantId": "macrea-admin"
+    },
+    "createdAt": "2025-12-31T10:31:08.422Z",
+    "usedAt": "2025-12-31T10:31:18.423Z",
+    "duration": 10001
+  },
+  "result": {
+    "operation": {
+      "type": "layout_modification",
+      "description": "Ajouter le champ secteur aux layouts Lead",
+      "details": {
+        "entity": "Lead",
+        "fieldName": "secteur",
+        "layoutTypes": [
+          "detail",
+          "list"
+        ]
+      },
+      "tenantId": "macrea-admin"
+    },
+    "result": {
+      "success": true,
+      "entity": "Lead",
+      "fieldName": "secteur",
+      "layoutsModified": 2,
+      "layoutsSkipped": 0,
+      "results": [
+        {
+          "layoutType": "detail",
+          "status": "added"
+        },
+        {
+          "layoutType": "list",
+          "status": "added"
+        }
+      ],
+      "timestamp": "2025-12-31 10:31:20"
+    },
+    "executedAt": "2025-12-31T10:31:19.848Z"
+  },
+  "metadata": {
+    "nodeVersion": "v22.14.0",
+    "platform": "win32",
+    "pid": 25324
+  }
+}

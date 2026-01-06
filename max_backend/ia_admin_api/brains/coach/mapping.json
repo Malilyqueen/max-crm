@@ -1,0 +1,2 @@
+entities: [Programme, Session, Objectif]
+intents: [relance_session, plan_objectif, bilan_progres]

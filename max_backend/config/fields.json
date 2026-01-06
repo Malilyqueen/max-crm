@@ -1,0 +1,6 @@
+{
+  "contact": { "email":"emailAddress", "firstName":"firstName", "lastName":"lastName", "city":"addressCity" },
+  "purchase": { "entity":"Purchase", "fields":{ "total":"amount","currency":"currency","createdAt":"createdAt" } },
+  "tags": { "productTagPrefix":"prod:" },
+  "unsub": { "entity":"Unsubscribe", "fieldEmail":"email" }
+}

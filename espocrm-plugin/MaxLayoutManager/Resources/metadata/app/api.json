@@ -1,0 +1,6 @@
+{
+  "POST api/v1/MaxLayoutManager/:action": {
+    "controller": "MaxLayoutManager",
+    "noAuth": true
+  }
+}

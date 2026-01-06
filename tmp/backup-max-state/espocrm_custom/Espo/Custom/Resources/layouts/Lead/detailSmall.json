@@ -1,0 +1,152 @@
+[
+  {
+    "rows": [
+      [
+        {
+          "name": "salutationName"
+        },
+        false
+      ],
+      [
+        {
+          "name": "firstName"
+        },
+        {
+          "name": "lastName"
+        }
+      ],
+      [
+        {
+          "name": "status"
+        },
+        {
+          "name": "source"
+        }
+      ],
+      [
+        {
+          "name": "emailAddress"
+        },
+        {
+          "name": "phoneNumber"
+        }
+      ],
+      [
+        {
+          "name": "accountName"
+        },
+        {
+          "name": "website"
+        }
+      ],
+      [
+        {
+          "name": "assignedUser"
+        },
+        false
+      ],
+      [
+        {
+          "name": "objectifsBusiness"
+        },
+        false
+      ],
+      [
+        {
+          "name": "servicesSouhaites"
+        },
+        false
+      ],
+      [
+        {
+          "name": "prochainesEtapes"
+        },
+        false
+      ],
+      [
+        false
+      ],
+      [
+        {
+          "name": "secteurActivite"
+        },
+        false
+      ],
+      [
+        {
+          "name": "categorie"
+        },
+        false
+      ],
+      [
+        false
+      ],
+      [
+        {
+          "name": "sessionConsultationProgrammee"
+        },
+        false
+      ],
+      [
+        {
+          "name": "offreGroupeeProposee"
+        },
+        false
+      ],
+      [
+        {
+          "name": "suiviMensuelEtabli"
+        },
+        false
+      ],
+      [
+        {
+          "name": "actionsProgrammes"
+        },
+        false
+      ],
+      [
+        {
+          "name": "notesSupplementaires"
+        },
+        false
+      ],
+      [
+        {
+          "name": "emailEnvoyer"
+        },
+        false
+      ],
+      [
+        {
+          "name": "statutNurturing"
+        },
+        false
+      ],
+      [
+        {
+          "name": "budget"
+        },
+        false
+      ],
+      [
+        {
+          "name": "tags"
+        },
+        false
+      ],
+      [
+        {
+          "name": "localisation"
+        },
+        false
+      ],
+      [
+        {
+          "name": "maxTags"
+        },
+        false
+      ]
+    ]
+  }
+]

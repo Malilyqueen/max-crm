@@ -1,0 +1,34 @@
+{
+  "id": "task-1762097973940",
+  "type": "crm.createLead",
+  "mode": "auto",
+  "status": "running",
+  "prompt": "Cr�er lead auto",
+  "payload": {
+    "email": "alex@test.com",
+    "firstName": "Alex",
+    "lastName": "P"
+  },
+  "crmLinks": {},
+  "logs": [
+    {
+      "t": 1762097973941,
+      "level": "info",
+      "msg": "Task created from chat",
+      "meta": {
+        "step": "ask-task"
+      }
+    },
+    {
+      "t": 1762097973941,
+      "level": "info",
+      "msg": "Dispatch to n8n",
+      "meta": {
+        "url": "http://127.0.0.1:5678/webhook/dummy"
+      }
+    }
+  ],
+  "createdAt": "2025-11-02T15:39:33.940Z",
+  "updatedAt": "2025-11-02T15:39:33.941Z",
+  "_filename": "task-1762097973940.json"
+}

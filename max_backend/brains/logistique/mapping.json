@@ -1,0 +1,6 @@
+{
+  "tracking_number": "log_trackingNumber",
+  "status": "log_status",
+  "carrier": "log_carrier",
+  "eta": "log_eta"
+}

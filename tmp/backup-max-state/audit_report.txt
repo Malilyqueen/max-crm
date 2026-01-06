@@ -1,0 +1,366 @@
+[CRM_AUDIT] 🔍 Démarrage audit EspoCRM...
+
+[CRM_AUDIT] 📋 Champs définis dans metadata: 15
+[CRM_AUDIT] 📋 Champs custom: 15
+
+[CRM_AUDIT] 👥 Leads trouvés: 38
+
+
+================================================================================
+📊 RAPPORT D'AUDIT CRM
+================================================================================
+📅 Date: 2025-11-28T10:59:29.617Z
+👥 Total leads: 38
+
+📋 CHAMPS CUSTOM DÉFINIS:
+   - source
+   - tagsIA
+   - notesIA
+   - objectifsClient
+   - servicesSouhaites
+   - secteurInfere
+   - typeClient
+   - niveauMaturite
+   - canalPrefere
+   - prochaineAction
+   - prochaineRelance
+   - statutNurturing
+   - scoreIA
+   - secteurActivite
+   - maxTags
+
+🔍 STATISTIQUES GLOBALES:
+   ✅ Leads propres (aucun problème): 0
+   ⚠️  Leads avec champs manquants: 0
+   ⚠️  Leads avec champs orphelins: 38
+   📭 Leads avec champs NULL: 38
+
+📊 USAGE DES CHAMPS CUSTOM:
+
+   🔹 source:
+      Présent: 38/38 (100.0%)
+      Rempli: 22/38 (57.9%)
+      NULL: 16
+      Manquant: 0
+
+   🔹 tagsIA:
+      Présent: 38/38 (100.0%)
+      Rempli: 38/38 (100.0%)
+      NULL: 0
+      Manquant: 0
+
+   🔹 notesIA:
+      Présent: 38/38 (100.0%)
+      Rempli: 1/38 (2.6%)
+      NULL: 37
+      Manquant: 0
+
+   🔹 objectifsClient:
+      Présent: 38/38 (100.0%)
+      Rempli: 1/38 (2.6%)
+      NULL: 37
+      Manquant: 0
+
+   🔹 servicesSouhaites:
+      Présent: 38/38 (100.0%)
+      Rempli: 22/38 (57.9%)
+      NULL: 16
+      Manquant: 0
+
+   🔹 secteurInfere:
+      Présent: 38/38 (100.0%)
+      Rempli: 38/38 (100.0%)
+      NULL: 0
+      Manquant: 0
+
+   🔹 typeClient:
+      Présent: 38/38 (100.0%)
+      Rempli: 1/38 (2.6%)
+      NULL: 37
+      Manquant: 0
+
+   🔹 niveauMaturite:
+      Présent: 38/38 (100.0%)
+      Rempli: 1/38 (2.6%)
+      NULL: 37
+      Manquant: 0
+
+   🔹 canalPrefere:
+      Présent: 38/38 (100.0%)
+      Rempli: 1/38 (2.6%)
+      NULL: 37
+      Manquant: 0
+
+   🔹 prochaineAction:
+      Présent: 38/38 (100.0%)
+      Rempli: 1/38 (2.6%)
+      NULL: 37
+      Manquant: 0
+
+   🔹 prochaineRelance:
+      Présent: 38/38 (100.0%)
+      Rempli: 1/38 (2.6%)
+      NULL: 37
+      Manquant: 0
+
+   🔹 statutNurturing:
+      Présent: 38/38 (100.0%)
+      Rempli: 1/38 (2.6%)
+      NULL: 37
+      Manquant: 0
+
+   🔹 scoreIA:
+      Présent: 38/38 (100.0%)
+      Rempli: 37/38 (97.4%)
+      NULL: 1
+      Manquant: 0
+
+   🔹 secteurActivite:
+      Présent: 38/38 (100.0%)
+      Rempli: 1/38 (2.6%)
+      NULL: 37
+      Manquant: 0
+
+   🔹 maxTags:
+      Présent: 38/38 (100.0%)
+      Rempli: 37/38 (97.4%)
+      NULL: 1
+      Manquant: 0
+
+⚠️  INCOHÉRENCES DÉTECTÉES (38 leads):
+
+   Lead: Macrea AI Studio (69272eee2a489f7a6)
+      ❌ Champ "deleted" présent dans le lead mais non défini dans metadata
+      ❌ Champ "salutationName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "firstName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "lastName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "title" présent dans le lead mais non défini dans metadata
+      ❌ Champ "status" présent dans le lead mais non défini dans metadata
+      ❌ Champ "industry" présent dans le lead mais non défini dans metadata
+      ❌ Champ "opportunityAmount" présent dans le lead mais non défini dans metadata
+      ❌ Champ "website" présent dans le lead mais non défini dans metadata
+      ❌ Champ "addressStreet" présent dans le lead mais non défini dans metadata
+      ❌ Champ "addressCity" présent dans le lead mais non défini dans metadata
+      ❌ Champ "addressState" présent dans le lead mais non défini dans metadata
+      ❌ Champ "addressCountry" présent dans le lead mais non défini dans metadata
+      ❌ Champ "addressPostalCode" présent dans le lead mais non défini dans metadata
+      ❌ Champ "emailAddress" présent dans le lead mais non défini dans metadata
+      ❌ Champ "phoneNumber" présent dans le lead mais non défini dans metadata
+      ❌ Champ "doNotCall" présent dans le lead mais non défini dans metadata
+      ❌ Champ "description" présent dans le lead mais non défini dans metadata
+      ❌ Champ "convertedAt" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdAt" présent dans le lead mais non défini dans metadata
+      ❌ Champ "modifiedAt" présent dans le lead mais non défini dans metadata
+      ❌ Champ "accountName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "middleName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "opportunityAmountCurrency" présent dans le lead mais non défini dans metadata
+      ❌ Champ "emailAddressIsOptedOut" présent dans le lead mais non défini dans metadata
+      ❌ Champ "emailAddressIsInvalid" présent dans le lead mais non défini dans metadata
+      ❌ Champ "phoneNumberIsOptedOut" présent dans le lead mais non défini dans metadata
+      ❌ Champ "phoneNumberIsInvalid" présent dans le lead mais non défini dans metadata
+      ❌ Champ "streamUpdatedAt" présent dans le lead mais non défini dans metadata
+      ❌ Champ "opportunityAmountConverted" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdById" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdByName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "modifiedById" présent dans le lead mais non défini dans metadata
+      ❌ Champ "modifiedByName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "assignedUserId" présent dans le lead mais non défini dans metadata
+      ❌ Champ "assignedUserName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "campaignId" présent dans le lead mais non défini dans metadata
+      ❌ Champ "campaignName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdAccountId" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdAccountName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdContactId" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdContactName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdOpportunityId" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdOpportunityName" présent dans le lead mais non défini dans metadata
+
+   Lead: Malala Ramaha (6921beea8671c707a)
+      ❌ Champ "deleted" présent dans le lead mais non défini dans metadata
+      ❌ Champ "salutationName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "firstName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "lastName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "title" présent dans le lead mais non défini dans metadata
+      ❌ Champ "status" présent dans le lead mais non défini dans metadata
+      ❌ Champ "industry" présent dans le lead mais non défini dans metadata
+      ❌ Champ "opportunityAmount" présent dans le lead mais non défini dans metadata
+      ❌ Champ "website" présent dans le lead mais non défini dans metadata
+      ❌ Champ "addressStreet" présent dans le lead mais non défini dans metadata
+      ❌ Champ "addressCity" présent dans le lead mais non défini dans metadata
+      ❌ Champ "addressState" présent dans le lead mais non défini dans metadata
+      ❌ Champ "addressCountry" présent dans le lead mais non défini dans metadata
+      ❌ Champ "addressPostalCode" présent dans le lead mais non défini dans metadata
+      ❌ Champ "emailAddress" présent dans le lead mais non défini dans metadata
+      ❌ Champ "phoneNumber" présent dans le lead mais non défini dans metadata
+      ❌ Champ "doNotCall" présent dans le lead mais non défini dans metadata
+      ❌ Champ "description" présent dans le lead mais non défini dans metadata
+      ❌ Champ "convertedAt" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdAt" présent dans le lead mais non défini dans metadata
+      ❌ Champ "modifiedAt" présent dans le lead mais non défini dans metadata
+      ❌ Champ "accountName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "middleName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "opportunityAmountCurrency" présent dans le lead mais non défini dans metadata
+      ❌ Champ "emailAddressIsOptedOut" présent dans le lead mais non défini dans metadata
+      ❌ Champ "emailAddressIsInvalid" présent dans le lead mais non défini dans metadata
+      ❌ Champ "phoneNumberIsOptedOut" présent dans le lead mais non défini dans metadata
+      ❌ Champ "phoneNumberIsInvalid" présent dans le lead mais non défini dans metadata
+      ❌ Champ "streamUpdatedAt" présent dans le lead mais non défini dans metadata
+      ❌ Champ "opportunityAmountConverted" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdById" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdByName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "modifiedById" présent dans le lead mais non défini dans metadata
+      ❌ Champ "modifiedByName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "assignedUserId" présent dans le lead mais non défini dans metadata
+      ❌ Champ "assignedUserName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "campaignId" présent dans le lead mais non défini dans metadata
+      ❌ Champ "campaignName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdAccountId" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdAccountName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdContactId" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdContactName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdOpportunityId" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdOpportunityName" présent dans le lead mais non défini dans metadata
+
+   Lead: NextMove Logistics (691b28179c505405a)
+      ❌ Champ "deleted" présent dans le lead mais non défini dans metadata
+      ❌ Champ "salutationName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "firstName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "lastName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "title" présent dans le lead mais non défini dans metadata
+      ❌ Champ "status" présent dans le lead mais non défini dans metadata
+      ❌ Champ "industry" présent dans le lead mais non défini dans metadata
+      ❌ Champ "opportunityAmount" présent dans le lead mais non défini dans metadata
+      ❌ Champ "website" présent dans le lead mais non défini dans metadata
+      ❌ Champ "addressStreet" présent dans le lead mais non défini dans metadata
+      ❌ Champ "addressCity" présent dans le lead mais non défini dans metadata
+      ❌ Champ "addressState" présent dans le lead mais non défini dans metadata
+      ❌ Champ "addressCountry" présent dans le lead mais non défini dans metadata
+      ❌ Champ "addressPostalCode" présent dans le lead mais non défini dans metadata
+      ❌ Champ "emailAddress" présent dans le lead mais non défini dans metadata
+      ❌ Champ "phoneNumber" présent dans le lead mais non défini dans metadata
+      ❌ Champ "doNotCall" présent dans le lead mais non défini dans metadata
+      ❌ Champ "description" présent dans le lead mais non défini dans metadata
+      ❌ Champ "convertedAt" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdAt" présent dans le lead mais non défini dans metadata
+      ❌ Champ "modifiedAt" présent dans le lead mais non défini dans metadata
+      ❌ Champ "accountName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "middleName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "opportunityAmountCurrency" présent dans le lead mais non défini dans metadata
+      ❌ Champ "emailAddressIsOptedOut" présent dans le lead mais non défini dans metadata
+      ❌ Champ "emailAddressIsInvalid" présent dans le lead mais non défini dans metadata
+      ❌ Champ "phoneNumberIsOptedOut" présent dans le lead mais non défini dans metadata
+      ❌ Champ "phoneNumberIsInvalid" présent dans le lead mais non défini dans metadata
+      ❌ Champ "streamUpdatedAt" présent dans le lead mais non défini dans metadata
+      ❌ Champ "opportunityAmountConverted" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdById" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdByName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "modifiedById" présent dans le lead mais non défini dans metadata
+      ❌ Champ "modifiedByName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "assignedUserId" présent dans le lead mais non défini dans metadata
+      ❌ Champ "assignedUserName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "campaignId" présent dans le lead mais non défini dans metadata
+      ❌ Champ "campaignName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdAccountId" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdAccountName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdContactId" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdContactName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdOpportunityId" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdOpportunityName" présent dans le lead mais non défini dans metadata
+
+   Lead: Casa Bella Design (691b2816e43817b92)
+      ❌ Champ "deleted" présent dans le lead mais non défini dans metadata
+      ❌ Champ "salutationName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "firstName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "lastName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "title" présent dans le lead mais non défini dans metadata
+      ❌ Champ "status" présent dans le lead mais non défini dans metadata
+      ❌ Champ "industry" présent dans le lead mais non défini dans metadata
+      ❌ Champ "opportunityAmount" présent dans le lead mais non défini dans metadata
+      ❌ Champ "website" présent dans le lead mais non défini dans metadata
+      ❌ Champ "addressStreet" présent dans le lead mais non défini dans metadata
+      ❌ Champ "addressCity" présent dans le lead mais non défini dans metadata
+      ❌ Champ "addressState" présent dans le lead mais non défini dans metadata
+      ❌ Champ "addressCountry" présent dans le lead mais non défini dans metadata
+      ❌ Champ "addressPostalCode" présent dans le lead mais non défini dans metadata
+      ❌ Champ "emailAddress" présent dans le lead mais non défini dans metadata
+      ❌ Champ "phoneNumber" présent dans le lead mais non défini dans metadata
+      ❌ Champ "doNotCall" présent dans le lead mais non défini dans metadata
+      ❌ Champ "description" présent dans le lead mais non défini dans metadata
+      ❌ Champ "convertedAt" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdAt" présent dans le lead mais non défini dans metadata
+      ❌ Champ "modifiedAt" présent dans le lead mais non défini dans metadata
+      ❌ Champ "accountName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "middleName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "opportunityAmountCurrency" présent dans le lead mais non défini dans metadata
+      ❌ Champ "emailAddressIsOptedOut" présent dans le lead mais non défini dans metadata
+      ❌ Champ "emailAddressIsInvalid" présent dans le lead mais non défini dans metadata
+      ❌ Champ "phoneNumberIsOptedOut" présent dans le lead mais non défini dans metadata
+      ❌ Champ "phoneNumberIsInvalid" présent dans le lead mais non défini dans metadata
+      ❌ Champ "streamUpdatedAt" présent dans le lead mais non défini dans metadata
+      ❌ Champ "opportunityAmountConverted" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdById" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdByName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "modifiedById" présent dans le lead mais non défini dans metadata
+      ❌ Champ "modifiedByName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "assignedUserId" présent dans le lead mais non défini dans metadata
+      ❌ Champ "assignedUserName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "campaignId" présent dans le lead mais non défini dans metadata
+      ❌ Champ "campaignName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdAccountId" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdAccountName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdContactId" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdContactName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdOpportunityId" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdOpportunityName" présent dans le lead mais non défini dans metadata
+
+   Lead: AlphaDrone Systems (691b2816315c8857e)
+      ❌ Champ "deleted" présent dans le lead mais non défini dans metadata
+      ❌ Champ "salutationName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "firstName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "lastName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "title" présent dans le lead mais non défini dans metadata
+      ❌ Champ "status" présent dans le lead mais non défini dans metadata
+      ❌ Champ "industry" présent dans le lead mais non défini dans metadata
+      ❌ Champ "opportunityAmount" présent dans le lead mais non défini dans metadata
+      ❌ Champ "website" présent dans le lead mais non défini dans metadata
+      ❌ Champ "addressStreet" présent dans le lead mais non défini dans metadata
+      ❌ Champ "addressCity" présent dans le lead mais non défini dans metadata
+      ❌ Champ "addressState" présent dans le lead mais non défini dans metadata
+      ❌ Champ "addressCountry" présent dans le lead mais non défini dans metadata
+      ❌ Champ "addressPostalCode" présent dans le lead mais non défini dans metadata
+      ❌ Champ "emailAddress" présent dans le lead mais non défini dans metadata
+      ❌ Champ "phoneNumber" présent dans le lead mais non défini dans metadata
+      ❌ Champ "doNotCall" présent dans le lead mais non défini dans metadata
+      ❌ Champ "description" présent dans le lead mais non défini dans metadata
+      ❌ Champ "convertedAt" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdAt" présent dans le lead mais non défini dans metadata
+      ❌ Champ "modifiedAt" présent dans le lead mais non défini dans metadata
+      ❌ Champ "accountName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "middleName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "opportunityAmountCurrency" présent dans le lead mais non défini dans metadata
+      ❌ Champ "emailAddressIsOptedOut" présent dans le lead mais non défini dans metadata
+      ❌ Champ "emailAddressIsInvalid" présent dans le lead mais non défini dans metadata
+      ❌ Champ "phoneNumberIsOptedOut" présent dans le lead mais non défini dans metadata
+      ❌ Champ "phoneNumberIsInvalid" présent dans le lead mais non défini dans metadata
+      ❌ Champ "streamUpdatedAt" présent dans le lead mais non défini dans metadata
+      ❌ Champ "opportunityAmountConverted" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdById" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdByName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "modifiedById" présent dans le lead mais non défini dans metadata
+      ❌ Champ "modifiedByName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "assignedUserId" présent dans le lead mais non défini dans metadata
+      ❌ Champ "assignedUserName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "campaignId" présent dans le lead mais non défini dans metadata
+      ❌ Champ "campaignName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdAccountId" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdAccountName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdContactId" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdContactName" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdOpportunityId" présent dans le lead mais non défini dans metadata
+      ❌ Champ "createdOpportunityName" présent dans le lead mais non défini dans metadata
+
+   ... et 33 autres leads avec problèmes
+
+================================================================================
+
+💾 Rapport sauvegardé: D:\Macrea\CRM\max_backend\audit_reports\audit_1764327569627.json

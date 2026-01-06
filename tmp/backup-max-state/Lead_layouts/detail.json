@@ -1,0 +1,259 @@
+[
+  {
+    "label": "Overview",
+    "rows": [
+      [
+        {
+          "name": "salutationName"
+        },
+        false
+      ],
+      [
+        {
+          "name": "firstName"
+        },
+        {
+          "name": "lastName"
+        }
+      ],
+      [
+        {
+          "name": "status"
+        },
+        {
+          "name": "source"
+        }
+      ],
+      [
+        {
+          "name": "title"
+        },
+        {
+          "name": "website"
+        }
+      ],
+      [
+        {
+          "name": "emailAddress"
+        },
+        {
+          "name": "phoneNumber"
+        }
+      ],
+      [
+        {
+          "name": "accountName"
+        },
+        {
+          "name": "doNotCall"
+        }
+      ],
+      [
+        {
+          "name": "industry"
+        },
+        {
+          "name": "opportunityAmount"
+        }
+      ],
+      [
+        {
+          "name": "addressStreet",
+          "fullWidth": true
+        }
+      ],
+      [
+        {
+          "name": "addressCity"
+        },
+        {
+          "name": "addressState"
+        }
+      ],
+      [
+        {
+          "name": "addressPostalCode"
+        },
+        {
+          "name": "addressCountry"
+        }
+      ],
+      [
+        {
+          "name": "maxTags",
+          "fullWidth": true
+        },
+        false
+      ],
+      [
+        {
+          "name": "description",
+          "fullWidth": true
+        }
+      ],
+      [
+        {
+          "name": "objectifsBusiness",
+          "fullWidth": true
+        },
+        false
+      ],
+      [
+        {
+          "name": "servicesSouhaites",
+          "fullWidth": true
+        },
+        false
+      ],
+      [
+        {
+          "name": "prochainesEtapes",
+          "fullWidth": true
+        },
+        false
+      ],
+      [
+        false
+      ],
+      [
+        {
+          "name": "secteurActivite",
+          "fullWidth": true
+        },
+        false
+      ],
+      [
+        {
+          "name": "categorie",
+          "fullWidth": true
+        },
+        false
+      ],
+      [
+        {
+          "name": "sessionConsultationProgrammee",
+          "fullWidth": true
+        },
+        false
+      ],
+      [
+        {
+          "name": "offreGroupeeProposee",
+          "fullWidth": true
+        },
+        false
+      ],
+      [
+        {
+          "name": "suiviMensuelEtabli",
+          "fullWidth": true
+        },
+        false
+      ],
+      [
+        {
+          "name": "actionsProgrammes",
+          "fullWidth": true
+        },
+        false
+      ],
+      [
+        {
+          "name": "notesSupplementaires",
+          "fullWidth": true
+        },
+        false
+      ],
+      [
+        {
+          "name": "emailEnvoyer",
+          "fullWidth": true
+        },
+        false
+      ],
+      [
+        {
+          "name": "statutNurturing",
+          "fullWidth": true
+        },
+        false
+      ],
+      [
+        {
+          "name": "budget",
+          "fullWidth": true
+        },
+        false
+      ],
+      [
+        {
+          "name": "localisation",
+          "fullWidth": true
+        },
+        false
+      ]
+    ]
+  },
+  {
+    "label": "Tâches M.A.X.",
+    "style": "default",
+    "rows": [
+      [
+        {
+          "name": "tagsIA",
+          "fullWidth": false
+        },
+        {
+          "name": "secteurInfere",
+          "fullWidth": false
+        }
+      ],
+      [
+        {
+          "name": "scoreIA",
+          "fullWidth": false
+        },
+        {
+          "name": "servicesSouhaites",
+          "fullWidth": false
+        }
+      ],
+      [
+        {
+          "name": "notesIA",
+          "fullWidth": true
+        },
+        false
+      ]
+    ]
+  },
+  {
+    "label": "Additional Information",
+    "rows": [
+      [
+        {
+          "name": "assignedUser"
+        },
+        {
+          "name": "teams"
+        }
+      ],
+      [
+        {
+          "name": "createdAt"
+        },
+        {
+          "name": "modifiedAt"
+        }
+      ],
+      [
+        {
+          "name": "createdBy"
+        },
+        {
+          "name": "modifiedBy"
+        }
+      ]
+    ]
+  }
+]

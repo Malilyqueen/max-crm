@@ -1,0 +1,10 @@
+### TEST PATCH update-lead
+PATCH http://127.0.0.1:3005/api/crm/update-lead/689b29e2ddf27de0b
+Content-Type: application/json
+
+{
+  "status": "In Process",
+  "tagsToAdd": ["client_urgent"],
+  "tagsToRemove": ["à_relancer"]
+}
+

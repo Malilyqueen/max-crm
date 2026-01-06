@@ -1,0 +1,55 @@
+{
+  "name": "macrea-core-universal",
+  "version": "1.0.0",
+  "displayName": "MaCréa CORE Extension Universelle",
+  "description": "Extension de base non-bridée pour CRM adaptatif multi-secteurs",
+  "author": "MaCréa",
+  "enabled": true,
+  "pricing": {
+    "plan": "included",
+    "tokensIncluded": 100
+  },
+  "capabilities": [
+    "leads_enrichment_universal",
+    "custom_fields_core",
+    "missions_tracking",
+    "diagnostic_ia",
+    "tags_ia_dynamic",
+    "scoring_ia"
+  ],
+  "modes": {
+    "conseil": true,
+    "assisté": true,
+    "automatique": false
+  },
+  "entities": {
+    "extended": ["Lead", "Account"],
+    "new": ["MissionMAX", "DiagnosticIA"]
+  },
+  "fields": {
+    "Lead": [
+      "source",
+      "tagsIA",
+      "notesIA",
+      "objectifsClient",
+      "servicesSouhaites",
+      "secteurInfere",
+      "typeClient",
+      "niveauMaturite",
+      "canalPrefere",
+      "prochaineAction",
+      "prochaineRelance",
+      "statutNurturing",
+      "scoreIA"
+    ]
+  },
+  "tools": [
+    "enrich_lead_universal",
+    "create_mission_max",
+    "generate_diagnostic_ia"
+  ],
+  "install": {
+    "requiresRebuild": true,
+    "requiresCacheClear": true
+  }
+}

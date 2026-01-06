@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
+import { API_BASE_URL } from '../config/api';
 
 export default function ProjectMapViewer() {
   const [map, setMap] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    fetch('http://localhost:3005/project-map.json')
+    fetch(`${API_BASE_URL}/project-map.json`)
       .then(res => {
         if (!res.ok) throw new Error('Fichier project-map.json introuvable');
         return res.json();

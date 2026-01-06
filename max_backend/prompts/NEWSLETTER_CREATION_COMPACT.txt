@@ -1,0 +1,72 @@
+# 📧 NEWSLETTERS - M.A.X. (VERSION COMPACTE)
+
+## QUAND UTILISER
+Mots-clés : "newsletter", "campagne email", "email marketing"
+
+## STRUCTURE (8 sections)
+1. HEADER (logo + tagline)
+2. HERO (titre + sous-titre + CTA)
+3. STORYTELLING (contexte émotionnel)
+4. PRODUIT (visuel + bénéfices)
+5. PREUVE SOCIALE (avis, chiffres)
+6. OFFRE/URGENCE (promo, deadline)
+7. CTA PRINCIPAL (unique, central)
+8. FOOTER (réseaux, légal, désinscription)
+
+## COPYWRITING AIDA
+- **Attention** : Titre accrocheur, curiosité
+- **Intérêt** : Bénéfices concrets, problèmes résolus
+- **Désir** : Émotions, preuve sociale, rareté
+- **Action** : CTA clair ("Découvrir maintenant", "Profiter de l'offre")
+
+## RÈGLES TECHNIQUES HTML
+- ✅ Tables HTML uniquement (pas de div/flexbox)
+- ✅ CSS inline sur chaque élément (pas de `<style>`)
+- ✅ Largeur max : 600px (mobile-friendly)
+- ✅ Pas d'images externes sans fallback texte
+
+## PALETTES PAR NICHE
+- **Cosmétique afro** : #8B4513, #D4AF37, #F4E4C1
+- **B2B/Tech** : #003d7a, #007BFF, #f8f9fa
+- **Mode** : #000000, #FF6B6B, #FFD93D
+- **MaCréa (défaut)** : #aa65b3, #00fefb
+
+## PLACEHOLDERS STANDARDS
+```
+[[LOGO_URL]]
+[[PRENOM_CLIENT]]
+[[HERO_IMAGE_URL]]
+[[PRODUCT_IMAGE_URL]]
+[[CTA_LINK]]
+[[CTA_TEXT]]
+[[FOOTER_TEXT]]
+```
+
+## FORMAT DE LIVRAISON
+Retourner :
+1. **Résumé structuré** (titre, niche, ton, sections)
+2. **HTML complet** (prêt pour Mailchimp/Sendinblue)
+3. **Placeholders listés** (pour personnalisation)
+
+❌ NE PAS retourner juste le HTML brut sans explication
+✅ TOUJOURS donner un résumé clair avec emojis
+
+## EXEMPLE STRUCTURE HTML (simplifié)
+```html
+<table width="600" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;background:#ffffff;">
+  <tr><td style="background:linear-gradient(135deg,#aa65b3,#00fefb);padding:30px;text-align:center;">
+    <img src="[[LOGO_URL]]" width="150">
+  </td></tr>
+  <tr><td style="padding:40px;text-align:center;">
+    <h1 style="margin:0;font-size:32px;color:#333;">[[TITRE_HERO]]</h1>
+    <p style="font-size:18px;color:#666;">[[SOUS_TITRE]]</p>
+    <a href="[[CTA_LINK]]" style="display:inline-block;padding:15px 40px;background:#aa65b3;color:#fff;text-decoration:none;border-radius:5px;">[[CTA_TEXT]]</a>
+  </td></tr>
+  <!-- Sections produit, preuve, offre, footer... -->
+</table>
+```
+
+## ADAPTATION PAR NICHE
+- **B2B** : Ton professionnel, données chiffrées, ROI
+- **Cosmétique** : Ton chaleureux, émotions, beauté
+- **Mode** : Ton aspirationnel, tendances, exclusivité

@@ -1,0 +1,42 @@
+// 1. 📦 Imports
+import express from 'express';
+import fs from 'fs';
+import path from 'path';
+import cors from 'cors';
+import bodyParser from 'body-parser';
+import { say } from './utils/say.js';
+import { askOpenAI, askOpenAI_task } from './utils/ask.js';
+import { savePrompt, saveTask, getLastMessages } from './utils/memory.js'; // 👈 ici
+
+// 2. 🧠 App
+const app = express();
+const PORT = 3005;
+
+// 3. 🔧 Middlewares
+app.use(cors());
+app.use(bodyParser.json());
+
+// 4. 📄 Statique (ex. : project-map)
+app.get('/project-map.json', (req, res) => {
+  const map = fs.readFileSync('./project-map.json', 'utf8');
+  res.setHeader('Content-Type', 'application/json');
+  res.send(map);
+});
+
+// 5. 💬 Route intelligente IA avec mémoire
+app.post('/api/ask-task', async (req, res) => {
+  let prompt = req.body.prompt;
+
+  // 🧠 Lire les 10 derniers messages
+  const history = getLastMessages(10);
+  const historyText = history.map(h => `${h.role.toUpperCase()}: ${h.content}`).join('\n');
+
+  // 🧠 Injecter dans prompt final
+  prompt = `Voici les derniers échanges :\n${historyText}\n\nNouvelle instruction : ${prompt}`;
+
+  const response = await askOpenAI_task(prompt);
+  savePrompt('user', req.body.prompt);
+  savePrompt('ai', response);
+  say(response); // 🗣️ Voix IA
+  res.send({ response });
+});

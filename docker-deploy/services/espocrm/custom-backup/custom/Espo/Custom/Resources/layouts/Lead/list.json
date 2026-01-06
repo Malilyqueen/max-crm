@@ -1,0 +1,108 @@
+[
+  {
+    "name": "name",
+    "link": true,
+    "width": 20
+  },
+  {
+    "name": "status",
+    "width": 12
+  },
+  {
+    "name": "emailAddress",
+    "width": 18
+  },
+  {
+    "name": "phoneNumber",
+    "width": 15
+  },
+  {
+    "name": "accountName",
+    "link": true,
+    "width": 15
+  },
+  {
+    "name": "assignedUser",
+    "width": 12
+  },
+  {
+    "name": "createdAt",
+    "width": 10
+  },
+  {
+    "name": "objectifsBusiness",
+    "width": 10
+  },
+  {
+    "name": "servicesSouhaites",
+    "width": 10
+  },
+  {
+    "name": "prochainesEtapes",
+    "width": 10
+  },
+  {
+    "name": "secteurActivite",
+    "width": 10
+  },
+  {
+    "name": "categorie",
+    "width": 10
+  },
+  {
+    "name": "sessionConsultationProgrammee",
+    "width": 10
+  },
+  {
+    "name": "offreGroupeeProposee",
+    "width": 10
+  },
+  {
+    "name": "suiviMensuelEtabli",
+    "width": 10
+  },
+  {
+    "name": "actionsProgrammes",
+    "width": 10
+  },
+  {
+    "name": "notesSupplementaires",
+    "width": 10
+  },
+  {
+    "name": "emailEnvoyer",
+    "width": 10
+  },
+  {
+    "name": "statutNurturing",
+    "width": 10
+  },
+  {
+    "name": "budget",
+    "width": 10
+  },
+  {
+    "name": "maxTags",
+    "width": 15
+  },
+  {
+    "name": "localisation",
+    "width": 10
+  },
+  {
+    "name": "tagsIA",
+    "width": 20
+  },
+  {
+    "name": "secteurInfere",
+    "width": 15
+  },
+  {
+    "name": "scoreIA",
+    "width": 15
+  },
+  {
+    "name": "nomEntreprise",
+    "width": 15
+  }
+]

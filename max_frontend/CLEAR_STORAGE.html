@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clear localStorage - M.A.X. MVP1</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f3f4f6;
+        }
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        h1 { color: #1f2937; margin-top: 0; }
+        button {
+            background: #ef4444;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        button:hover { background: #dc2626; }
+        .success {
+            background: #10b981;
+            color: white;
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 20px;
+            display: none;
+        }
+        .info {
+            background: #eff6ff;
+            border: 1px solid #dbeafe;
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 20px;
+            color: #1e40af;
+        }
+        pre {
+            background: #f9fafb;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>🧹 Nettoyage localStorage - M.A.X. MVP1</h1>
+
+        <p><strong>Utilisez cette page si vous voyez :</strong></p>
+        <ul>
+            <li>"Session expirée" en boucle</li>
+            <li>Écriture blanche ou invisible</li>
+            <li>Problèmes de connexion persistants</li>
+        </ul>
+
+        <button onclick="clearAndReload()">Nettoyer localStorage et recharger</button>
+
+        <div id="success" class="success">
+            ✅ localStorage nettoyé ! Redirection vers /login dans 2 secondes...
+        </div>
+
+        <div class="info">
+            <strong>État actuel du localStorage :</strong>
+            <pre id="storage-content"></pre>
+        </div>
+    </div>
+
+    <script>
+        // Afficher le contenu actuel
+        function displayStorage() {
+            const content = {};
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                content[key] = localStorage.getItem(key);
+            }
+            document.getElementById('storage-content').textContent =
+                JSON.stringify(content, null, 2) || '(vide)';
+        }
+
+        // Nettoyer et rediriger
+        function clearAndReload() {
+            console.log('[CLEAR] Nettoyage localStorage...');
+
+            // Supprimer toutes les clés
+            localStorage.clear();
+
+            console.log('[CLEAR] ✅ localStorage nettoyé');
+
+            // Afficher succès
+            document.getElementById('success').style.display = 'block';
+
+            // Rediriger après 2 secondes
+            setTimeout(() => {
+                window.location.href = 'http://localhost:5173/login';
+            }, 2000);
+        }
+
+        // Afficher au chargement
+        displayStorage();
+    </script>
+</body>
+</html>

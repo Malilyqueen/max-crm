@@ -1,0 +1,32 @@
+[
+  {
+    "name": "name",
+    "link": true,
+    "width": 20
+  },
+  {
+    "name": "status",
+    "width": 12
+  },
+  {
+    "name": "maxTags",
+    "width": 20
+  },
+  {
+    "name": "emailAddress",
+    "notSortable": true,
+    "width": 18
+  },
+  {
+    "name": "phoneNumber",
+    "width": 15
+  },
+  {
+    "name": "assignedUser",
+    "width": 15
+  },
+  {
+    "name": "createdAt",
+    "width": 12
+  }
+]

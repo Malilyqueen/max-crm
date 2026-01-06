@@ -5,8 +5,9 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useSettingsStore } from '../stores/useSettingsStore';
+import { API_BASE_URL } from '../config/api';
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3005';
+const API_BASE = API_BASE_URL;
 const X_ROLE = import.meta.env.VITE_X_ROLE || 'admin';
 const X_PREVIEW = import.meta.env.VITE_X_PREVIEW || 'true';
 

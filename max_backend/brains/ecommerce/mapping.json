@@ -1,0 +1,6 @@
+{
+  "cart_date": "ec_lastCartDate",
+  "cart_value": "ec_cartValue",
+  "channel": "ec_channel",
+  "sav_level": "ec_savLevel"
+}

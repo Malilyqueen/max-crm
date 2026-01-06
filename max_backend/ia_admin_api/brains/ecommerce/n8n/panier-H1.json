@@ -1,0 +1,4 @@
+{
+  "name": "PanierAbandon_H1",
+  "nodes": [{"parameters":{},"id":"webhook","name":"Webhook","type":"n8n-nodes-base.webhook"}]
+}

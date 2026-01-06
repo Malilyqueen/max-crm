@@ -1,0 +1,2 @@
+entities: [Devis, Chantier, Intervention, Garantie]
+intents: [relancer_devis, maj_chantier, plan_visite]

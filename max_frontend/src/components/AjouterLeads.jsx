@@ -1,11 +1,12 @@
 import React from 'react';
+import { API_BASE_URL } from '../config/api';
 
 export default function AjouterLeads({ leads, onAdded }) {
   if (!leads || leads.length === 0) return null;
 
   async function handleAdd() {
     try {
-      const res = await fetch('http://localhost:3005/api/leads/add', {
+      const res = await fetch(`${API_BASE_URL}/api/leads/add`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ leads, context: "campagne_rentree" })

@@ -1,0 +1,2 @@
+entities: [Envoi, Colis, Réclamation]
+intents: [suivi_envoi, alerte_retard, confirmation_reception]

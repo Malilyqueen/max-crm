@@ -1,0 +1,165 @@
+// D:\Macrea\CRMACREA\ia_admin_api\server.js
+import express from 'express';
+import cors from 'cors';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { exec } from 'child_process';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+// CONFIG - chemins explicites
+const PORT = process.env.PORT || 3005;
+const BIND_HOST = process.env.BIND_HOST || '127.0.0.1';
+const TASKS_DIR = process.env.TASKS_DIR || 'D:/Macrea/CRMACREA/ia_admin/tasks_autogen';
+const REACT_SRC_DIR = process.env.REACT_SRC_DIR || 'D:/Macrea/CRMACREA/ia-admin-ui/src';
+const BACKUP_ROOT = process.env.BACKUP_ROOT || 'D:/Macrea/CRMACREA/backups/react';
+const DATA_DIR = path.join(__dirname, 'data');
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+
+const HISTORY_PATH = path.join(DATA_DIR, 'chat-history.json');
+const AGENT_IDENTITY_PATH = path.join(DATA_DIR, 'agent_identity.json');
+
+// Load agent identity if exists
+let agentIdentity = null;
+try {
+  if (fs.existsSync(AGENT_IDENTITY_PATH)) agentIdentity = JSON.parse(fs.readFileSync(AGENT_IDENTITY_PATH, 'utf8'));
+} catch (e) { console.warn('Erreur lecture agent_identity.json', e.message); }
+if (!agentIdentity) {
+  agentIdentity = {
+    nom: "M.A.X.",
+    type: "MaCréa Assistant eXpert – Agent IA Admin CRM",
+    rôle: "Assistant autonome et copilote pour MaCréa (EspoCRM + automations)",
+    personnalité: "Structuré, bienveillant, synthétique et efficace.",
+    contexte_projet: { projet: "MaCréa CRM – EspoCRM", utilisation: "Local / Docker", mission_metier: "Automatiser et piloter le CRM" },
+    permissions: [],
+    objectifs: []
+  };
+}
+
+// helpers
+function isSafeReactFile(filename){ return /^[\w\-.]+\.jsx?$/.test(filename); }
+function readJSONSafe(p, def = []) { try { if (!fs.existsSync(p)) return def; return JSON.parse(fs.readFileSync(p,'utf8')); } catch { return def; } }
+function writeJSONSafe(p,obj){ fs.writeFileSync(p, JSON.stringify(obj,null,2),'utf8'); }
+
+// history
+function getHistory(){ return readJSONSafe(HISTORY_PATH, []); }
+function saveToHistory(role, content){
+  const h = getHistory();
+  h.push({ role, content, timestamp: new Date().toISOString() });
+  writeJSONSafe(HISTORY_PATH, h);
+}
+function getLastMessages(n=10){ const h = getHistory(); return h.slice(-n); }
+
+// say (voix) : utilise utils/say.js si présent sinon fallback powershell
+let say = null;
+const SAY_PATH = path.join(__dirname, 'utils', 'say.js');
+if (fs.existsSync(SAY_PATH)) {
+  try { /* dynamic import */ await import(`file://${SAY_PATH}`); const mod = await import(`file://${SAY_PATH}`); say = mod.say ?? mod.default ?? null; } catch(e){ console.warn('Impossible d\'importer utils/say.js', e.message); }
+}
+if (!say) {
+  const LOG = path.join(__dirname, 'agent.log');
+  say = (text) => {
+    try {
+      fs.appendFileSync(LOG, `[${new Date().toISOString()}] ${text}\n`);
+      const cmd = `powershell -Command "Add-Type -AssemblyName System.Speech; $s = New-Object System.Speech.Synthesis.SpeechSynthesizer; $s.Speak(\\"${text.replace(/"/g,'\\"')}\\" )"`;
+      exec(cmd, (err) => { /* ignore errors */ });
+    } catch(e){ console.error('say fallback error', e.message); }
+  };
+}
+
+// Build prompt
+function buildPrompt(userPrompt, chatHistory = []) {
+  const identitySection = `
+Tu es ${agentIdentity.nom}, ${agentIdentity.type}.
+Mission : ${agentIdentity.rôle}
+Projet : ${agentIdentity.contexte_projet?.projet || ''}
+Personnalité : ${agentIdentity.personnalité || ''}
+`;
+  const historyText = chatHistory.map(h => `${h.role.toUpperCase()}: ${h.content}`).join('\n');
+  return `${identitySection}\nContexte récent:\n${historyText}\n\nQuestion utilisateur: ${userPrompt}`;
+}
+
+// Simple OpenAI call if OPENAI_API_KEY set, otherwise fallback
+async function askOpenAI(prompt) {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) return `🧠 (MODE LOCAL) M.A.X. a reçu : "${prompt}". Pour obtenir des réponses enrichies, définis OPENAI_API_KEY dans .env`;
+  try {
+    const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'gpt-3.5-turbo', messages: [{ role: 'user', content: prompt }], temperature: 0.6, max_tokens: 700 })
+    });
+    const json = await resp.json();
+    if (!resp.ok) return `❌ OpenAI error: ${json.error?.message || JSON.stringify(json)}`;
+    return json.choices?.[0]?.message?.content ?? JSON.stringify(json);
+  } catch (e) { console.error('askOpenAI', e.message); return `❌ Erreur appel LLM: ${e.message}`; }
+}
+
+// --- Endpoints ---
+
+// health
+app.get('/health', (_req,res) => res.json({ ok: true }));
+
+// serve agent_identity.json (file) - UI requests /agent-identity.json
+app.get('/agent-identity.json', (_req,res) => {
+  if (fs.existsSync(AGENT_IDENTITY_PATH)) return res.sendFile(AGENT_IDENTITY_PATH);
+  return res.json(agentIdentity);
+});
+
+// get project map
+app.get('/project-map.json', (req,res) => {
+  const p = path.join(process.cwd(), 'project-map.json');
+  if (fs.existsSync(p)) return res.sendFile(p);
+  res.status(404).json({ error: 'project-map.json non trouvé' });
+});
+
+// tasks endpoints
+app.get('/api/tasks', (req,res) => {
+  try {
+    if (!fs.existsSync(TASKS_DIR)) fs.mkdirSync(TASKS_DIR,{recursive:true});
+    const files = fs.readdirSync(TASKS_DIR).filter(f=>f.endsWith('.json'));
+    const tasks = files.map(f=>({ filename:f, content: safeReadJson(path.join(TASKS_DIR,f)) }));
+    res.json(tasks);
+  } catch(e){ res.status(500).json({ error: e.message }); }
+});
+function safeReadJson(fp){ try{ return JSON.parse(fs.readFileSync(fp,'utf8')); }catch{ return null; } }
+app.post('/api/tasks/create',(req,res)=>{ try{ const {name='task', description='', payload={}} = req.body; const filename = `${name.replace(/[^\w\-]/g,'_')}-${Date.now()}.json`; if(!fs.existsSync(TASKS_DIR)) fs.mkdirSync(TASKS_DIR,{recursive:true}); fs.writeFileSync(path.join(TASKS_DIR,filename), JSON.stringify({name,description,payload},null,2),'utf8'); saveToHistory('system', `Tâche créée ${filename}`); res.json({ ok:true, filename }); }catch(e){ res.status(500).json({ error: e.message }); }});
+app.post('/api/tasks/:filename/validate',(req,res)=>{ try{ const p = path.join(TASKS_DIR, req.params.filename); if(!fs.existsSync(p)) return res.status(404).json({ error: 'task not found' }); const payload = JSON.parse(fs.readFileSync(p,'utf8')); saveToHistory('system', `Validation tâche ${req.params.filename}`); if (payload.action === 'generate_project_map' || payload.task === 'generate_crm_map') { const structure = payload.structure || payload.payload?.structure || {}; fs.writeFileSync(path.join(process.cwd(),'project-map.json'), JSON.stringify(structure,null,2),'utf8'); say('J’ai analysé l’environnement. La carte mentale est prête.'); return res.json({ ok:true, action:'generate_project_map' }); } return res.json({ ok:true }); } catch(e){ res.status(500).json({ error: e.message }); }});
+
+// react file read/write
+app.get('/api/react-files',(req,res)=>{ try{ if(!fs.existsSync(REACT_SRC_DIR)) return res.status(404).json({ error: 'react src dir not found' }); const files = fs.readdirSync(REACT_SRC_DIR).filter(f=>isSafeReactFile(f)); res.json({ files }); }catch(e){ res.status(500).json({ error: e.message }); }});
+app.get('/api/react-file',(req,res)=>{ try{ const name = req.query.name; if(!name || !isSafeReactFile(name)) return res.status(400).json({ error:'invalid filename' }); const filePath = path.join(REACT_SRC_DIR, name); if(!fs.existsSync(filePath)) return res.status(404).json({ error:'not found' }); res.send(fs.readFileSync(filePath,'utf8')); }catch(e){ res.status(500).json({ error:e.message }); }});
+app.post('/api/react-file/write',(req,res)=>{ try{ const { name, content } = req.body; if(!name || !isSafeReactFile(name)) return res.status(400).json({ error:'invalid filename' }); fs.writeFileSync(path.join(REACT_SRC_DIR,name), content, 'utf8'); saveToHistory('system', `Fichier React modifié: ${name}`); res.json({ ok:true }); }catch(e){ res.status(500).json({ error:e.message }); }});
+
+// history endpoints
+app.get('/api/history',(req,res)=> res.json(getHistory()));
+app.post('/api/chat',(req,res)=>{ const { role='user', message } = req.body; if(!message) return res.status(400).json({ error:'message missing' }); saveToHistory(role, message); res.json({ ok:true }); });
+
+// ask-task route (main)
+app.post('/api/ask-task', async (req,res) => {
+  try {
+    const userPrompt = (req.body?.prompt ?? '').toString();
+    if(!userPrompt) return res.status(400).json({ reply: '❌ prompt manquant' });
+    const last = getLastMessages(10);
+    const fullPrompt = buildPrompt(userPrompt, last);
+    const reply = await askOpenAI(fullPrompt);
+    saveToHistory('user', userPrompt);
+    saveToHistory('assistant', reply);
+    try{ say(reply); }catch(e){}
+    res.json({ reply });
+  } catch(e) { console.error('/api/ask-task', e.message); res.status(500).json({ reply: '❌ Erreur interne M.A.X.' }); }
+});
+
+// lightweight backup functions (kept safe)
+function backupReactSource(){ try{ if(!fs.existsSync(REACT_SRC_DIR)) return; if(!fs.existsSync(BACKUP_ROOT)) fs.mkdirSync(BACKUP_ROOT,{recursive:true}); const t = new Date().toISOString().replace(/[:.]/g,'-'); const dest = path.join(BACKUP_ROOT,`backup-${t}`); fs.mkdirSync(dest); const files = fs.readdirSync(REACT_SRC_DIR).filter(f=>isSafeReactFile(f)); for(const f of files) fs.copyFileSync(path.join(REACT_SRC_DIR,f), path.join(dest,f)); const zip = path.join(BACKUP_ROOT,`backup-${t}.zip`); exec(`powershell -Command "Compress-Archive -Path '${dest}\\\\*' -DestinationPath '${zip}'"`, (err)=>{ try{ fs.rmSync(dest, { recursive:true, force:true }); }catch{} if(err) console.error('zip err',err.message); else console.log('backup saved',zip); }); }catch(e){ console.error('backupReactSource', e.message);} }
+setInterval(()=>{ backupReactSource(); }, 48*3600*1000);
+try{ backupReactSource(); }catch(e){}
+
+// start
+app.listen(PORT, BIND_HOST, ()=> console.log(`✅ Backend M.A.X. sur http://${BIND_HOST}:${PORT}`));

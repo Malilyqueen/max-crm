@@ -1,0 +1,22 @@
+{
+  "id": "task-1762166376122",
+  "type": "generic",
+  "mode": "assist",
+  "status": "waiting_validation",
+  "prompt": "Bonjour, quel client est actif ?",
+  "payload": {},
+  "crmLinks": {},
+  "logs": [
+    {
+      "t": 1762166376134,
+      "level": "info",
+      "msg": "Task created from chat",
+      "meta": {
+        "step": "ask-task"
+      }
+    }
+  ],
+  "createdAt": "2025-11-03T10:39:36.122Z",
+  "updatedAt": "2025-11-03T10:39:36.134Z",
+  "_filename": "task-1762166376122.json"
+}

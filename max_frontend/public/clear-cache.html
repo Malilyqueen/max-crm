@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>M.A.X. - Nettoyage Cache</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .container {
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      padding: 60px 40px;
+      max-width: 500px;
+      width: 100%;
+      text-align: center;
+    }
+
+    .icon {
+      font-size: 80px;
+      margin-bottom: 20px;
+      animation: spin 2s linear;
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    h1 {
+      color: #333;
+      font-size: 32px;
+      margin-bottom: 10px;
+      font-weight: 700;
+    }
+
+    .subtitle {
+      color: #666;
+      font-size: 16px;
+      margin-bottom: 30px;
+    }
+
+    #status {
+      background: #f0f9ff;
+      border: 2px solid #0ea5e9;
+      border-radius: 12px;
+      padding: 20px;
+      font-size: 18px;
+      color: #0c4a6e;
+      margin-bottom: 30px;
+      min-height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #status.success {
+      background: #f0fdf4;
+      border-color: #22c55e;
+      color: #14532d;
+    }
+
+    .button {
+      display: inline-block;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 16px 40px;
+      border-radius: 12px;
+      text-decoration: none;
+      font-size: 18px;
+      font-weight: 600;
+      transition: transform 0.2s, box-shadow 0.2s;
+      box-shadow: 0 4px 14px rgba(102, 126, 234, 0.4);
+    }
+
+    .button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+    }
+
+    .info {
+      margin-top: 30px;
+      padding: 20px;
+      background: #fef3c7;
+      border-left: 4px solid #f59e0b;
+      border-radius: 8px;
+      text-align: left;
+    }
+
+    .info h3 {
+      color: #92400e;
+      font-size: 16px;
+      margin-bottom: 10px;
+      font-weight: 600;
+    }
+
+    .info ul {
+      color: #78350f;
+      font-size: 14px;
+      line-height: 1.8;
+      margin-left: 20px;
+    }
+
+    .loader {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(14, 165, 233, 0.3);
+      border-top-color: #0ea5e9;
+      border-radius: 50%;
+      animation: rotate 1s linear infinite;
+      margin-right: 10px;
+    }
+
+    @keyframes rotate {
+      to { transform: rotate(360deg); }
+    }
+
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="icon">🧹</div>
+    <h1>Nettoyage du cache</h1>
+    <p class="subtitle">M.A.X. CRM - Utilitaire de maintenance</p>
+
+    <div id="status">
+      <span class="loader"></span>
+      <span>Nettoyage en cours...</span>
+    </div>
+
+    <a href="/" class="button" id="backButton" style="display: none;">
+      ← Retour à M.A.X.
+    </a>
+
+    <div class="info">
+      <h3>📋 Éléments nettoyés :</h3>
+      <ul id="cleanedList">
+        <li>Tokens d'authentification expirés</li>
+        <li>Données de session temporaires</li>
+        <li>Préférences utilisateur en cache</li>
+        <li>État de l'application (stores Zustand)</li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+    // Fonction de nettoyage
+    function clearCache() {
+      const cleanedItems = [];
+
+      // 1. Nettoyer localStorage
+      const localStorageKeys = Object.keys(localStorage);
+      localStorageKeys.forEach(key => {
+        cleanedItems.push(`localStorage: ${key}`);
+      });
+      localStorage.clear();
+
+      // 2. Nettoyer sessionStorage
+      const sessionStorageKeys = Object.keys(sessionStorage);
+      sessionStorageKeys.forEach(key => {
+        cleanedItems.push(`sessionStorage: ${key}`);
+      });
+      sessionStorage.clear();
+
+      // 3. Nettoyer les cookies (si possible)
+      document.cookie.split(";").forEach(function(c) {
+        document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+      });
+
+      return cleanedItems;
+    }
+
+    // Exécuter le nettoyage
+    setTimeout(() => {
+      const cleaned = clearCache();
+
+      // Mettre à jour l'UI
+      const statusDiv = document.getElementById('status');
+      const backButton = document.getElementById('backButton');
+      const cleanedList = document.getElementById('cleanedList');
+
+      statusDiv.innerHTML = `
+        <div>
+          <div style="font-size: 48px; margin-bottom: 10px;">✅</div>
+          <div style="font-weight: 600;">Cache vidé avec succès !</div>
+          <div style="font-size: 14px; margin-top: 5px; opacity: 0.8;">
+            ${cleaned.length} élément(s) supprimé(s)
+          </div>
+        </div>
+      `;
+      statusDiv.classList.add('success');
+      backButton.style.display = 'inline-block';
+
+      // Afficher les éléments nettoyés
+      if (cleaned.length > 0) {
+        cleanedList.innerHTML = cleaned.slice(0, 5).map(item => `<li>${item}</li>`).join('') +
+          (cleaned.length > 5 ? `<li><em>... et ${cleaned.length - 5} autre(s)</em></li>` : '');
+      }
+
+      console.log('[CACHE] ✅ Nettoyage terminé:', cleaned);
+    }, 1500);
+  </script>
+</body>
+</html>

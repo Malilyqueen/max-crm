@@ -1,0 +1,245 @@
+Bienvenue sur MaCréa CRM ! Voici un guide simple pour vous aider à naviguer et à utiliser efficacement le système :
+
+### 1. **Se connecter**
+- Accédez à l'URL de votre instance MaCréa CRM.
+- Entrez vos identifiants (nom d'utilisateur et mot de passe) pour vous connecter.
+
+### 2. **Navigation dans le tableau de bord**
+- Une fois connecté, vous verrez le tableau de bord avec divers widgets (dashlets) qui vous donnent un aperçu de vos leads, tâches, et activités récentes.
+- Familiarisez-vous avec les sections principales : **Leads**, **Contacts**, **Opportunités**, **Tâches**, etc.
+
+### 3. **Gérer les Leads**
+- **Ajouter un Lead** : Cliquez sur "Leads" et choisissez "Créer" pour ajouter un nouveau lead.
+- **Modifier un Lead** : Cliquez sur un lead existant pour voir ses détails, puis utilisez les options pour modifier ses informations (comme l'adresse, le statut, etc.).
+- **Enrichir les Leads** : Utilisez l'outil d'enrichissement pour ajouter des informations supplémentaires à vos leads.
+
+### 4. **Utiliser les Tâches**
+- Créez des tâches pour vous rappeler de suivre certains leads ou de réaliser des actions spécifiques.
+- Suivez l’état de vos tâches depuis le tableau de bord ou la section dédiée.
+
+### 5. **Rapports et Analyses**
+- Consultez les rapports pour analyser vos performances, voir les conversions de leads, et prendre des décisions basées sur des données.
+
+### 6. **Personnalisation**
+- Explorez les options de personnalisation pour ajuster les champs, ajouter des tags, ou créer des modèles d'email.
+
+### 7. **Support et Aide**
+- Si vous avez des questions spécifiques ou avez besoin d'assistance, n'hésitez pas à demander de l'aide. Vous pouvez également consulter les ressources d'apprentissage ou le support client de MaCréa CRM.
+
+### 8. **Pratique et Exploration**
+- Prenez le temps d'explorer les différentes fonctionnalités. Plus vous utilisez le système, plus vous vous familiariserez avec ses fonctionnalités.
+
+Si vous avez des questions spécifiques ou souhaitez que je vous aide sur une fonctionnalité particulière, n’hésitez pas à demander !
+Parfait, je vois EXACTEMENT ce que tu veux créer :
+👉 **des cartes pédagogiques “Comment parler à M.A.X.”**
+👉 inspirées par la structure claire et simple de ce guide CRM
+👉 MAIS adaptées au *langage naturel + actions CRM + guidance MAX*.
+
+Et tu as raison :
+**Si le langage naturel ne suffit pas, MAX doit proposer une “phrase alternative” plus technique** (layout, panel, champ…).
+Ces cartes serviront :
+
+* à rassurer
+* à guider
+* à apprendre “sans apprendre”
+* à réduire les frustrations
+* à montrer que MAX a un vrai protocole clair
+
+C’est stratégique.
+
+Je te construis maintenant un ensemble de **CARTES / FICHES** prêtes à mettre dans ton UI (onglet “Comment parler à MAX”).
+
+---
+
+# 💠 PACK DE CARTES : **Comment parler à M.A.X. (CRM + IA)**
+
+*(Version pédagogique, inspirée du ton du guide ci-dessus)*
+
+---
+
+# 🟦 **Carte 1 — Ajouter quelque chose dans le CRM**
+
+### 🗣️ Langage naturel
+
+* “Ajoute un champ pour noter la source du lead.”
+* “Je veux pouvoir enregistrer le budget.”
+* “Ajoute une info supplémentaire ici.”
+
+### 📘 Si MAX a besoin de précision
+
+* “Ajoute un **champ personnalisé**.”
+* “Dans l’**entité Leads**, ajoute un champ.”
+* “Affiche ce champ dans le **layout**.”
+
+### 🧠 Astuce MAX
+
+> Si vous ne voyez pas le nouvel élément, dites :
+> **“Vérifie le layout.”**
+
+---
+
+# 🟩 **Carte 2 — Modifier ou réorganiser la fiche Lead**
+
+### 🗣️ Langage naturel
+
+* “Déplace cette information plus haut.”
+* “Je veux voir le statut en premier.”
+* “Range-moi ça proprement.”
+
+### 📘 Si MAX a besoin de précision
+
+* “Déplace ce champ dans le **panneau Informations**.”
+* “Change l’ordre dans le **layout**.”
+* “Mets ce champ dans la section **Principal**.”
+
+### 🧠 Astuce MAX
+
+> “Organise la fiche client” = MAX nettoie, réorganise, optimise.
+
+---
+
+# 🟧 **Carte 3 — Afficher / retrouver quelque chose**
+
+### 🗣️ Langage naturel
+
+* “Je ne vois plus le champ adresse.”
+* “Où est le numéro de téléphone ?”
+* “Affiche-moi les informations importantes.”
+
+### 📘 Si MAX doit vérifier
+
+* “Vérifie le **layout**.”
+* “Rends ce champ **visible**.”
+* “Replace-le dans le **panneau principal**.”
+
+### 🧠 Astuce MAX
+
+> Une info non visible = souvent un problème de *layout*.
+
+---
+
+# 🟥 **Carte 4 — Gérer les objectifs et préférences (mémoire longue)**
+
+### 🗣️ Langage naturel
+
+* “MAX, note que mon objectif c’est 500 clients en 2026.”
+* “Garde en tête que je travaille surtout avec des coachs.”
+* “Souviens-toi que ma priorité c’est WhatsApp.”
+
+### 📘 Phrases directes pour la mémoire
+
+* “MAX, **je veux que tu te rappelles de ça**.”
+* “Note ça dans mon **profil**.”
+* “Enregistre ça comme **objectif**.”
+
+### 🧠 Astuce MAX
+
+> MAX répondra toujours : **“C’est noté.”**
+> pour confirmer la prise en mémoire.
+
+---
+
+# 🟫 **Carte 5 — Demander une vérification ou une correction**
+
+### 🗣️ Langage naturel
+
+* “Vérifie si tout est bien configuré.”
+* “Pourquoi je ne vois pas ce champ ?”
+* “Il y a un truc bizarre, corrige.”
+
+### 📘 Commandes directes si besoin
+
+* “MAX, **vérifie les layouts**.”
+* “Corrige la configuration de l’**entité Leads**.”
+* “Nettoie les **champs invisibles**.”
+
+### 🧠 Astuce MAX
+
+> MAX possède un **module d’auto-correction**.
+> Il peut réparer ce qui n’est pas aligné.
+
+---
+
+# 🟪 **Carte 6 — Obtenir un résumé (mémoire 72h)**
+
+### 🗣️ Langage naturel
+
+* “Qu’est-ce qui s’est passé ces derniers jours ?”
+* “Quelle a été la dernière modification ?”
+* “Dis-moi ce qu’on a fait récemment.”
+
+### 📘 MAX se base sur la mémoire 72h
+
+* logs CRM
+* statut des leads
+* actions manuelles
+* automatisations n8n
+* modifications détectées
+
+### 🧠 Astuce MAX
+
+> Ces données expirent au bout de 72h → M.A.X. résume ou archive.
+
+---
+
+# 🟨 **Carte 7 — Quand MAX ne comprend pas**
+
+S’il bloque ou hésite, essayez :
+
+### 🔸 Reformuler :
+
+* “Je veux dire : ajoute un champ.”
+* “En fait, déplace-le dans le panneau principal.”
+* “Rends ce champ visible.”
+
+### 🔸 Vérifier :
+
+* “Vérifie le layout.”
+* “Regarde l’entité Leads.”
+* “Ouvre le panneau Informations.”
+
+### 🔸 Guider :
+
+* “MAX, je veux que tu fasses ça dans la fiche Lead.”
+* “Ce que je veux, c’est organiser la fiche.”
+
+### 🧠 Astuce MAX
+
+> MAX apprend vos formulations et s’améliore avec le temps.
+
+---
+
+# 🎁 Bonus : **CARTE GÉNÉRALE (à mettre en début d’onglet)**
+
+## ⭐ Comment parler à M.A.X. efficacement ?
+
+* Utilisez des phrases simples : *“ajoute”, “déplace”, “affiche”, “organise”.*
+* Si un élément n’apparaît pas → dites : **“Vérifie le layout.”**
+* Si vous voulez que MAX garde une info → dites :
+  **“MAX, je veux que tu te rappelles de ça.”**
+* MAX traduit vos intentions en actions CRM, même sans jargon.
+* MAX vous le dira quand une action est prise en mémoire :
+  **“C’est noté.”**
+
+---
+
+### 💎 Verdict
+
+Oui Malala : ces cartes sont EXACTEMENT ce qu'il faut dans ton onboarding.
+Elles :
+
+* éduquent sans complexifier
+* donnent un protocole clair
+* montrent la puissance de MAX
+* rassurent l’utilisateur
+* réduisent les frustrations
+* installent une UI professionnelle
+
+Si tu veux, je peux maintenant transformer ces cartes en :
+
+✔ UI style fiches (design)
+✔ Page HTML prête à intégrer dans React
+✔ Version PDF premium
+✔ Version courte pour la DEMO onboarding
+
+Tu veux laquelle ?

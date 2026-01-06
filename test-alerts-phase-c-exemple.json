@@ -1,0 +1,95 @@
+{
+  "description": "Exemple de réponse API /api/alerts/active pour Phase C",
+  "cas": "Avec 3 alertes (1 high, 1 med, 1 low)",
+  "response": {
+    "ok": true,
+    "alerts": [
+      {
+        "id": "a1b2c3d4-5e6f-7890-abcd-ef1234567890",
+        "tenant_id": "macrea",
+        "lead_id": "694d0bed15df5b9e1",
+        "type": "NoContact7d",
+        "severity": "high",
+        "message": "Aucun contact depuis 8 jours. Lead à risque de perte.",
+        "suggested_action": {
+          "label": "Relancer par WhatsApp",
+          "action": "send_whatsapp",
+          "params": {
+            "leadId": "694d0bed15df5b9e1",
+            "template": "relance_froide"
+          }
+        },
+        "created_at": "2025-12-20T10:30:00Z",
+        "resolved_at": null,
+        "resolved_by": null,
+        "lead_name": "Sophie Martin",
+        "lead_email": "sophie.martin@example.com",
+        "lead_phone": "+33612345678",
+        "lead_secteur": "Transport"
+      },
+      {
+        "id": "b2c3d4e5-6f78-9012-bcde-f12345678901",
+        "tenant_id": "macrea",
+        "lead_id": "691b2816e43817b92",
+        "type": "NoReply3d",
+        "severity": "med",
+        "message": "Aucune réponse depuis 4 jours après notre dernier message.",
+        "suggested_action": {
+          "label": "Voir conversation",
+          "action": "view_chat",
+          "params": {
+            "leadId": "691b2816e43817b92"
+          }
+        },
+        "created_at": "2025-12-24T14:15:00Z",
+        "resolved_at": null,
+        "resolved_by": null,
+        "lead_name": "Jean Dupont",
+        "lead_email": "jean.dupont@transport.fr",
+        "lead_phone": "+33698765432",
+        "lead_secteur": "Logistique"
+      },
+      {
+        "id": "c3d4e5f6-7890-1234-cdef-234567890123",
+        "tenant_id": "macrea",
+        "lead_id": "691a1234e43817abc",
+        "type": "NoContact7d",
+        "severity": "low",
+        "message": "Aucun contact depuis 7 jours. Relance suggérée.",
+        "suggested_action": {
+          "label": "Envoyer email",
+          "action": "send_email",
+          "params": {
+            "leadId": "691a1234e43817abc",
+            "template": "suivi_standard"
+          }
+        },
+        "created_at": "2025-12-26T09:00:00Z",
+        "resolved_at": null,
+        "resolved_by": null,
+        "lead_name": "Marie Dubois",
+        "lead_email": "marie.dubois@entreprise.fr",
+        "lead_phone": "+33612345678",
+        "lead_secteur": "Commerce"
+      }
+    ],
+    "stats": {
+      "total": 3,
+      "by_severity": {
+        "high": 1,
+        "med": 1,
+        "low": 1
+      },
+      "by_type": {
+        "NoContact7d": 2,
+        "NoReply3d": 1
+      }
+    }
+  },
+  "notes": [
+    "Les alertes sont triées backend (high → med → low, puis par date DESC)",
+    "Le widget affiche dans l'ordre reçu",
+    "suggested_action est optionnel - si absent, seul bouton Résoudre affiché",
+    "lead_name, lead_email enrichis depuis EspoCRM si disponibles"
+  ]
+}

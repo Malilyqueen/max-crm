@@ -1,0 +1,196 @@
+# ========================================
+# COMMANDES SCALEWAY - COPIER-COLLER
+# ========================================
+
+# ========================================
+# 1. LOCAL: Préparer .env.production
+# ========================================
+cd d:\Macrea\CRM\docker-deploy
+cp .env.production.example .env.production
+notepad .env.production
+# REMPLIR AVEC VRAIES VALEURS
+
+# ========================================
+# 2. LOCAL: Copier code MAX backend
+# ========================================
+xcopy /E /I d:\Macrea\CRM\max_backend\* d:\Macrea\CRM\docker-deploy\services\max-backend\
+
+# ========================================
+# 3. LOCAL: Upload vers Scaleway
+# ========================================
+scp d:\Macrea\CRM\docker-deploy\.env.production root@YOUR_SCALEWAY_IP:/opt/max-infrastructure/docker-deploy/
+
+scp d:\Macrea\CRM\docker-deploy\services\nginx\ssl\cloudflare-origin-cert.pem root@YOUR_SCALEWAY_IP:/opt/max-infrastructure/docker-deploy/services/nginx/ssl/
+
+scp d:\Macrea\CRM\docker-deploy\services\nginx\ssl\cloudflare-origin-key.pem root@YOUR_SCALEWAY_IP:/opt/max-infrastructure/docker-deploy/services/nginx/ssl/
+
+scp -r d:\Macrea\CRM\max_backend\* root@YOUR_SCALEWAY_IP:/opt/max-infrastructure/docker-deploy/services/max-backend/
+
+# ========================================
+# 4. SCALEWAY: Installer Docker
+# ========================================
+ssh root@YOUR_SCALEWAY_IP
+
+apt-get update
+apt-get install -y ca-certificates curl gnupg
+install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+chmod a+r /etc/apt/keyrings/docker.gpg
+
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+apt-get update
+apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+docker --version
+docker compose version
+
+# ========================================
+# 5. SCALEWAY: Clone Repo
+# ========================================
+cd /opt
+git clone YOUR_GIT_REPO_URL max-infrastructure
+cd max-infrastructure/docker-deploy
+
+# ========================================
+# 6. SCALEWAY: Vérifier Fichiers
+# ========================================
+ls -la .env.production
+ls -la services/nginx/ssl/cloudflare-origin-cert.pem
+ls -la services/nginx/ssl/cloudflare-origin-key.pem
+ls -la services/max-backend/package.json
+
+# ========================================
+# 7. SCALEWAY: Permissions
+# ========================================
+chmod 600 .env.production
+chmod 600 services/nginx/ssl/*.pem
+
+# ========================================
+# 8. SCALEWAY: Build et Démarrer
+# ========================================
+docker compose build --no-cache
+docker compose up -d
+
+# ========================================
+# 9. SCALEWAY: Vérifier Status
+# ========================================
+docker compose ps
+docker compose logs -f max-backend
+curl http://localhost:3005/api/health
+curl http://localhost:8080/api/v1/App/user
+
+# ========================================
+# 10. SCALEWAY: Rebuild EspoCRM
+# ========================================
+docker exec espocrm php command.php rebuild
+docker exec espocrm php command.php clear-cache
+
+# ========================================
+# 11. POST-DEPLOY: Générer API Key EspoCRM
+# ========================================
+# 1. Accès: https://crm.studiomacrea.cloud
+# 2. Login: admin / PASSWORD_FROM_.ENV
+# 3. User menu → Preferences → API User → Create
+# 4. Copier API Key
+# 5. Sur Scaleway:
+
+nano .env.production
+# Modifier: ESPO_API_KEY=VOTRE_CLE_GENEREE
+
+docker compose restart max-backend
+
+# ========================================
+# 12. POST-DEPLOY: Configurer Green-API Webhook
+# ========================================
+# Dashboard Green-API: https://console.green-api.com
+# Instance → Webhooks → URL:
+# https://api.max.studiomacrea.cloud/webhooks/greenapi
+
+# Test logs:
+docker compose logs -f max-backend | grep GREENAPI
+
+# ========================================
+# 13. VALIDATION E2E
+# ========================================
+# 1. Envoyer WhatsApp à instance Green-API:
+#    "Salut MAX, crée un lead Test Scaleway, email test@scaleway.com"
+
+# 2. Logs MAX:
+docker compose logs -f max-backend
+
+# Attendu:
+# [GREENAPI_WEBHOOK] Message reçu
+# [ChatRoute] Tool calls: update_leads_in_espo
+# [ESPO_CLIENT] ✅ Lead créé
+# [SUPABASE] Write to max_logs
+
+# 3. Vérifier Lead: https://crm.studiomacrea.cloud
+# 4. Vérifier Supabase: Table max_logs
+# 5. Vérifier WhatsApp réponse reçue
+
+# ========================================
+# COMMANDES UTILES
+# ========================================
+
+# Logs
+docker compose logs -f max-backend
+docker compose logs -f espocrm
+docker compose logs -f nginx
+
+# Restart
+docker compose restart max-backend
+docker compose restart espocrm
+
+# Stop/Start
+docker compose down
+docker compose up -d
+
+# Rebuild
+git pull
+docker compose build --no-cache
+docker compose up -d
+
+# Backup
+./scripts/backup.sh
+ls -lh backups/
+
+# Shell
+docker exec -it max-backend sh
+docker exec -it espocrm bash
+
+# DB Access
+docker exec -it mariadb mysql -u root -p
+
+# Health
+curl https://api.max.studiomacrea.cloud/api/health
+curl https://crm.studiomacrea.cloud/
+
+# ========================================
+# TROUBLESHOOTING
+# ========================================
+
+# Service ne démarre pas
+docker compose logs SERVICE_NAME
+docker compose ps
+docker inspect CONTAINER_NAME
+
+# SSL invalide
+openssl s_client -connect api.max.studiomacrea.cloud:443
+
+# Database erreur
+docker exec espocrm php command.php check-database
+docker exec mariadb mysql -u root -p -e "SHOW DATABASES;"
+
+# Webhook non reçu
+curl -X POST https://api.max.studiomacrea.cloud/webhooks/greenapi -H "Content-Type: application/json" -d '{"test": true}'
+docker compose logs nginx | grep webhooks
+docker compose logs max-backend | grep GREENAPI
+
+# Rebuild Cache
+docker exec espocrm php command.php rebuild
+docker exec espocrm php command.php clear-cache
+
+# Force recreate
+docker compose down
+docker compose up -d --force-recreate

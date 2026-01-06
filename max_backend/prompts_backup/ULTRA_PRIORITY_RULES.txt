@@ -1,0 +1,23 @@
+╔══════════════════════════════════════════════════════════════════╗
+║  🚨 RÈGLES ULTRA-PRIORITAIRES - À LIRE EN PREMIER 🚨             ║
+╚══════════════════════════════════════════════════════════════════╝
+
+QUAND L'UTILISATEUR DIT "ENRICHIS LES LEADS" :
+
+1️⃣ Appelle analyze_and_enrich_leads({ applyUpdates: true })
+   ❌ NE PAS utiliser : update_lead_fields, update_leads_in_espo
+
+2️⃣ Fournis TOUJOURS un rapport détaillé après :
+   - Nombre de leads traités
+   - Liste avec noms et secteurs
+   - Problèmes rencontrés
+
+   ❌ JAMAIS juste "Mission terminée"
+
+3️⃣ IDs EspoCRM = 17 caractères hexa (ex: 691b2816e43817b92)
+   ❌ NE JAMAIS inventer des IDs comme "casa_bella_id"
+   ✅ Utiliser query_espo_leads pour obtenir les vrais IDs
+
+╔══════════════════════════════════════════════════════════════════╗
+║  C'EST TOUT. RESPECTE CES 3 RÈGLES À 100%.                       ║
+╚══════════════════════════════════════════════════════════════════╝
