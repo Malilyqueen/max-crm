@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS message_events (
   raw_payload JSONB,
 
   -- Timestamps
-  timestamp TIMESTAMPTZ NOT NULL, -- Timestamp de l'event (fourni par provider ou généré)
+  event_timestamp TIMESTAMPTZ NOT NULL, -- Timestamp de l'event (fourni par provider ou généré)
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
   -- Indexes
@@ -57,16 +57,16 @@ CREATE INDEX idx_message_events_email ON message_events(email);
 CREATE INDEX idx_message_events_provider_msg_id ON message_events(provider_message_id);
 
 -- Index: Recherche par canal + timestamp (analytics)
-CREATE INDEX idx_message_events_channel_ts ON message_events(channel, timestamp DESC);
+CREATE INDEX idx_message_events_channel_ts ON message_events(channel, event_timestamp DESC);
 
 -- Index: Recherche par statut + timestamp (monitoring)
-CREATE INDEX idx_message_events_status_ts ON message_events(status, timestamp DESC);
+CREATE INDEX idx_message_events_status_ts ON message_events(status, event_timestamp DESC);
 
 -- Index: Recherche par tenant + timestamp (multi-tenant)
-CREATE INDEX idx_message_events_tenant_ts ON message_events(tenant_id, timestamp DESC);
+CREATE INDEX idx_message_events_tenant_ts ON message_events(tenant_id, event_timestamp DESC);
 
 -- Index composite: Analytics par canal/direction/statut
-CREATE INDEX idx_message_events_analytics ON message_events(channel, direction, status, timestamp DESC);
+CREATE INDEX idx_message_events_analytics ON message_events(channel, direction, status, event_timestamp DESC);
 
 -- ============================================================================
 -- POLITIQUES RLS (Row Level Security) - Optionnel
@@ -93,8 +93,8 @@ CREATE INDEX idx_message_events_analytics ON message_events(channel, direction, 
 CREATE OR REPLACE VIEW message_events_last_24h AS
 SELECT *
 FROM message_events
-WHERE timestamp > NOW() - INTERVAL '24 hours'
-ORDER BY timestamp DESC;
+WHERE event_timestamp > NOW() - INTERVAL '24 hours'
+ORDER BY event_timestamp DESC;
 
 -- Vue: Statistiques par canal
 CREATE OR REPLACE VIEW message_events_stats_by_channel AS
@@ -103,10 +103,10 @@ SELECT
   direction,
   status,
   COUNT(*) as count,
-  DATE_TRUNC('hour', timestamp) as hour
+  DATE_TRUNC('hour', event_timestamp) as hour
 FROM message_events
-WHERE timestamp > NOW() - INTERVAL '7 days'
-GROUP BY channel, direction, status, DATE_TRUNC('hour', timestamp)
+WHERE event_timestamp > NOW() - INTERVAL '7 days'
+GROUP BY channel, direction, status, DATE_TRUNC('hour', event_timestamp)
 ORDER BY hour DESC, channel, direction, status;
 
 -- Vue: Messages non liés à un lead (à traiter)
@@ -115,8 +115,8 @@ SELECT *
 FROM message_events
 WHERE lead_id IS NULL
   AND direction = 'in'
-  AND timestamp > NOW() - INTERVAL '7 days'
-ORDER BY timestamp DESC;
+  AND event_timestamp > NOW() - INTERVAL '7 days'
+ORDER BY event_timestamp DESC;
 
 -- ============================================================================
 -- FONCTIONS UTILES
@@ -137,7 +137,7 @@ BEGIN
       2
     ) as delivery_rate
   FROM message_events me
-  WHERE me.timestamp > NOW() - INTERVAL '24 hours'
+  WHERE me.event_timestamp > NOW() - INTERVAL '24 hours'
     AND me.direction = 'out'
     AND (channel_filter IS NULL OR me.channel = channel_filter)
   GROUP BY me.channel
@@ -153,7 +153,7 @@ RETURNS TABLE(
   direction VARCHAR,
   status VARCHAR,
   message_snippet TEXT,
-  timestamp TIMESTAMPTZ
+  event_timestamp TIMESTAMPTZ
 ) AS $$
 BEGIN
   RETURN QUERY
@@ -163,10 +163,10 @@ BEGIN
     me.direction,
     me.status,
     me.message_snippet,
-    me.timestamp
+    me.event_timestamp
   FROM message_events me
   WHERE me.lead_id = lead_id_param
-  ORDER BY me.timestamp DESC;
+  ORDER BY me.event_timestamp DESC;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -178,7 +178,7 @@ $$ LANGUAGE plpgsql;
 -- SELECT * FROM message_events
 -- WHERE channel = 'whatsapp'
 --   AND direction = 'in'
---   AND timestamp::date = CURRENT_DATE;
+--   AND event_timestamp::date = CURRENT_DATE;
 
 -- Requête 2: Taux de delivery WhatsApp
 -- SELECT * FROM get_delivery_rate('whatsapp');
@@ -197,7 +197,7 @@ $$ LANGUAGE plpgsql;
 --   COUNT(*) FILTER (WHERE direction = 'out') as sent
 -- FROM message_events
 -- WHERE lead_id IS NOT NULL
---   AND timestamp > NOW() - INTERVAL '24 hours'
+--   AND event_timestamp > NOW() - INTERVAL '24 hours'
 -- GROUP BY lead_id
 -- ORDER BY message_count DESC
 -- LIMIT 10;
@@ -216,13 +216,13 @@ BEGIN
   -- Copier dans table d'archive
   INSERT INTO message_events_archive
   SELECT * FROM message_events
-  WHERE timestamp < NOW() - INTERVAL '90 days';
+  WHERE event_timestamp < NOW() - INTERVAL '90 days';
 
   GET DIAGNOSTICS archived_count = ROW_COUNT;
 
   -- Supprimer de la table active
   DELETE FROM message_events
-  WHERE timestamp < NOW() - INTERVAL '90 days';
+  WHERE event_timestamp < NOW() - INTERVAL '90 days';
 
   RETURN archived_count;
 END;

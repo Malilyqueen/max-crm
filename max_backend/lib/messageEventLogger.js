@@ -134,7 +134,7 @@ async function persistToSupabase(event) {
         status: event.status,
         message_snippet: event.messageSnippet,
         raw_payload: event.rawPayload,
-        timestamp: event.timestamp,
+        event_timestamp: event.timestamp,
         created_at: event.createdAt
       });
 
@@ -249,14 +249,14 @@ async function queryFromSupabase(filters) {
     let query = supabase
       .from('message_events')
       .select('*')
-      .order('timestamp', { ascending: false })
+      .order('event_timestamp', { ascending: false })
       .limit(filters.limit || 100);
 
     if (filters.channel) query = query.eq('channel', filters.channel);
     if (filters.leadId) query = query.eq('lead_id', filters.leadId);
     if (filters.status) query = query.eq('status', filters.status);
-    if (filters.startDate) query = query.gte('timestamp', filters.startDate);
-    if (filters.endDate) query = query.lte('timestamp', filters.endDate);
+    if (filters.startDate) query = query.gte('event_timestamp', filters.startDate);
+    if (filters.endDate) query = query.lte('event_timestamp', filters.endDate);
 
     const { data, error } = await query;
 
