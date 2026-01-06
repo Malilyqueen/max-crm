@@ -75,6 +75,8 @@ import layoutRouter from './routes/layout.js';
 import billingRouter from './routes/billing.js';
 import whatsappWebhookRouter from './routes/whatsapp-webhook.js';
 import whatsappMessagesRouter from './routes/whatsapp-messages.js';
+import greenApiWebhookRouter from './routes/greenapi-webhook.js';
+import twilioSmsWebhookRouter from './routes/twilio-sms-webhook.js';
 import authRouter from './routes/auth.js';
 import chatMvp1Router from './routes/chatMvp1.js';
 import dashboardMvp1Router from './routes/dashboardMvp1.js';
@@ -145,6 +147,8 @@ app.use('/api/layout', layoutRouter);
 app.use('/api/billing', billingRouter);
 app.use('/api/whatsapp', whatsappWebhookRouter); // Webhook entrant WhatsApp (Twilio)
 app.use('/api/whatsapp', whatsappMessagesRouter); // API CRUD messages WhatsApp
+app.use('/webhooks/greenapi', greenApiWebhookRouter); // 📲 Webhook entrant Green-API WhatsApp (AVANT headers middleware)
+app.use('/webhooks/twilio-sms', twilioSmsWebhookRouter); // 📱 Webhook entrant + status Twilio SMS (AVANT headers middleware)
 app.use('/api/tenant/goals', tenantGoalsRouter); // Routes tenant goals (mémoire longue durée)
 app.use('/api/test', testWhatsappStubRouter); // 🧪 Endpoint de test WhatsApp stub (sans dépendre de Twilio Live)
 app.use('/api/action-layer', actionsApiRouter); // 🎯 Action Layer - Endpoints pour tester les actions CRM manuellement (AVANT headers middleware)
