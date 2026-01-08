@@ -1,20 +1,20 @@
 /**
  * Action: Envoyer un email
  *
- * Supporte plusieurs providers selon la config :
- * - SMTP direct
- * - SendGrid
- * - Gmail API
+ * Architecture 3 modes par tenant:
+ * - Mode 1 (default): no-reply@malalacrea.fr + reply-to tenant
+ * - Mode 2 (custom_domain): domaine client validé via Mailjet MaCréa
+ * - Mode 3 (self_service): credentials propres du tenant
  *
  * Params:
- * - tenantId: string
+ * - tenantId: string (OBLIGATOIRE pour résolution mode)
  * - to: string | array
  * - subject: string
  * - body: string (HTML ou texte)
- * - from: string (optionnel)
+ * - from: string (optionnel, override mode)
  * - cc: string | array (optionnel)
  * - bcc: string | array (optionnel)
- * - replyTo: string (optionnel)
+ * - replyTo: string (optionnel, override mode)
  * - parentType: 'Lead' | 'Account' | 'Contact' (optionnel, pour tracker dans CRM)
  * - parentId: string (optionnel)
  */
@@ -37,27 +37,44 @@ export async function sendEmail(params) {
     throw new Error('to, subject et body sont obligatoires');
   }
 
-  // Déterminer le provider selon la config
-  const provider = process.env.EMAIL_PROVIDER || 'smtp';
+  if (!tenantId) {
+    throw new Error('tenantId est obligatoire pour résolution mode email');
+  }
+
+  // Importer le resolver de mode
+  const { resolveEmailMode } = await import('../lib/emailModeResolver.js');
 
   try {
+    // Résoudre le mode email du tenant
+    const { mode, config } = await resolveEmailMode(tenantId);
+
+    console.log(`[SEND_EMAIL] Tenant: ${tenantId} | Mode: ${mode}`);
+
+    // Déterminer FROM et REPLY-TO selon le mode (ou override si fourni)
+    const emailFrom = from || config.from_email || 'no-reply@malalacrea.fr';
+    const emailReplyTo = replyTo || config.reply_to || 'contact@malalacrea.fr';
+    const emailFromName = config.from_name || 'M.A.X. CRM';
+
     let result;
 
-    switch (provider) {
-      case 'smtp':
-        result = await sendViaSMTP(params);
-        break;
-
-      case 'sendgrid':
-        result = await sendViaSendGrid(params);
-        break;
-
-      case 'gmail':
-        result = await sendViaGmail(params);
-        break;
-
-      default:
-        throw new Error(`Provider email inconnu: ${provider}`);
+    // Envoyer selon le mode
+    if (mode === 'self_service' && config.credentials) {
+      // Mode 3: Utiliser credentials tenant
+      result = await sendViaMailjet({
+        ...params,
+        from: emailFrom,
+        fromName: emailFromName,
+        replyTo: emailReplyTo,
+        customCredentials: config.credentials
+      });
+    } else {
+      // Mode 1 & 2: Utiliser Mailjet MaCréa (credentials globaux)
+      result = await sendViaMailjet({
+        ...params,
+        from: emailFrom,
+        fromName: emailFromName,
+        replyTo: emailReplyTo
+      });
     }
 
     // Si un parent CRM est spécifié, créer un Email dans EspoCRM pour traçabilité
@@ -74,20 +91,24 @@ export async function sendEmail(params) {
 
     return {
       success: true,
-      provider,
+      provider: 'mailjet',
+      mode, // Retourner le mode utilisé pour debug
       entityId: result.messageId,
       preview: `Email "${subject}" envoyé à ${Array.isArray(to) ? to.join(', ') : to}`,
       metadata: {
         messageId: result.messageId,
         to,
-        subject
+        subject,
+        from: emailFrom,
+        replyTo: emailReplyTo
       }
     };
 
   } catch (error) {
+    console.error('[SEND_EMAIL] Erreur:', error);
     return {
       success: false,
-      provider,
+      provider: 'mailjet',
       error: error.message,
       preview: `Échec envoi email: ${error.message}`
     };
@@ -159,6 +180,134 @@ async function sendViaSMTP(params) {
   } catch (error) {
     console.error('   ❌ [SMTP] Erreur:', error.message);
     throw new Error(`SMTP Error: ${error.message}`);
+  }
+}
+
+/**
+ * Envoi via Mailjet API v3.1
+ * Doc: https://dev.mailjet.com/email/guides/send-api-v31/
+ *
+ * Supporte customCredentials pour mode self_service
+ */
+export async function sendViaMailjet(params) {
+  // Utiliser credentials custom (tenant) ou globaux (MaCréa)
+  const apiKey = params.customCredentials?.apiKey || process.env.MAILJET_API_KEY;
+  const apiSecret = params.customCredentials?.apiSecret || process.env.MAILJET_API_SECRET;
+
+  if (!apiKey || !apiSecret) {
+    throw new Error('MAILJET_API_KEY et MAILJET_API_SECRET requis dans .env');
+  }
+
+  const credentialsSource = params.customCredentials ? 'TENANT' : 'GLOBAL';
+  console.log(`   📧 [Mailjet] Configuration: ${credentialsSource}`, {
+    apiKey: apiKey.substring(0, 8) + '...',
+    to: params.to,
+    from: params.from || 'no-reply@malalacrea.fr',
+    replyTo: params.replyTo
+  });
+
+  try {
+    // Préparer le payload Mailjet v3.1
+    const payload = {
+      Messages: [
+        {
+          From: {
+            Email: params.from || process.env.MAILJET_FROM_EMAIL || 'no-reply@malalacrea.fr',
+            Name: params.fromName || process.env.MAILJET_FROM_NAME || 'M.A.X. CRM'
+          },
+          To: Array.isArray(params.to)
+            ? params.to.map(email => ({ Email: email }))
+            : [{ Email: params.to }],
+          Subject: params.subject,
+          TextPart: params.body.replace(/<[^>]*>/g, ''), // Strip HTML pour version texte
+          HTMLPart: params.body.includes('<') ? params.body : undefined
+        }
+      ]
+    };
+
+    // Ajouter CC si fourni
+    if (params.cc) {
+      payload.Messages[0].Cc = Array.isArray(params.cc)
+        ? params.cc.map(email => ({ Email: email }))
+        : [{ Email: params.cc }];
+    }
+
+    // Ajouter BCC si fourni
+    if (params.bcc) {
+      payload.Messages[0].Bcc = Array.isArray(params.bcc)
+        ? params.bcc.map(email => ({ Email: email }))
+        : [{ Email: params.bcc }];
+    }
+
+    // Ajouter ReplyTo si fourni (OBLIGATOIRE en mode default)
+    if (params.replyTo) {
+      payload.Messages[0].ReplyTo = { Email: params.replyTo };
+    }
+
+    // Ajouter CustomID pour tracking (leadId si disponible)
+    if (params.parentId) {
+      payload.Messages[0].CustomID = `${params.parentType || 'Lead'}_${params.parentId}`;
+    }
+
+    // Appel API Mailjet
+    const auth = Buffer.from(`${apiKey}:${apiSecret}`).toString('base64');
+    const response = await fetch('https://api.mailjet.com/v3.1/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Basic ${auth}`
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      throw new Error(`Mailjet API error (${response.status}): ${errorBody}`);
+    }
+
+    const result = await response.json();
+
+    // Mailjet retourne un tableau Messages avec le statut de chaque email
+    const firstMessage = result.Messages[0];
+
+    if (firstMessage.Status === 'success') {
+      const messageId = firstMessage.To[0].MessageID;
+      const messageUUID = firstMessage.To[0].MessageUUID;
+
+      console.log('   ✅ [Mailjet] Email envoyé:', {
+        messageId,
+        messageUUID,
+        to: firstMessage.To[0].Email
+      });
+
+      // Logger l'event dans message_events
+      const { logMessageEvent } = await import('../lib/messageEventLogger.js');
+      await logMessageEvent({
+        channel: 'email',
+        provider: 'mailjet',
+        direction: 'out',
+        leadId: params.parentId,
+        email: params.to,
+        providerMessageId: String(messageId),
+        status: 'sent',
+        messageSnippet: params.subject,
+        rawPayload: result,
+        timestamp: new Date().toISOString()
+      });
+
+      return {
+        success: true,
+        messageId: String(messageId),
+        messageUUID,
+        provider: 'mailjet'
+      };
+    } else {
+      throw new Error(`Mailjet error: ${firstMessage.Errors?.[0]?.ErrorMessage || 'Unknown error'}`);
+    }
+
+  } catch (error) {
+    console.error('   ❌ [Mailjet] Erreur:', error.message);
+    throw new Error(`Mailjet Error: ${error.message}`);
   }
 }
 

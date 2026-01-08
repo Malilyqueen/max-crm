@@ -42,8 +42,9 @@ import leadRoutes from './routes/lead.js';
 import triggerRoutes from './routes/trigger.js';
 import tagsRoutes from './routes/tags.js';
 import { resolveTenant } from './core/resolveTenant.js';
+import { authMiddleware } from './middleware/authMiddleware.js';
 import crmRouter from './routes/crm.js';
-import crmPublicRouter from './routes/crmPublic.js'; // ⚠️ TEMPORAIRE: Route CRM sans auth
+import crmPublicRouter from './routes/crmPublic.js'; // ⚠️ Legacy name: Routes CRM sécurisées avec auth JWT + tenant
 import resolveRouter from './routes/resolve.js';
 import reportingRouter from './routes/reporting.js';
 import agentRouter from './routes/agent.js';
@@ -77,6 +78,9 @@ import whatsappWebhookRouter from './routes/whatsapp-webhook.js';
 import whatsappMessagesRouter from './routes/whatsapp-messages.js';
 import greenApiWebhookRouter from './routes/greenapi-webhook.js';
 import twilioSmsWebhookRouter from './routes/twilio-sms-webhook.js';
+import mailjetWebhookRouter from './routes/mailjet-webhook.js';
+import eventsRouter from './routes/events.js';
+import campaignsRouter from './routes/campaigns.js';
 import authRouter from './routes/auth.js';
 import chatMvp1Router from './routes/chatMvp1.js';
 import dashboardMvp1Router from './routes/dashboardMvp1.js';
@@ -88,6 +92,10 @@ import actionsApiRouter from './routes/actions-api.js';
 import waInstanceRouter from './routes/wa-instance.js';
 import consentRouter from './routes/consent.js';
 import activitiesRouter from './routes/activities.js';
+import supportRouter from './routes/support.js';
+import settingsRouter from './routes/settings.js';
+import settingsTestRouter from './routes/settings-test.js';
+import emailDomainsRouter from './routes/email-domains.js';
 
 process.on('unhandledRejection', (reason)=> console.error('[FATAL] UnhandledRejection:', reason));
 process.on('uncaughtException', (err)=> { console.error('[FATAL] UncaughtException:', err); process.exit(1); });
@@ -95,6 +103,49 @@ process.on('SIGINT', ()=> { console.log('[EXIT] SIGINT'); process.exit(0); });
 process.on('SIGTERM', ()=> { console.log('[EXIT] SIGTERM'); process.exit(0); });
 
 const app = express();
+
+// ============================================================
+// POSTGRESQL / SUPABASE CLIENT (pour routes support, events, etc.)
+// ============================================================
+import pkg from 'pg';
+const { Pool } = pkg;
+
+// Supabase connection string format:
+// postgresql://postgres.[ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres
+// Extrait depuis SUPABASE_URL (https://jcegkuyagbthpbklyawz.supabase.co)
+const supabaseRef = process.env.SUPABASE_URL?.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1];
+const supabasePassword = process.env.DATABASE_PASSWORD || process.env.SUPABASE_PASSWORD || 'CHANGE_ME';
+
+const connectionString = process.env.DATABASE_URL ||
+  `postgresql://postgres.${supabaseRef}:${supabasePassword}@aws-0-eu-central-1.pooler.supabase.com:6543/postgres`;
+
+const pool = new Pool({
+  connectionString,
+  ssl: { rejectUnauthorized: false }
+});
+
+// Expose db client pour les routes
+app.locals.db = pool;
+
+console.log(`✅ PostgreSQL client initialisé (Supabase ref: ${supabaseRef})`);
+
+// ============================================================
+// VALIDATION CLÉ DE CHIFFREMENT (pour credentials providers)
+// ============================================================
+import { validateEncryptionKey, testEncryption } from './lib/encryption.js';
+
+try {
+  validateEncryptionKey();
+  testEncryption();
+  console.log('✅ Système de chiffrement validé');
+} catch (error) {
+  console.warn('⚠️  CREDENTIALS_ENCRYPTION_KEY non configurée ou invalide');
+  console.warn('   Les fonctionnalités de configuration de providers seront désactivées');
+  console.warn('   Pour activer: générez une clé avec:');
+  console.warn('   node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"');
+  console.warn('   Puis ajoutez dans .env: CREDENTIALS_ENCRYPTION_KEY=<votre_clé>');
+}
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true })); // ⚡ Support Twilio webhooks (application/x-www-form-urlencoded)
 // Allow custom headers for UI
@@ -128,11 +179,10 @@ app.use('/api/crm-mvp1', crmMvp1Router);
 app.use('/api/automation-mvp1', automationMvp1Router);
 
 // ============================================================================
-// ⚠️ ROUTE CRM PUBLIQUE - DOIT ÊTRE AVANT TOUS LES MIDDLEWARES GLOBAUX
-// Cette route DOIT être ici pour éviter les middlewares headers/resolveTenant
-// TODO Phase 3: Supprimer crmPublicRouter et utiliser crmRouter avec auth
+// 🔒 ROUTES CRM SÉCURISÉES (Legacy name: /crm-public → secured routes)
+// Auth JWT REQUIS + Tenant resolution
 // ============================================================================
-app.use('/api/crm-public', crmPublicRouter);
+app.use('/api/crm-public', authMiddleware, resolveTenant(), crmPublicRouter);
 
 // Routes M.A.X. Actions, Créa, Chat, Bubble, AI, Safe Actions, Layout ET Billing AVANT le middleware headers (pas besoin de tenant)
 app.use('/api/max/actions', maxActionsRouter);
@@ -149,6 +199,7 @@ app.use('/api/whatsapp', whatsappWebhookRouter); // Webhook entrant WhatsApp (Tw
 app.use('/api/whatsapp', whatsappMessagesRouter); // API CRUD messages WhatsApp
 app.use('/webhooks/greenapi', greenApiWebhookRouter); // 📲 Webhook entrant Green-API WhatsApp (AVANT headers middleware)
 app.use('/webhooks/twilio-sms', twilioSmsWebhookRouter); // 📱 Webhook entrant + status Twilio SMS (AVANT headers middleware)
+app.use('/webhooks/mailjet', mailjetWebhookRouter); // 📧 Webhook entrant Mailjet Email (AVANT headers middleware)
 app.use('/api/tenant/goals', tenantGoalsRouter); // Routes tenant goals (mémoire longue durée)
 app.use('/api/test', testWhatsappStubRouter); // 🧪 Endpoint de test WhatsApp stub (sans dépendre de Twilio Live)
 app.use('/api/action-layer', actionsApiRouter); // 🎯 Action Layer - Endpoints pour tester les actions CRM manuellement (AVANT headers middleware)
@@ -157,6 +208,9 @@ app.use('/api/consent', consentRouter); // 🔒 Système de consentement pour op
 
 // Sanity ping (AVANT headers middleware pour Cloudflare healthcheck)
 app.get('/api/ping', (req, res) => res.json({ ok: true, pong: true }));
+
+// Servir les fichiers uploadés du support (pièces jointes)
+app.use('/uploads/support', express.static('uploads/support'));
 
 app.use(headers);
 app.use((req,res,next)=>{ res.setHeader('Content-Type','application/json; charset=utf-8'); next(); });
@@ -188,6 +242,12 @@ app.use('/api', resolveTenant(), agentRouter);
 app.use('/api/brain', resolveTenant(), brainRouter);
 app.use('/api/logs', logsRouter);
 app.use('/api/crm', crmRouter); // Route CRM avec auth (nécessite JWT utilisateur)
+app.use('/api/events', resolveTenant(), eventsRouter); // Routes events multi-canal (auth + tenant)
+app.use('/api/campaigns', resolveTenant(), campaignsRouter); // Routes campaigns bulk send (auth + tenant)
+app.use('/api/support', authMiddleware, resolveTenant(), supportRouter); // Routes support lite MVP (auth + tenant)
+app.use('/api/settings', authMiddleware, resolveTenant(), settingsRouter); // Routes settings self-service (auth + tenant)
+app.use('/api/settings', authMiddleware, resolveTenant(), settingsTestRouter); // Routes settings test connection (auth + tenant)
+app.use('/api/email', authMiddleware, resolveTenant(), emailDomainsRouter); // Routes email domain validation (auth + tenant)
 // Ensure JSON type for all /api/*
 app.use('/api', (req,res,next)=>{ res.type('application/json'); next(); });
 
