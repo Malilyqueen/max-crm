@@ -88,10 +88,10 @@ router.get('/providers/:id', async (req, res) => {
 
     const provider = result.rows[0];
 
-    // Déchiffrer les credentials
+    // Déchiffrer les credentials avec la clé du tenant
     let credentials = null;
     try {
-      credentials = decryptCredentials(provider.encrypted_config);
+      credentials = decryptCredentials(provider.encrypted_config, tenantId);
     } catch (error) {
       console.error(`[Settings] Erreur déchiffrement provider #${providerId}:`, error.message);
       return res.status(500).json({
@@ -177,7 +177,7 @@ router.post('/providers', async (req, res) => {
     // Chiffrer les credentials
     let encryptedConfig;
     try {
-      encryptedConfig = encryptCredentials(credentials);
+      encryptedConfig = encryptCredentials(credentials, tenantId);
     } catch (error) {
       console.error('[Settings] Erreur chiffrement credentials:', error.message);
       return res.status(500).json({
@@ -286,7 +286,7 @@ router.put('/providers/:id', async (req, res) => {
       // Chiffrer les nouveaux credentials
       let encryptedConfig;
       try {
-        encryptedConfig = encryptCredentials(credentials);
+        encryptedConfig = encryptCredentials(credentials, tenantId);
       } catch (error) {
         console.error('[Settings] Erreur chiffrement credentials:', error.message);
         return res.status(500).json({

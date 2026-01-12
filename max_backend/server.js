@@ -96,6 +96,7 @@ import supportRouter from './routes/support.js';
 import settingsRouter from './routes/settings.js';
 import settingsTestRouter from './routes/settings-test.js';
 import emailDomainsRouter from './routes/email-domains.js';
+import smsSettingsRouter from './routes/sms-settings.js';
 
 process.on('unhandledRejection', (reason)=> console.error('[FATAL] UnhandledRejection:', reason));
 process.on('uncaughtException', (err)=> { console.error('[FATAL] UncaughtException:', err); process.exit(1); });
@@ -119,10 +120,47 @@ const supabasePassword = process.env.DATABASE_PASSWORD || process.env.SUPABASE_P
 const connectionString = process.env.DATABASE_URL ||
   `postgresql://postgres.${supabaseRef}:${supabasePassword}@aws-0-eu-central-1.pooler.supabase.com:6543/postgres`;
 
-const pool = new Pool({
+// Configuration Pool avec IPv4 forcé pour Supabase
+import dns from 'dns';
+import { promisify } from 'util';
+const resolve4 = promisify(dns.resolve4);
+
+const poolConfig = {
   connectionString,
   ssl: { rejectUnauthorized: false }
-});
+};
+
+// Force IPv4 pour éviter ENETUNREACH IPv6 sur serveurs sans IPv6
+if (process.env.FORCE_IPV4 === 'true') {
+  console.log('🔧 Mode IPv4 forcé activé - Résolution DNS IPv4...');
+
+  // Extraire host, user, password, database du connectionString
+  const match = connectionString.match(/postgresql:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/(.+)/);
+  if (match) {
+    const [, user, password, host, port, database] = match;
+
+    try {
+      // Résoudre l'hostname en IPv4 uniquement
+      const ipv4Addresses = await resolve4(host);
+      const ipv4 = ipv4Addresses[0];
+
+      console.log(`✅ DNS résolu: ${host} → ${ipv4} (IPv4)`);
+
+      poolConfig.user = user;
+      poolConfig.password = password;
+      poolConfig.host = ipv4; // Utiliser l'IP IPv4 directement
+      poolConfig.port = parseInt(port);
+      poolConfig.database = database;
+      delete poolConfig.connectionString;
+      poolConfig.connectionTimeoutMillis = 10000;
+    } catch (dnsError) {
+      console.error(`❌ Erreur résolution DNS IPv4 pour ${host}:`, dnsError.message);
+      console.log('⚠️ Fallback sur connectionString standard');
+    }
+  }
+}
+
+const pool = new Pool(poolConfig);
 
 // Expose db client pour les routes
 app.locals.db = pool;
@@ -245,6 +283,8 @@ app.use('/api/crm', crmRouter); // Route CRM avec auth (nécessite JWT utilisate
 app.use('/api/events', resolveTenant(), eventsRouter); // Routes events multi-canal (auth + tenant)
 app.use('/api/campaigns', resolveTenant(), campaignsRouter); // Routes campaigns bulk send (auth + tenant)
 app.use('/api/support', authMiddleware, resolveTenant(), supportRouter); // Routes support lite MVP (auth + tenant)
+// IMPORTANT: Routes spécifiques AVANT routes générales
+app.use('/api/settings/sms', authMiddleware, resolveTenant(), smsSettingsRouter); // Routes SMS settings (auth + tenant)
 app.use('/api/settings', authMiddleware, resolveTenant(), settingsRouter); // Routes settings self-service (auth + tenant)
 app.use('/api/settings', authMiddleware, resolveTenant(), settingsTestRouter); // Routes settings test connection (auth + tenant)
 app.use('/api/email', authMiddleware, resolveTenant(), emailDomainsRouter); // Routes email domain validation (auth + tenant)

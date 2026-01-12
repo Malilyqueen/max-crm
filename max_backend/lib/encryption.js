@@ -19,11 +19,11 @@ const AUTH_TAG_LENGTH = 16;
 const KEY_LENGTH = 32; // 256 bits
 
 /**
- * Récupère la clé de chiffrement depuis l'environnement
+ * Récupère la clé de chiffrement globale depuis l'environnement
  * @returns {Buffer} Clé de 32 bytes
  * @throws {Error} Si CREDENTIALS_ENCRYPTION_KEY manquant ou invalide
  */
-function getEncryptionKey() {
+function getGlobalEncryptionKey() {
   const keyHex = process.env.CREDENTIALS_ENCRYPTION_KEY;
 
   if (!keyHex) {
@@ -47,19 +47,44 @@ function getEncryptionKey() {
 }
 
 /**
- * Chiffre un objet JSON en string chiffrée
+ * Dérive une clé unique pour un tenant à partir de la clé globale
+ * Utilise HMAC-SHA256 pour garantir l'unicité et la sécurité
+ *
+ * @param {string} tenantId - L'identifiant du tenant
+ * @returns {Buffer} Clé dérivée de 32 bytes unique au tenant
+ *
+ * @example
+ * const tenantKey = deriveTenantKey('macrea-admin');
+ */
+function deriveTenantKey(tenantId) {
+  if (!tenantId || typeof tenantId !== 'string') {
+    throw new Error('tenantId requis pour dériver la clé de chiffrement');
+  }
+
+  const globalKey = getGlobalEncryptionKey();
+
+  // Dériver la clé avec HMAC-SHA256
+  const hmac = crypto.createHmac('sha256', globalKey);
+  hmac.update(tenantId);
+
+  return hmac.digest(); // Retourne 32 bytes
+}
+
+/**
+ * Chiffre un objet JSON en string chiffrée avec une clé unique au tenant
  *
  * @param {Object} data - L'objet à chiffrer (ex: {apiKey: "...", apiSecret: "..."})
+ * @param {string} tenantId - L'identifiant du tenant (pour dériver la clé)
  * @returns {string} String au format: iv:authTag:encryptedData (tout en hex)
  * @throws {Error} Si le chiffrement échoue
  *
  * @example
- * const encrypted = encryptCredentials({ apiKey: "abc123", apiSecret: "xyz789" });
+ * const encrypted = encryptCredentials({ apiKey: "abc123", apiSecret: "xyz789" }, 'macrea-admin');
  * // Retourne: "a1b2c3d4e5f6....:f7e8d9c0b1a2....:9f8e7d6c5b4a...."
  */
-export function encryptCredentials(data) {
+export function encryptCredentials(data, tenantId) {
   try {
-    const key = getEncryptionKey();
+    const key = deriveTenantKey(tenantId);
 
     // Générer un IV aléatoire (JAMAIS réutiliser le même IV!)
     const iv = crypto.randomBytes(IV_LENGTH);
@@ -84,19 +109,20 @@ export function encryptCredentials(data) {
 }
 
 /**
- * Déchiffre une string chiffrée en objet JSON
+ * Déchiffre une string chiffrée en objet JSON avec la clé unique au tenant
  *
  * @param {string} encryptedString - String au format iv:authTag:encryptedData (hex)
+ * @param {string} tenantId - L'identifiant du tenant (pour dériver la clé)
  * @returns {Object} L'objet déchiffré
  * @throws {Error} Si le déchiffrement échoue (clé invalide, données corrompues, etc.)
  *
  * @example
- * const credentials = decryptCredentials("a1b2c3d4e5f6....:f7e8d9c0b1a2....:9f8e7d6c5b4a....");
+ * const credentials = decryptCredentials("a1b2c3d4e5f6....:f7e8d9c0b1a2....:9f8e7d6c5b4a....", 'macrea-admin');
  * // Retourne: { apiKey: "abc123", apiSecret: "xyz789" }
  */
-export function decryptCredentials(encryptedString) {
+export function decryptCredentials(encryptedString, tenantId) {
   try {
-    const key = getEncryptionKey();
+    const key = deriveTenantKey(tenantId);
 
     // Parser le format iv:authTag:encryptedData
     const parts = encryptedString.split(':');
@@ -133,8 +159,8 @@ export function decryptCredentials(encryptedString) {
  */
 export function validateEncryptionKey() {
   try {
-    const key = getEncryptionKey();
-    console.log(`[Encryption] ✅ Clé de chiffrement valide (${key.length} bytes)`);
+    const key = getGlobalEncryptionKey();
+    console.log(`[Encryption] ✅ Clé de chiffrement globale valide (${key.length} bytes)`);
     return true;
   } catch (error) {
     console.error(`[Encryption] ❌ ${error.message}`);
@@ -185,7 +211,7 @@ export function redactCredentials(credentials) {
 }
 
 /**
- * Test rapide du système de chiffrement
+ * Test rapide du système de chiffrement avec un tenant de test
  * Utile pour vérifier que tout fonctionne au démarrage
  *
  * @returns {boolean} true si le test réussit
@@ -193,6 +219,7 @@ export function redactCredentials(credentials) {
  */
 export function testEncryption() {
   try {
+    const testTenantId = 'test-tenant';
     const testData = {
       apiKey: 'test-key-123',
       apiSecret: 'test-secret-456',
@@ -201,18 +228,18 @@ export function testEncryption() {
       }
     };
 
-    // Chiffrer
-    const encrypted = encryptCredentials(testData);
+    // Chiffrer avec tenant
+    const encrypted = encryptCredentials(testData, testTenantId);
 
-    // Déchiffrer
-    const decrypted = decryptCredentials(encrypted);
+    // Déchiffrer avec tenant
+    const decrypted = decryptCredentials(encrypted, testTenantId);
 
     // Vérifier
     if (JSON.stringify(testData) !== JSON.stringify(decrypted)) {
       throw new Error('Les données déchiffrées ne correspondent pas aux données originales');
     }
 
-    console.log('[Encryption] ✅ Test de chiffrement/déchiffrement réussi');
+    console.log('[Encryption] ✅ Test de chiffrement/déchiffrement réussi (per-tenant)');
     return true;
   } catch (error) {
     console.error('[Encryption] ❌ Test de chiffrement échoué:', error.message);

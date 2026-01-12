@@ -159,3 +159,4 @@ temp_*.json
 n8n_local/
 nul
 SESSION_SUMMARY_*.md
+MCRM_BACKUP/
