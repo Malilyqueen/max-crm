@@ -52,8 +52,31 @@ apiClient.interceptors.request.use(
 
     // TOUJOURS ajouter headers multi-tenant (même sans token)
     if (config.headers) {
-      const settingsState = useSettingsStore.getState();
-      const tenant = settingsState.tenant || 'macrea';
+      // Priorité 1: tenantId depuis l'auth user
+      // Priorité 2: tenant depuis settings store
+      // Priorité 3: default 'macrea'
+      let tenant = 'macrea';
+
+      if (authStorage) {
+        try {
+          const parsed = JSON.parse(authStorage);
+          const userTenantId = parsed?.state?.user?.tenantId;
+          if (userTenantId) {
+            tenant = userTenantId;
+            console.log('[API] 🏢 Tenant depuis user.tenantId:', tenant);
+          } else {
+            const settingsState = useSettingsStore.getState();
+            tenant = settingsState.tenant || 'macrea';
+            console.log('[API] 🏢 Tenant depuis settings store:', tenant);
+          }
+        } catch (e) {
+          console.warn('[API] ⚠️ Erreur lecture tenant, utilisation par défaut');
+        }
+      } else {
+        const settingsState = useSettingsStore.getState();
+        tenant = settingsState.tenant || 'macrea';
+        console.log('[API] 🏢 Tenant depuis settings store (pas d\'auth):', tenant);
+      }
 
       config.headers['X-Tenant'] = tenant;
       config.headers['X-Role'] = userRole;

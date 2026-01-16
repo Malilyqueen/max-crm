@@ -2,6 +2,27 @@
 // Configuration multi-tenant avec credentials EspoCRM par tenant
 
 export const TENANTS = {
+  // Tenant local développement XAMPP
+  "macrea": {
+    id: "macrea",
+    name: "MaCréa Local Dev",
+    apiKey: "macrea_local_dev_key",
+    standard: true,
+    extensions: ["logistique", "ecommerce", "coach"],
+    flags: { isAdmin: true },
+
+    // Configuration EspoCRM pour développement local XAMPP
+    espo: {
+      baseUrl: process.env.ESPO_BASE_URL || "http://127.0.0.1:8081/espocrm/api/v1",
+      apiKey: process.env.ESPO_API_KEY || "",
+      admin: {
+        username: process.env.ESPO_USERNAME || "admin",
+        password: process.env.ESPO_PASSWORD || "",
+      },
+      canSelfHeal: true,
+    }
+  },
+
   "macrea-admin": {
     id: "macrea-admin",
     name: "MaCréa Admin",

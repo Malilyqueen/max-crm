@@ -12,6 +12,7 @@ import express from 'express';
 import twilio from 'twilio';
 import { espoFetch } from '../lib/espoClient.js';
 import { logMessageEvent } from '../lib/messageEventLogger.js';
+import { normalizeStatus } from '../lib/statusNormalizer.js';
 
 const router = express.Router();
 
@@ -156,6 +157,9 @@ router.post('/status', async (req, res) => {
     // Chercher le lead
     const lead = await findLeadByPhone(To);
 
+    // Normaliser le statut Twilio vers format canonique
+    const normalizedStatus = normalizeStatus(MessageStatus, 'twilio');
+
     // Logger l'event status
     await logMessageEvent({
       channel: 'sms',
@@ -164,7 +168,7 @@ router.post('/status', async (req, res) => {
       leadId: lead?.id,
       phoneNumber: To,
       providerMessageId: MessageSid,
-      status: MessageStatus,
+      status: normalizedStatus,
       rawPayload: req.body,
       timestamp: new Date().toISOString()
     });

@@ -90,6 +90,7 @@ import tenantGoalsRouter from './routes/tenantGoals.js';
 import testWhatsappStubRouter from './routes/test-whatsapp-stub.js';
 import actionsApiRouter from './routes/actions-api.js';
 import waInstanceRouter from './routes/wa-instance.js';
+import waQrRouter from './routes/wa-qr.js';
 import consentRouter from './routes/consent.js';
 import activitiesRouter from './routes/activities.js';
 import supportRouter from './routes/support.js';
@@ -241,7 +242,8 @@ app.use('/webhooks/mailjet', mailjetWebhookRouter); // 📧 Webhook entrant Mail
 app.use('/api/tenant/goals', tenantGoalsRouter); // Routes tenant goals (mémoire longue durée)
 app.use('/api/test', testWhatsappStubRouter); // 🧪 Endpoint de test WhatsApp stub (sans dépendre de Twilio Live)
 app.use('/api/action-layer', actionsApiRouter); // 🎯 Action Layer - Endpoints pour tester les actions CRM manuellement (AVANT headers middleware)
-app.use('/api/wa', waInstanceRouter); // 📱 Green-API WhatsApp Instance Management (AVANT headers middleware)
+app.use('/api/wa/instance', waInstanceRouter); // 📱 Green-API WhatsApp Instance Management (AVANT headers middleware)
+app.use('/api/wa/qr', waQrRouter); // 💬 WhatsApp Pro QR-Only Flow (JWT + WhatsApp gate)
 app.use('/api/consent', consentRouter); // 🔒 Système de consentement pour opérations sensibles (AVANT headers middleware)
 
 // Sanity ping (AVANT headers middleware pour Cloudflare healthcheck)

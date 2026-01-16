@@ -452,4 +452,42 @@ function validateProviderCredentials(providerType, credentials) {
   return null; // Valide
 }
 
+/**
+ * GET /api/settings/features
+ * Retourne les feature flags pour le tenant (billing)
+ */
+router.get('/features', async (req, res) => {
+  try {
+    const { db } = req.app.locals;
+    const tenantId = req.tenantId;
+
+    console.log(`[Settings] GET features - Tenant: ${tenantId}`);
+
+    const result = await db.query(
+      `SELECT whatsapp_enabled, sms_enabled, email_enabled, campaigns_enabled
+       FROM tenant_features
+       WHERE tenant_id = $1`,
+      [tenantId]
+    );
+
+    // Si pas de row, retourner defaults (tout désactivé sauf email)
+    if (result.rows.length === 0) {
+      return res.json({
+        whatsapp_enabled: false,
+        sms_enabled: false,
+        email_enabled: true, // Email inclus de base
+        campaigns_enabled: false
+      });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('[Settings] Erreur GET features:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 export default router;

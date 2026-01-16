@@ -13,6 +13,7 @@
 import express from 'express';
 import { espoFetch } from '../lib/espoClient.js';
 import { logMessageEvent } from '../lib/messageEventLogger.js';
+import { normalizeStatus } from '../lib/statusNormalizer.js';
 
 const router = express.Router();
 
@@ -31,7 +32,7 @@ router.post('/', async (req, res) => {
 
     console.log('📋 Event type:', typeWebhook);
     console.log('📋 Instance:', instanceData?.idInstance);
-    console.log('📋 Timestamp:', new Date(timestamp * 1000).toISOString());
+    console.log('📋 Timestamp:', timestamp ? new Date(timestamp * 1000).toISOString() : 'N/A');
 
     // RÉPONDRE 200 OK IMMÉDIATEMENT (Green-API retente sinon)
     res.status(200).json({ ok: true, received: typeWebhook });
@@ -179,6 +180,9 @@ async function handleOutgoingStatus(webhookData) {
   // Chercher le lead
   const lead = await findLeadByPhone(phone);
 
+  // Normaliser le statut Green-API vers format canonique
+  const normalizedStatus = normalizeStatus(status, 'greenapi');
+
   // Logger l'event status
   await logMessageEvent({
     channel: 'whatsapp',
@@ -187,7 +191,7 @@ async function handleOutgoingStatus(webhookData) {
     leadId: lead?.id,
     phoneNumber: phone,
     providerMessageId: idMessage,
-    status: status,
+    status: normalizedStatus,
     rawPayload: webhookData,
     timestamp: new Date(timestamp * 1000).toISOString()
   });

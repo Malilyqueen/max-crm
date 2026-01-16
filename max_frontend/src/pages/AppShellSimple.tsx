@@ -22,6 +22,12 @@ export const AppShellSimple = () => {
     loadTokenUsage();
   }, [loadTokenUsage]);
 
+  // Log chaque changement de route pour diagnostiquer les redirections
+  useEffect(() => {
+    console.log(`🔍 [AppShellSimple] Navigation détectée → pathname: ${location.pathname}`);
+    console.log(`   User authentifié: ${user?.email || 'N/A'}, Tenant: ${tenant}`);
+  }, [location.pathname, user, tenant]);
+
   const handleLogout = () => {
     logout();
     navigate('/login');
@@ -95,13 +101,19 @@ export const AppShellSimple = () => {
             { to: '/dashboard', label: 'Dashboard', icon: 'M3 3h7v7H3V3zm11 0h7v7h-7V3zM3 14h7v7H3v-7zm11 0h7v7h-7v-7z' },
             { to: '/chat', label: 'Cockpit', icon: 'M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z' },
             { to: '/crm', label: 'Tour de Contrôle', icon: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 7a4 4 0 100 8 4 4 0 000-8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75' },
+            { to: '/activite', label: 'Activité ⚠️ TEST', icon: 'M13 10V3L4 14h7v7l9-11h-7z' },
+            { to: '/campagnes', label: 'Campagnes', icon: 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z' },
             { to: '/automation', label: 'Pilote Automatique', icon: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z' },
+            { to: '/settings/integrations', label: 'Intégrations', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z' },
+            { to: '/support', label: 'Support', icon: 'M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
+            ...(user?.role === 'admin' ? [{ to: '/admin/support', label: 'Admin Support', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z' }] : []),
             { to: '/max', label: 'M.A.X. IA', icon: 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z' },
             { to: '/reporting', label: 'Boîte Noire', icon: 'M18 20V10M12 20V4M6 20v-6' }
           ].map(({ to, label, icon }) => (
             <Link
               key={to}
               to={to}
+              onClick={() => console.log(`🔵 [MENU] Clic sur ${label} → Route: ${to}`)}
               className="flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-sm font-medium"
               style={
                 location.pathname === to

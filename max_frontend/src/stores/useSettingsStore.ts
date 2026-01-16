@@ -39,7 +39,7 @@ export const useSettingsStore = create<SettingsState>()(
     (set, get) => ({
       language: 'fr',
       theme: 'light',
-      tenant: 'macrea',
+      tenant: 'macrea-admin', // Tenant production par défaut
       notifications: {
         email: true,
         whatsapp: true,

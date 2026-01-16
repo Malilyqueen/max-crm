@@ -67,3 +67,47 @@ export async function sendWhatsApp(phoneNumber, message, instanceId = '710544025
 export async function sendWhatsAppToLead(leadPhone, message) {
   return sendWhatsApp(leadPhone, message);
 }
+
+/**
+ * Envoie un message WhatsApp avec credentials explicites (utilisé par sendWhatsapp.js)
+ *
+ * @param {string} phoneNumber - Numéro au format international (+15146412055)
+ * @param {string} message - Texte du message
+ * @param {string} instanceId - ID de l'instance Green-API
+ * @param {string} apiToken - Token API Green-API
+ * @returns {Promise<Object>} - { ok: true, messageId }
+ */
+export async function sendWhatsAppWithCredentials(phoneNumber, message, instanceId, apiToken) {
+  try {
+    // Nettoyer le numéro (enlever +, espaces, tirets)
+    const cleanNumber = phoneNumber.replace(/[\+\s\-\(\)]/g, '');
+
+    console.log('[WHATSAPP-HELPER] 📤 Envoi message avec credentials explicites:', {
+      to: cleanNumber,
+      instanceId,
+      preview: message.substring(0, 50)
+    });
+
+    // Envoyer via Green-API
+    const result = await sendTestMessage({
+      idInstance: instanceId,
+      apiTokenInstance: apiToken,
+      phoneNumber: cleanNumber,
+      message
+    });
+
+    console.log('[WHATSAPP-HELPER] ✅ Message envoyé:', result.idMessage);
+
+    return {
+      ok: true,
+      messageId: result.idMessage,
+      idMessage: result.idMessage,
+      status: 'sent',
+      to: cleanNumber
+    };
+
+  } catch (error) {
+    console.error('[WHATSAPP-HELPER] ❌ Erreur envoi:', error.message);
+    throw error;
+  }
+}

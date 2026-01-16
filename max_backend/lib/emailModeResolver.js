@@ -4,7 +4,7 @@
  */
 
 import { supabase } from './supabaseClient.js';
-import { decrypt } from './encryption.js';
+import { decryptCredentials } from './encryption.js';
 
 /**
  * Récupère la configuration email d'un tenant
@@ -39,7 +39,7 @@ export async function resolveEmailMode(tenantId) {
 
     // Déchiffrer les credentials
     try {
-      const credentials = JSON.parse(decrypt(provider.encrypted_config));
+      const credentials = JSON.parse(decryptCredentials(provider.encrypted_config, tenantId));
 
       return {
         mode: 'self_service',

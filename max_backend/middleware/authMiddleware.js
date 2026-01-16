@@ -25,9 +25,11 @@ export function authMiddleware(req, res, next) {
     }
 
     if (!token) {
+      console.error(`   ❌ [authMiddleware] MISSING_TOKEN - Path: ${req.path}, Headers: ${JSON.stringify(req.headers.authorization || 'ABSENT')}`);
       return res.status(401).json({
         success: false,
-        error: 'Token manquant'
+        error: 'Token manquant',
+        code: 'MISSING_TOKEN'
       });
     }
 
@@ -42,21 +44,28 @@ export function authMiddleware(req, res, next) {
       tenantId: decoded.tenantId || 'macrea' // Fallback pour MVP1
     };
 
+    console.log(`   ✅ [authMiddleware] JWT valide - User: ${req.user.email}, Tenant: ${req.user.tenantId}, Path: ${req.path}`);
     next();
 
   } catch (error) {
     if (error.name === 'JsonWebTokenError') {
+      console.error(`   ❌ [authMiddleware] INVALID_TOKEN - Path: ${req.path}, Error: ${error.message}`);
+      console.error(`   🔑 [authMiddleware] JWT_SECRET utilisé: ${JWT_SECRET.substring(0, 20)}...`);
       return res.status(401).json({
         success: false,
-        error: 'Token invalide'
+        error: 'Token invalide',
+        code: 'INVALID_TOKEN'
       });
     }
     if (error.name === 'TokenExpiredError') {
+      console.error(`   ❌ [authMiddleware] EXPIRED_TOKEN - Path: ${req.path}, Expired at: ${error.expiredAt}`);
       return res.status(401).json({
         success: false,
-        error: 'Token expiré'
+        error: 'Token expiré',
+        code: 'EXPIRED_TOKEN'
       });
     }
+    console.error(`   ❌ [authMiddleware] SERVER_ERROR - Path: ${req.path}, Error:`, error);
     return res.status(500).json({
       success: false,
       error: 'Erreur serveur'

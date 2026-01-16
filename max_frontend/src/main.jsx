@@ -1,6 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import App from "./App";
+import App from "./App.tsx";
 import "./index.css";
 
 // MVP1: Clean old TENANT_KEY (legacy)

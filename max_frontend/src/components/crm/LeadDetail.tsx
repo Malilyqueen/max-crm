@@ -3,9 +3,11 @@
  * Panneau latéral avec détail d'un lead
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Lead, LeadStatus, LeadNote, LeadActivity } from '../../types/crm';
 import { useCrmStore } from '../../stores/useCrmStore';
+import { useEventsStore } from '../../stores/useEventsStore';
+import { UnifiedTimeline } from '../lead/UnifiedTimeline';
 
 interface LeadDetailProps {
   lead: Lead;
@@ -49,6 +51,16 @@ export function LeadDetail({
 
   // Récupérer les statuts disponibles depuis le store
   const availableStatuses = useCrmStore((state) => state.availableStatuses);
+
+  // Récupérer les events du lead
+  const { events, isLoading: isLoadingEvents, loadEventsByLead } = useEventsStore();
+
+  // Charger les events quand le lead change
+  useEffect(() => {
+    if (lead.id) {
+      loadEventsByLead(lead.id);
+    }
+  }, [lead.id, loadEventsByLead]);
 
   const handleAddNote = async () => {
     console.log('[LeadDetail] handleAddNote appelé - noteContent:', noteContent);
@@ -258,23 +270,22 @@ export function LeadDetail({
             </div>
           )}
 
-          {/* Activités */}
-          {activities.length > 0 && (
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">Historique</h3>
-              <div className="space-y-3">
-                {activities.map((activity) => (
-                  <div key={activity.id} className="flex gap-3">
-                    <div className="text-2xl">{activityIcons[activity.type]}</div>
-                    <div className="flex-1">
-                      <p className="text-sm text-gray-900">{activity.description}</p>
-                      <p className="text-xs text-gray-500 mt-1">{formatDate(activity.createdAt)}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+          {/* Timeline Unifiée (Activités CRM + Events Communications) */}
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-3">
+              Timeline Unifiée
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Activités CRM et communications multi-canal (Email, SMS, WhatsApp)
+            </p>
+            <div className="bg-gray-50 rounded-lg p-6">
+              <UnifiedTimeline
+                activities={activities}
+                events={events}
+                isLoading={isLoadingEvents}
+              />
             </div>
-          )}
+          </div>
         </div>
       )}
     </div>

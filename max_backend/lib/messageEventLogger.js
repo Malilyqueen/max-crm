@@ -41,6 +41,7 @@ setInterval(() => {
  * @param {string} [event.provider] - 'greenapi' | 'twilio' | 'smtp' | 'sendgrid'
  * @param {string} event.direction - 'in' | 'out'
  * @param {string} [event.leadId] - ID du lead EspoCRM (si trouvé)
+ * @param {string} [event.campaignId] - ID de la campagne bulk (UUID)
  * @param {string} [event.phoneNumber] - Numéro de téléphone (WhatsApp/SMS)
  * @param {string} [event.email] - Email (pour canal email)
  * @param {string} [event.providerMessageId] - ID message du provider (idMessage, MessageSid, etc.)
@@ -128,6 +129,7 @@ async function persistToSupabase(event) {
         provider: event.provider,
         direction: event.direction,
         lead_id: event.leadId,
+        campaign_id: event.campaignId, // ✅ Support campagnes bulk
         phone_number: event.phoneNumber,
         email: event.email,
         provider_message_id: event.providerMessageId,

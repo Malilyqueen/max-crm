@@ -15,6 +15,9 @@ cd /opt/max-infrastructure docker compose ps
 ⏳ Rafraîchir la page (F5) → token persiste
 ⏳ Logout → redirect /login + token supprimé
 ⏳ Credentials incorrects → message d'erreur
+MAILJET : API KEY : 7fb5b1e51c21e749da820585dfa75bab
+        SECRET KEY : 759826eb2a0ecf808f86943aae5041ac
+
 
 MAX Supabse
 nom projet : macrea-max-prod
@@ -23,7 +26,7 @@ mdp : un_mot_de_passe_admin_espo_solide
 Project URL : https://jcegkuyagbthpbklyawz.supabase.co
 service_role key : eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpjZWdrdXlhZ2J0aHBia2x5YXd6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NTAzOTI3OSwiZXhwIjoyMDgwNjE1Mjc5fQ.Dw7pk7mc0f0S_GdsBAnNjBwoUsA_LPQC52bJkDYkqXg
 Anon : eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpjZWdrdXlhZ2J0aHBia2x5YXd6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwMzkyNzksImV4cCI6MjA4MDYxNTI3OX0.3tlQwaa1IsCIXiGYuduz7cMW4xsQCdMy488tfCvRr7o
-
+database mdp : Lgyj1l1xBM60XxxR
 n8n : cd d:/Macrea/CRM/max_backend/n8n_workflows,node tools/test_n8n_workflow.js
 http://127.0.0.1:5678
 Stop-Process -Id 14236 -Force

@@ -2,6 +2,11 @@
  * Routes API - WhatsApp Instance Management (Green-API)
  *
  * Endpoints pour gérer les instances WhatsApp (QR code, statut, etc.)
+ *
+ * SÉCURITÉ:
+ * - authMiddleware: JWT requis sur toutes les routes
+ * - resolveTenant: Résolution tenant depuis JWT (pas depuis body)
+ * - whatsappGate: Vérification whatsapp_enabled=true
  */
 
 import express from 'express';
@@ -18,18 +23,42 @@ import {
   getInstancesByTenant,
   updateInstanceStatus
 } from '../lib/waInstanceStorage.js';
+import { authMiddleware } from '../middleware/authMiddleware.js';
+import { resolveTenant } from '../core/resolveTenant.js';
+import { whatsappGate } from '../middleware/whatsappGate.js';
+import { encryptCredentials } from '../lib/encryption.js';
+import pg from 'pg';
+const { Pool } = pg;
 
 const router = express.Router();
+
+// Appliquer JWT + tenant resolution + WhatsApp gate sur TOUTES les routes
+router.use(authMiddleware);
+router.use(resolveTenant());
+router.use(whatsappGate);
 
 /**
  * POST /api/wa/instance/create
  *
- * Enregistre une nouvelle instance Green-API
- * Body: { idInstance, apiTokenInstance, tenant }
+ * Enregistre une nouvelle instance Green-API dans tenant_provider_configs (DB chiffrée)
+ * Body: { idInstance, apiTokenInstance, providerName }
+ * SÉCURITÉ: tenant résolu depuis JWT (req.tenantId), pas depuis body
+ *
+ * NOUVEAU FLOW (Phase SaaS):
+ * - Écrit dans tenant_provider_configs (DB chiffrée per-tenant)
+ * - Fallback: sauvegarde aussi dans wa-instances.json (legacy, à supprimer Phase 2)
  */
 router.post('/instance/create', async (req, res) => {
+  const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.DATABASE_URL?.includes('supabase')
+      ? { rejectUnauthorized: false }
+      : false
+  });
+
   try {
-    const { idInstance, apiTokenInstance, tenant } = req.body;
+    const { idInstance, apiTokenInstance, providerName } = req.body;
+    const tenantId = req.tenantId; // Depuis resolveTenant middleware
 
     if (!idInstance || !apiTokenInstance) {
       return res.status(400).json({
@@ -39,12 +68,48 @@ router.post('/instance/create', async (req, res) => {
       });
     }
 
-    console.log('[WA-INSTANCE] 🆕 Création instance', { idInstance, tenant });
+    console.log('[WA-INSTANCE] 🆕 Création instance', { idInstance, tenant: tenantId });
 
+    // 1. Vérifier statut sur Green-API
     const instance = await createInstance({ idInstance, apiTokenInstance });
 
-    // Sauvegarder dans le storage
-    await saveInstance({ ...instance, tenant, apiToken: apiTokenInstance });
+    // 2. Chiffrer credentials per-tenant
+    const credentials = {
+      instanceId: idInstance,
+      token: apiTokenInstance
+    };
+    const encryptedConfig = encryptCredentials(credentials, tenantId);
+
+    // 3. Insérer/Mettre à jour dans tenant_provider_configs (DB)
+    const finalProviderName = providerName || `WhatsApp ${idInstance}`;
+
+    await pool.query(
+      `INSERT INTO tenant_provider_configs
+        (tenant_id, provider_type, provider_name, encrypted_config, connection_status, is_active, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (tenant_id, provider_type, provider_name)
+       DO UPDATE SET
+         encrypted_config = EXCLUDED.encrypted_config,
+         connection_status = EXCLUDED.connection_status,
+         is_active = EXCLUDED.is_active,
+         updated_at = NOW()
+       RETURNING id`,
+      [
+        tenantId,
+        'greenapi_whatsapp',
+        finalProviderName,
+        encryptedConfig,
+        instance.status === 'authorized' ? 'success' : 'non_testé',
+        true, // Activer automatiquement
+        req.user?.email || 'system'
+      ]
+    );
+
+    console.log('[WA-INSTANCE] ✅ Instance sauvegardée en DB chiffrée (per-tenant)');
+
+    // 4. LEGACY: Sauvegarder aussi dans wa-instances.json (fallback temporaire)
+    await saveInstance({ ...instance, tenant: tenantId, apiToken: apiTokenInstance });
+    console.log('[WA-INSTANCE] ⚠️ Fallback JSON sauvegardé (legacy)');
 
     res.json({
       ok: true,
@@ -52,9 +117,11 @@ router.post('/instance/create', async (req, res) => {
         instanceId: instance.instanceId,
         status: instance.status,
         provider: 'greenapi',
-        tenant
+        tenant: tenantId,
+        storage: 'encrypted_db' // Indique que c'est en DB chiffrée
       }
     });
+
   } catch (error) {
     console.error('[WA-INSTANCE] ❌ Erreur création:', error.message);
     res.status(500).json({
@@ -62,6 +129,8 @@ router.post('/instance/create', async (req, res) => {
       error: 'INSTANCE_CREATE_FAILED',
       message: error.message
     });
+  } finally {
+    await pool.end();
   }
 });
 
