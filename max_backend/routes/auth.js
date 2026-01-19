@@ -306,8 +306,8 @@ router.post('/signup', async (req, res) => {
 
       const tenantRow = tenantResult.rows[0];
 
-      if (!tenantRow.success) {
-        throw new Error(tenantRow.error_message || 'Erreur création tenant');
+      if (!tenantRow.out_success) {
+        throw new Error(tenantRow.out_error_message || 'Erreur création tenant');
       }
 
       await client.query('COMMIT');

@@ -6,6 +6,7 @@
 import { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { LoginPage } from './pages/LoginPage';
+import { SignupPage } from './pages/SignupPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AppShellSimple as AppShell } from './pages/AppShellSimple';
 import { DashboardPage } from './pages/DashboardPage';
@@ -41,8 +42,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Route publique: Login */}
+        {/* Routes publiques */}
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/signup" element={<SignupPage />} />
 
         {/* Routes protégées */}
         <Route element={<ProtectedRoute />}>

@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../stores/useAuthStore';
 import { Button } from '../components/common/Button';
 import { Input } from '../components/common/Input';
@@ -115,25 +115,23 @@ export const LoginPage: React.FC = () => {
             </Button>
           </form>
 
-          {/* Info MVP1 */}
-          <div className="mt-6 pt-6 border-t border-gray-200">
-            <div className="text-xs text-gray-500 space-y-1">
-              <p className="font-semibold text-gray-700 mb-2">MVP1 - Comptes de test :</p>
-              <div className="bg-gray-50 p-2 rounded">
-                <p><span className="font-mono">admin@macrea.fr</span> / <span className="font-mono">admin123</span></p>
-                <p className="text-gray-400 mt-0.5">→ Accès administrateur</p>
-              </div>
-              <div className="bg-gray-50 p-2 rounded mt-2">
-                <p><span className="font-mono">user@macrea.fr</span> / <span className="font-mono">user123</span></p>
-                <p className="text-gray-400 mt-0.5">→ Accès utilisateur</p>
-              </div>
-            </div>
+          {/* Lien vers inscription */}
+          <div className="mt-6 pt-6 border-t border-gray-200 text-center">
+            <p className="text-gray-600">
+              Pas encore de compte?{' '}
+              <Link
+                to="/signup"
+                className="text-blue-600 hover:text-blue-700 font-semibold"
+              >
+                Creer un compte
+              </Link>
+            </p>
           </div>
         </div>
 
         {/* Footer */}
         <div className="text-center mt-6 text-sm text-gray-600">
-          <p>M.A.X. MVP1 - MaCréa © 2025</p>
+          <p>M.A.X. CRM - MaCrea 2025</p>
         </div>
       </div>
     </div>

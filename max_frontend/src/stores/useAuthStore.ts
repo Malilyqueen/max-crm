@@ -6,7 +6,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { api } from '../api/client';
-import type { AuthState, User, AuthResponse } from '../types/auth';
+import type { AuthState, User, AuthResponse, SignupData } from '../types/auth';
 
 export const useAuthStore = create<AuthState>()(
   persist(
@@ -68,6 +68,47 @@ export const useAuthStore = create<AuthState>()(
           });
 
           console.error('[AUTH] ❌ Erreur login:', errorMessage);
+          throw new Error(errorMessage);
+        }
+      },
+
+      /**
+       * Signup self-service (crée compte + tenant)
+       */
+      signup: async (data: SignupData) => {
+        set({ isLoading: true, error: null });
+
+        try {
+          const response = await api.post<AuthResponse>('/auth/signup', data);
+
+          if (response.success && response.token && response.user) {
+            set({
+              user: response.user,
+              token: response.token,
+              isAuthenticated: true,
+              isLoading: false,
+              error: null
+            });
+
+            console.log('[AUTH] ✅ Signup réussi:', response.user.email, '- tenant:', response.user.tenantId);
+          } else {
+            throw new Error(response.error || 'Inscription échouée');
+          }
+        } catch (error: any) {
+          const errorMessage =
+            error.response?.data?.error ||
+            error.message ||
+            'Erreur lors de l\'inscription';
+
+          set({
+            user: null,
+            token: null,
+            isAuthenticated: false,
+            isLoading: false,
+            error: errorMessage
+          });
+
+          console.error('[AUTH] ❌ Erreur signup:', errorMessage);
           throw new Error(errorMessage);
         }
       },

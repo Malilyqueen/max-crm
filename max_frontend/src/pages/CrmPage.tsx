@@ -1,16 +1,23 @@
 /**
  * pages/CrmPage.tsx
  * Page CRM MVP1 - Liste et détail des leads
+ *
+ * REGLE PRODUIT V1:
+ * - Si le CRM n'est pas provisionne (isProvisioned = false), afficher CreateCrmGate
+ * - Sinon, afficher le Tour de Controle avec la liste des leads
  */
 
 import React, { useEffect } from 'react';
 import { useCrmStore } from '../stores/useCrmStore';
+import { useAuthStore } from '../stores/useAuthStore';
 import { LeadsListEnhanced } from '../components/crm/LeadsListEnhanced';
 import { LeadsFilters } from '../components/crm/LeadsFilters';
 import { LeadDetail } from '../components/crm/LeadDetail';
+import { CreateCrmGate } from '../components/CreateCrmGate';
 import { useThemeColors } from '../hooks/useThemeColors';
 
 export function CrmPage() {
+  const { user } = useAuthStore();
   const {
     leads,
     selectedLead,
@@ -33,6 +40,11 @@ export function CrmPage() {
     clearError
   } = useCrmStore();
   const colors = useThemeColors();
+
+  // GATE: Si CRM non provisionne, afficher la page de creation
+  if (user && user.isProvisioned === false) {
+    return <CreateCrmGate />;
+  }
 
   // Charger les leads et statuts au mount
   useEffect(() => {
