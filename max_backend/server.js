@@ -98,6 +98,7 @@ import settingsRouter from './routes/settings.js';
 import settingsTestRouter from './routes/settings-test.js';
 import emailDomainsRouter from './routes/email-domains.js';
 import smsSettingsRouter from './routes/sms-settings.js';
+import whatsappBillingRouter from './routes/whatsapp-billing.js';
 
 process.on('unhandledRejection', (reason)=> console.error('[FATAL] UnhandledRejection:', reason));
 process.on('uncaughtException', (err)=> { console.error('[FATAL] UncaughtException:', err); process.exit(1); });
@@ -236,6 +237,7 @@ app.use('/api/layout', layoutRouter);
 app.use('/api/billing', billingRouter);
 app.use('/api/whatsapp', whatsappWebhookRouter); // Webhook entrant WhatsApp (Twilio)
 app.use('/api/whatsapp', whatsappMessagesRouter); // API CRUD messages WhatsApp
+app.use('/api/whatsapp/billing', whatsappBillingRouter); // 💰 WhatsApp Billing (abonnement + recharges)
 app.use('/webhooks/greenapi', greenApiWebhookRouter); // 📲 Webhook entrant Green-API WhatsApp (AVANT headers middleware)
 app.use('/webhooks/twilio-sms', twilioSmsWebhookRouter); // 📱 Webhook entrant + status Twilio SMS (AVANT headers middleware)
 app.use('/webhooks/mailjet', mailjetWebhookRouter); // 📧 Webhook entrant Mailjet Email (AVANT headers middleware)
