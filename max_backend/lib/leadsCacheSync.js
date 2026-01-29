@@ -38,6 +38,13 @@ export async function syncLeadsCache(tenantId, tenantConfig) {
     // 2. Transformer les leads pour Supabase
     const cacheLeads = espoLeads.map(lead => transformLeadForCache(lead, tenantId));
 
+    const sampleWithTags = cacheLeads.find(l => Array.isArray(l.tags) && l.tags.length > 0);
+    if (sampleWithTags) {
+      console.log(`[LeadsCache] 🏷️ Exemple tags cache: ${sampleWithTags.espo_id} -> ${sampleWithTags.tags.join(', ')}`);
+    } else {
+      console.log('[LeadsCache] 🏷️ Aucun tag détecté dans le cache à synchroniser');
+    }
+
     // 3. Upsert dans Supabase (batch)
     // Utilise la clé composite id (tenant_id + espo_id)
     const { data, error } = await supabase
