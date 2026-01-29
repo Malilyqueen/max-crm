@@ -146,7 +146,17 @@ function transformLeadForCache(espoLead, tenantId) {
 
   // Fusionner tagsIA et maxTags (sans doublons)
   const tagsIA = Array.isArray(espoLead.tagsIA) ? espoLead.tagsIA : [];
-  const maxTags = Array.isArray(espoLead.maxTags) ? espoLead.maxTags : [];
+  
+  // MaxTags peut être string "tag1,tag2" ou array - normaliser en array
+  let maxTags = [];
+  if (espoLead.maxTags) {
+    if (Array.isArray(espoLead.maxTags)) {
+      maxTags = espoLead.maxTags;
+    } else if (typeof espoLead.maxTags === 'string') {
+      maxTags = espoLead.maxTags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
+    }
+  }
+  
   const allTags = [...new Set([...tagsIA, ...maxTags])].filter(t => t && typeof t === 'string');
 
   return {
