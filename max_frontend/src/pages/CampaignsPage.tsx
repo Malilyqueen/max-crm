@@ -75,17 +75,21 @@ export function CampaignsPage() {
 
     try {
       // Fetch global stats and campaigns in parallel
+      // Note: apiClient interceptor returns response.data directly
       const [statsRes, campaignsRes] = await Promise.all([
         apiClient.get('/campaigns/stats/global'),
         apiClient.get('/campaigns')
-      ]);
+      ]) as [
+        { ok: boolean; stats: GlobalStats },
+        { ok: boolean; campaigns: Campaign[]; pagination: any }
+      ];
 
-      if (statsRes.data.ok) {
-        setGlobalStats(statsRes.data.stats);
+      if (statsRes.ok) {
+        setGlobalStats(statsRes.stats);
       }
 
-      if (campaignsRes.data.ok) {
-        setCampaigns(campaignsRes.data.campaigns);
+      if (campaignsRes.ok) {
+        setCampaigns(campaignsRes.campaigns);
       }
     } catch (err: any) {
       console.error('[CampaignsPage] Erreur fetch:', err);

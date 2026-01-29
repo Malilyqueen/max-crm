@@ -76,8 +76,11 @@ router.post('/send', async (req, res) => {
     const conversation = getOrCreateConversation(userId);
     const mode = conversation.mode;
 
-    // Récupérer tenantId depuis req.user ou req.tenant
-    const tenantId = req.user?.tenantId || req.tenant?.id || 'macrea';
+    // SECURITY: tenantId UNIQUEMENT depuis JWT
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(401).json({ success: false, error: 'MISSING_TENANT' });
+    }
 
     // Ajouter message user
     addMessage(userId, 'user', message);
@@ -147,8 +150,11 @@ router.get('/stream', async (req, res) => {
     const conversation = getOrCreateConversation(userId);
     const mode = conversation.mode;
 
-    // Récupérer tenantId depuis req.user ou req.tenant
-    const tenantId = req.user?.tenantId || req.tenant?.id || 'macrea';
+    // SECURITY: tenantId UNIQUEMENT depuis JWT
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(401).json({ success: false, error: 'MISSING_TENANT' });
+    }
 
     // Ajouter message user
     addMessage(userId, 'user', message);

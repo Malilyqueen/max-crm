@@ -1,10 +1,14 @@
 /**
  * components/crm/LeadsFilters.tsx
  * Barre de filtres pour les leads
+ *
+ * CONTRAT: Les filtres échangent les CLÉS Espo (New, Assigned, etc.)
+ * Les labels FR sont uniquement pour l'affichage UI.
  */
 
 import React, { useState } from 'react';
-import type { LeadStatus, LeadFilters } from '../../types/crm';
+import { PhoneOff, Check } from 'lucide-react';
+import type { LeadFilters } from '../../types/crm';
 import { useThemeColors } from '../../hooks/useThemeColors';
 
 interface LeadsFiltersProps {
@@ -13,7 +17,18 @@ interface LeadsFiltersProps {
   onClearFilters: () => void;
 }
 
-const allStatuses: LeadStatus[] = ['Nouveau', 'Contacté', 'Qualifié', 'Proposition', 'Gagné', 'Perdu'];
+/**
+ * Configuration des statuts : clé Espo → affichage FR
+ * La clé (key) est envoyée au backend, le label est affiché à l'utilisateur
+ */
+const STATUS_CONFIG = [
+  { key: 'New', label: 'Nouveau', color: '#3B82F6' },
+  { key: 'Assigned', label: 'Assigné', color: '#10B981' },
+  { key: 'In Process', label: 'En cours', color: '#F59E0B' },
+  { key: 'Converted', label: 'Converti', color: '#22C55E' },
+  { key: 'Recycled', label: 'Recyclé', color: '#6B7280' },
+  { key: 'Dead', label: 'Perdu', color: '#EF4444' }
+] as const;
 
 export function LeadsFilters({ filters, onFiltersChange, onClearFilters }: LeadsFiltersProps) {
   const [searchInput, setSearchInput] = useState(filters.search || '');
@@ -29,16 +44,17 @@ export function LeadsFilters({ filters, onFiltersChange, onClearFilters }: Leads
     onFiltersChange({ search: searchInput });
   };
 
-  const handleStatusToggle = (status: LeadStatus) => {
+  // Toggle un statut dans le filtre (utilise la clé Espo)
+  const handleStatusToggle = (statusKey: string) => {
     const currentStatuses = filters.status || [];
-    const newStatuses = currentStatuses.includes(status)
-      ? currentStatuses.filter((s) => s !== status)
-      : [...currentStatuses, status];
+    const newStatuses = currentStatuses.includes(statusKey)
+      ? currentStatuses.filter((s) => s !== statusKey)
+      : [...currentStatuses, statusKey];
 
     onFiltersChange({ status: newStatuses.length > 0 ? newStatuses : undefined });
   };
 
-  const hasActiveFilters = filters.search || (filters.status && filters.status.length > 0);
+  const hasActiveFilters = filters.search || (filters.status && filters.status.length > 0) || filters.notContacted;
 
   return (
     <div className="rounded-lg shadow p-4 space-y-4" style={{ background: colors.cardBg }}>
@@ -82,25 +98,51 @@ export function LeadsFilters({ filters, onFiltersChange, onClearFilters }: Leads
 
       {/* Filtres par statut */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">Statuts</label>
+        <label className="block text-sm font-medium mb-2" style={{ color: colors.textSecondary }}>
+          Statuts
+        </label>
         <div className="flex flex-wrap gap-2">
-          {allStatuses.map((status) => {
-            const isActive = filters.status?.includes(status);
+          {STATUS_CONFIG.map((statusDef) => {
+            const isActive = filters.status?.includes(statusDef.key);
             return (
               <button
-                key={status}
-                onClick={() => handleStatusToggle(status)}
-                className={`px-3 py-1 text-sm rounded-full border transition-colors ${
-                  isActive
-                    ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                }`}
+                key={statusDef.key}
+                onClick={() => handleStatusToggle(statusDef.key)}
+                className="px-3 py-1.5 text-sm rounded-full border transition-all font-medium"
+                style={{
+                  backgroundColor: isActive ? statusDef.color : colors.cardBg,
+                  color: isActive ? '#ffffff' : colors.textPrimary,
+                  borderColor: isActive ? statusDef.color : colors.border
+                }}
               >
-                {status}
+                {statusDef.label}
               </button>
             );
           })}
         </div>
+      </div>
+
+      {/* Filtre "Non contacté" - Business clé pour relances */}
+      <div>
+        <label className="block text-sm font-medium mb-2" style={{ color: colors.textSecondary }}>
+          Filtres avancés
+        </label>
+        <button
+          onClick={() => onFiltersChange({ notContacted: !filters.notContacted })}
+          className="px-4 py-2 text-sm rounded-lg border-2 transition-all font-medium flex items-center gap-2"
+          style={{
+            backgroundColor: filters.notContacted ? '#dc2626' : colors.cardBg,
+            color: filters.notContacted ? '#ffffff' : colors.textPrimary,
+            borderColor: filters.notContacted ? '#dc2626' : colors.border
+          }}
+        >
+          <PhoneOff className="w-4 h-4" />
+          <span>Non contactés</span>
+          {filters.notContacted && <Check className="w-4 h-4 ml-1" />}
+        </button>
+        <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
+          Leads sans aucun message envoyé (relances à faire)
+        </p>
       </div>
 
       {/* Clear filters */}

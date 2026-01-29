@@ -33,7 +33,7 @@ router.post('/test-consent', async (req, res) => {
         fieldName: 'secteur',
         layoutTypes: ['detail', 'list']
       },
-      tenantId: req.ctx?.tenant || 'macrea-admin'
+      tenantId: req.tenantId
     });
 
     if (!consentResult.success) {

@@ -4,11 +4,14 @@
  */
 
 import React, { useEffect } from 'react';
+import { Navigate } from 'react-router-dom';
 import { useDashboardStore } from '../stores/useDashboardStore';
 import { StatCard } from '../components/dashboard/StatCard';
 import { RecentActivityList } from '../components/dashboard/RecentActivityList';
 import { QuickActions } from '../components/dashboard/QuickActions';
 import AlertsWidget from '../components/dashboard/AlertsWidget';
+import { RecommendationsBlock } from '../components/dashboard/RecommendationsBlock';
+import { JobsWidget } from '../components/dashboard/JobsWidget';
 import { useThemeColors } from '../hooks/useThemeColors';
 
 export function DashboardPage() {
@@ -17,6 +20,7 @@ export function DashboardPage() {
     recentActivity,
     isLoading,
     error,
+    needsCrmSetup,
     loadDashboard,
     refreshDashboard,
     clearError
@@ -27,6 +31,12 @@ export function DashboardPage() {
   useEffect(() => {
     loadDashboard();
   }, [loadDashboard]);
+
+  // Redirection vers l'écran d'onboarding CRM si tenant non provisionné
+  if (needsCrmSetup) {
+    console.log('[Dashboard] 🔧 Redirection vers /crm-setup - CRM non provisionné');
+    return <Navigate to="/crm-setup" replace />;
+  }
 
   if (isLoading && !stats) {
     return (
@@ -191,8 +201,17 @@ export function DashboardPage() {
         <QuickActions />
       </div>
 
+      {/* Jobs batch en cours */}
+      <div>
+        <h2 className="text-xl font-semibold mb-4" style={{ color: colors.textPrimary }}>Activité batch</h2>
+        <JobsWidget />
+      </div>
+
       {/* Alertes vivantes M.A.X. */}
       <AlertsWidget />
+
+      {/* Recommandations intelligentes M.A.X. */}
+      <RecommendationsBlock maxItems={5} showStats={true} />
 
       {/* Activité récente */}
       <div className="rounded-lg shadow p-6" style={{ background: colors.cardBg }}>

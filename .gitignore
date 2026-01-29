@@ -161,3 +161,6 @@ nul
 SESSION_SUMMARY_*.md
 MCRM_BACKUP/
 MCRM_BACKUP/*.zip
+
+.vercel
+.env*.local

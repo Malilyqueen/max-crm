@@ -5,6 +5,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { Settings, Lightbulb, Mail, Smartphone, MessageCircle, CheckCircle, SkipForward, Circle } from 'lucide-react';
 import { useProvidersStore } from '../stores/useProvidersStore';
 import { RecommendationCard } from '../components/settings/RecommendationCard';
 import { EmailProvidersPanel } from '../components/settings/EmailProvidersPanel';
@@ -42,11 +43,11 @@ export function SettingsPage() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">
-            🔧 Paramètres &gt; Intégrations
+          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
+            <Settings className="w-8 h-8" /> Paramètres &gt; Intégrations
           </h1>
-          <p className="text-gray-600 mt-2">
-            💡 Connectez vos services email, SMS et WhatsApp. Tous les canaux sont optionnels.
+          <p className="text-gray-600 mt-2 flex items-center gap-2">
+            <Lightbulb className="w-4 h-4" /> Connectez vos services email, SMS et WhatsApp. Tous les canaux sont optionnels.
           </p>
         </div>
 
@@ -68,10 +69,10 @@ export function SettingsPage() {
                   }
                 `}
               >
-                <span>📧 Email</span>
+                <Mail className="w-4 h-4" /> Email
                 {emailConfigured && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-700">
-                    ✅ Configuré
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-700">
+                    <CheckCircle className="w-3 h-3" /> Configuré
                   </span>
                 )}
               </button>
@@ -87,19 +88,19 @@ export function SettingsPage() {
                   }
                 `}
               >
-                <span>📱 SMS</span>
+                <Smartphone className="w-4 h-4" /> SMS
                 <span className="text-xs text-gray-500">(Optionnel)</span>
                 {smsConfigured ? (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-700">
-                    ✅ Configuré
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-700">
+                    <CheckCircle className="w-3 h-3" /> Configuré
                   </span>
                 ) : smsSkipped ? (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-gray-50 text-gray-400">
-                    ⏭️ Ignoré
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-gray-50 text-gray-400">
+                    <SkipForward className="w-3 h-3" /> Ignoré
                   </span>
                 ) : (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-gray-100 text-gray-500">
-                    ⚪ Non utilisé
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-gray-100 text-gray-500">
+                    <Circle className="w-3 h-3" /> Non utilisé
                   </span>
                 )}
               </button>
@@ -115,19 +116,19 @@ export function SettingsPage() {
                   }
                 `}
               >
-                <span>💬 WhatsApp</span>
+                <MessageCircle className="w-4 h-4" /> WhatsApp
                 <span className="text-xs text-gray-500">(Optionnel)</span>
                 {whatsappConfigured ? (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-700">
-                    ✅ Configuré
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-700">
+                    <CheckCircle className="w-3 h-3" /> Configuré
                   </span>
                 ) : whatsappSkipped ? (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-gray-50 text-gray-400">
-                    ⏭️ Ignoré
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-gray-50 text-gray-400">
+                    <SkipForward className="w-3 h-3" /> Ignoré
                   </span>
                 ) : (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-gray-100 text-gray-500">
-                    ⚪ Non utilisé
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-gray-100 text-gray-500">
+                    <Circle className="w-3 h-3" /> Non utilisé
                   </span>
                 )}
               </button>
@@ -150,8 +151,8 @@ export function SettingsPage() {
 
         {/* Footer Help */}
         <div className="bg-white rounded-lg border border-gray-200 p-4 text-center">
-          <p className="text-sm text-gray-600">
-            💡 <strong>Besoin d'aide ?</strong>{' '}
+          <p className="text-sm text-gray-600 flex items-center justify-center gap-2">
+            <Lightbulb className="w-4 h-4" /> <strong>Besoin d'aide ?</strong>
             <a href="#" className="text-blue-600 hover:text-blue-700 font-medium">
               Consultez notre guide d'intégration
             </a>

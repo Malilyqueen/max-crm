@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import { Check } from 'lucide-react';
 import { useThemeColors } from '../../hooks/useThemeColors';
 
 export interface Suggestion {
@@ -128,9 +129,10 @@ export function SuggestionCard({ suggestion, onExecute }: SuggestionCardProps) {
         {onExecute && (
           <button
             onClick={() => onExecute(suggestion)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm transition-colors"
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm transition-colors flex items-center gap-2"
           >
-            Exécuter
+            <Check className="w-4 h-4" />
+            Marquer fait
           </button>
         )}
       </div>

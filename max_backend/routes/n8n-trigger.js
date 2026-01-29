@@ -44,7 +44,11 @@ router.post('/n8n/trigger', async (req, res) => {
   console.log('DEBUG: Request headers:', req.headers);
 
   const { code, payload, mode = 'assist' } = req.body || {};
-  const tenant = req.ctx?.tenant || 'default';
+  // SECURITY: tenantId UNIQUEMENT depuis JWT
+  const tenant = req.tenantId;
+  if (!tenant) {
+    return res.status(401).json({ ok: false, error: 'MISSING_TENANT' });
+  }
 
   console.log('DEBUG: N8N trigger called with:', { code, mode, tenant, ctx: req.ctx });
 

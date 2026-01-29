@@ -30,7 +30,7 @@ interface EventsStore {
 
   // Actions
   loadEvents: (page?: number) => Promise<void>;
-  loadEventsByLead: (leadId: string) => Promise<void>;
+  loadEventsByLead: (leadId: string, phone?: string, email?: string) => Promise<void>;
   loadStats: (range?: string) => Promise<void>;
   setFilters: (filters: Partial<EventFilters>) => void;
   clearFilters: () => void;
@@ -97,6 +97,10 @@ export const useEventsStore = create<EventsStore>((set, get) => ({
         params
       });
 
+      // Debug: vérifier message_snippet
+      console.log('[EVENTS] Response items:', response.items);
+      console.log('[EVENTS] First item message_snippet:', response.items?.[0]?.message_snippet);
+
       set({
         events: response.items,
         total: response.total,
@@ -113,11 +117,17 @@ export const useEventsStore = create<EventsStore>((set, get) => ({
   },
 
   // Load events for a specific lead
-  loadEventsByLead: async (leadId: string) => {
+  // Pass phone and email for fallback search when lead_id doesn't match
+  loadEventsByLead: async (leadId: string, phone?: string, email?: string) => {
     set({ isLoading: true, error: null });
 
     try {
-      const response = await apiClient.get<LeadEventsResponse>(`/events/lead/${leadId}`);
+      // Build query params for fallback search
+      const params: Record<string, string> = {};
+      if (phone) params.phone = phone;
+      if (email) params.email = email;
+
+      const response = await apiClient.get<LeadEventsResponse>(`/events/lead/${leadId}`, { params });
 
       set({
         events: response.events,

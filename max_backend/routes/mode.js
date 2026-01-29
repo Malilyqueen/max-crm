@@ -15,7 +15,7 @@ router.post("/mode", (req, res) => {
   const { mode } = req.body || {};
   if (!["assist","auto"].includes(mode)) return res.status(400).json({ ok: false, error: "BAD_MODE" });
   setMode(mode);
-  activity.push({ actor: 'MAX', tenant: req.ctx?.tenant || 'system', event: 'mode.set', payload: req.body });
+  activity.push({ actor: 'MAX', tenant: req.tenantId || 'system', event: 'mode.set', payload: req.body });
   res.json({ ok: true, mode });
 });
 

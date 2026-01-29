@@ -13,8 +13,16 @@ import type {
   UpdateLeadStatusPayload,
   AddLeadNotePayload,
   LeadNote,
-  LeadActivity
+  LeadActivity,
+  UpdateLeadPayload
 } from '../types/crm';
+
+// Type pour la réponse PATCH
+interface UpdateLeadResponse {
+  ok: boolean;
+  lead: Lead;
+  updatedFields: string[];
+}
 
 interface CrmStore {
   // State
@@ -35,6 +43,7 @@ interface CrmStore {
   loadLeads: (page?: number) => Promise<void>;
   loadLeadDetail: (leadId: string) => Promise<void>;
   updateLeadStatus: (payload: UpdateLeadStatusPayload) => Promise<void>;
+  updateLead: (leadId: string, updates: Partial<Lead>) => Promise<Lead>;
   addLeadNote: (payload: AddLeadNotePayload) => Promise<void>;
   loadAvailableStatuses: () => Promise<void>;
   setFilters: (filters: Partial<LeadFilters>) => void;
@@ -140,6 +149,37 @@ export const useCrmStore = create<CrmStore>((set, get) => ({
         error: error.response?.data?.error || error.message || 'Erreur lors du changement de statut'
       });
       throw error;
+    }
+  },
+
+  // Update lead (generic - all whitelist fields)
+  updateLead: async (leadId: string, updates: Partial<Lead>) => {
+    try {
+      console.log('[CRM] updateLead appelé:', { leadId, updates });
+
+      const response = await apiClient.patch<UpdateLeadResponse>(`/crm-public/leads/${leadId}`, updates);
+
+      if (!response.ok) {
+        throw new Error(response.error || 'Erreur lors de la mise à jour');
+      }
+
+      const updatedLead = response.lead;
+
+      // Update lead in list and selected
+      set((state) => ({
+        leads: state.leads.map((lead) =>
+          lead.id === leadId ? updatedLead : lead
+        ),
+        selectedLead: state.selectedLead?.id === leadId ? updatedLead : state.selectedLead
+      }));
+
+      console.log('[CRM] ✅ Lead mis à jour:', updatedLead.id);
+      return updatedLead;
+    } catch (error: any) {
+      console.error('[CRM] ❌ Erreur updateLead:', error);
+      const errorMessage = error.response?.data?.error || error.message || 'Erreur lors de la mise à jour du lead';
+      set({ error: errorMessage });
+      throw new Error(errorMessage);
     }
   },
 

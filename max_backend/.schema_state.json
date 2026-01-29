@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-01-12T15:14:40.533Z",
+  "timestamp": "2026-01-29T11:36:12.482Z",
   "metadata": {
     "fields": [
       "source",
@@ -17,7 +17,8 @@
       "scoreIA",
       "secteurActivite",
       "maxTags",
-      "nomEntreprise"
+      "nomEntreprise",
+      "cTenantId"
     ],
     "customFields": [
       "source",
@@ -35,9 +36,10 @@
       "scoreIA",
       "secteurActivite",
       "maxTags",
-      "nomEntreprise"
+      "nomEntreprise",
+      "cTenantId"
     ],
-    "hash": 1958521981
+    "hash": 1028095916
   },
   "layouts": {
     "detail": [
@@ -77,6 +79,7 @@
       "budget",
       "localisation",
       "feedbackClient",
+      "cTenantId",
       "tagsIA",
       "secteurInfere",
       "scoreIA",
@@ -116,7 +119,8 @@
       "secteurInfere",
       "scoreIA",
       "nomEntreprise",
-      "feedbackClient"
+      "feedbackClient",
+      "cTenantId"
     ]
   }
 }

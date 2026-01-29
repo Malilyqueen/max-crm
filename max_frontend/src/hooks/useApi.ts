@@ -77,6 +77,9 @@ export function useApi<T = any>(
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Stabilize options reference - only re-run if method changes
+  const method = options.method || 'GET';
+
   const fetchData = useCallback(async () => {
     if (!endpoint) {
       setLoading(false);
@@ -86,7 +89,7 @@ export function useApi<T = any>(
     try {
       setLoading(true);
       setError(null);
-      const result = await apiFetch<T>(endpoint, options);
+      const result = await apiFetch<T>(endpoint, { method });
       setData(result);
     } catch (err: any) {
       setError(err.message || 'Une erreur est survenue');
@@ -94,7 +97,7 @@ export function useApi<T = any>(
     } finally {
       setLoading(false);
     }
-  }, [endpoint, options]);
+  }, [endpoint, method]);
 
   useEffect(() => {
     fetchData();

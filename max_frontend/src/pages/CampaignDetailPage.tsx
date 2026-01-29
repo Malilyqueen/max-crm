@@ -112,15 +112,23 @@ export function CampaignDetailPage() {
     setError(null);
 
     try {
-      const response = await apiClient.get(`/campaigns/${id}/stats`);
+      // Note: apiClient interceptor returns response.data directly
+      const response = await apiClient.get(`/campaigns/${id}/stats`) as {
+        ok: boolean;
+        campaign: Campaign;
+        kpis: KPIs;
+        statusDistribution: StatusDistribution[];
+        recentMessages: MessageEvent[];
+        message?: string;
+      };
 
-      if (response.data.ok) {
-        setCampaign(response.data.campaign);
-        setKpis(response.data.kpis);
-        setStatusDistribution(response.data.statusDistribution || []);
-        setRecentMessages(response.data.recentMessages || []);
+      if (response.ok) {
+        setCampaign(response.campaign);
+        setKpis(response.kpis);
+        setStatusDistribution(response.statusDistribution || []);
+        setRecentMessages(response.recentMessages || []);
       } else {
-        setError(response.data.message || 'Erreur de chargement');
+        setError(response.message || 'Erreur de chargement');
       }
     } catch (err: any) {
       console.error('[CampaignDetail] Erreur:', err);

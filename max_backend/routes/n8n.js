@@ -13,7 +13,11 @@ const router = express.Router();
 router.get('/n8n/workflows',(req,res)=> res.json({ ok:true, list:WORKFLOW_LIST }));
 
 router.post('/n8n/trigger', async (req,res)=>{
-  const tenant = req.header("X-Tenant") || "default";
+  // SECURITY: tenantId UNIQUEMENT depuis JWT
+  const tenant = req.tenantId;
+  if (!tenant) {
+    return res.status(401).json({ ok: false, error: 'MISSING_TENANT' });
+  }
   const role = (req.header("X-Role") || "user").toLowerCase();
   const preview = String(req.header("X-Preview") || "true") === "true";
   const { code, mode = getMode(), payload = {} } = req.body || {};

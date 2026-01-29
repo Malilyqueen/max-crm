@@ -5,6 +5,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { apiClient } from '../api/client';
 
 export type Language = 'fr' | 'en';
 export type Theme = 'light' | 'dark';
@@ -13,6 +14,8 @@ interface TokenUsage {
   used: number;
   limit: number;
   percentage: number;
+  isLoaded: boolean;
+  hasError: boolean;
 }
 
 interface SettingsState {
@@ -46,9 +49,11 @@ export const useSettingsStore = create<SettingsState>()(
         push: false
       },
       tokenUsage: {
-        used: 12450,
-        limit: 50000,
-        percentage: 24.9
+        used: 0,
+        limit: 0,
+        percentage: 0,
+        isLoaded: false,
+        hasError: false
       },
 
       setLanguage: (language) => {
@@ -78,24 +83,40 @@ export const useSettingsStore = create<SettingsState>()(
 
       loadTokenUsage: async () => {
         try {
-          // MVP1: Mock data, Phase 2: API call
-          // const response = await api.get('/api/usage/tokens');
+          // API réelle: GET /api/ai/usage
+          const response = await apiClient.get<{
+            ok: boolean;
+            budget_total: number;
+            tokens: { total: number };
+          }>('/ai/usage');
 
-          // Simulate API delay
-          await new Promise(resolve => setTimeout(resolve, 500));
+          if (response.ok) {
+            const used = response.tokens?.total || 0;
+            const limit = response.budget_total || 10_000_000;
+            const percentage = limit > 0 ? Math.round((used / limit) * 100 * 10) / 10 : 0;
 
-          // Mock data for MVP1
-          const mockUsage = {
-            used: 12450 + Math.floor(Math.random() * 1000),
-            limit: 50000,
-            percentage: 0
-          };
-          mockUsage.percentage = Math.round((mockUsage.used / mockUsage.limit) * 100 * 10) / 10;
-
-          set({ tokenUsage: mockUsage });
-          console.log('[SETTINGS] Token usage loaded:', mockUsage);
+            set({
+              tokenUsage: {
+                used,
+                limit,
+                percentage,
+                isLoaded: true,
+                hasError: false
+              }
+            });
+            console.log('[SETTINGS] Token usage loaded from API:', { used, limit, percentage });
+          }
         } catch (error) {
           console.error('[SETTINGS] Erreur chargement token usage:', error);
+          set({
+            tokenUsage: {
+              used: 0,
+              limit: 0,
+              percentage: 0,
+              isLoaded: true,
+              hasError: true
+            }
+          });
         }
       }
     }),

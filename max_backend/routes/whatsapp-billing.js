@@ -32,7 +32,11 @@ const SUBSCRIPTION_INCLUDED_MESSAGES = 100;
  */
 router.get('/', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant'] || req.ctx?.tenant || 'macrea';
+    // SECURITY: tenantId UNIQUEMENT depuis JWT
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(401).json({ ok: false, error: 'MISSING_TENANT' });
+    }
 
     // Récupérer depuis la vue summary
     const { data, error } = await supabase
@@ -103,7 +107,11 @@ router.get('/', async (req, res) => {
  */
 router.post('/subscribe', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant'] || req.ctx?.tenant || 'macrea';
+    // SECURITY: tenantId UNIQUEMENT depuis JWT
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(401).json({ ok: false, error: 'MISSING_TENANT' });
+    }
     const { months = 1 } = req.body;
 
     // Appeler la fonction SQL
@@ -151,7 +159,11 @@ router.post('/subscribe', async (req, res) => {
  */
 router.post('/recharge', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant'] || req.ctx?.tenant || 'macrea';
+    // SECURITY: tenantId UNIQUEMENT depuis JWT
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(401).json({ ok: false, error: 'MISSING_TENANT' });
+    }
     const { packId } = req.body;
     const createdBy = req.user?.email || 'admin';
 
@@ -217,7 +229,11 @@ router.post('/recharge', async (req, res) => {
  */
 router.post('/consume', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant'] || req.ctx?.tenant || 'macrea';
+    // SECURITY: tenantId UNIQUEMENT depuis JWT
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(401).json({ ok: false, error: 'MISSING_TENANT' });
+    }
 
     // Appeler la fonction SQL
     const { data, error } = await supabase.rpc('consume_whatsapp_message', {
@@ -260,7 +276,11 @@ router.post('/consume', async (req, res) => {
  */
 router.get('/history', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant'] || req.ctx?.tenant || 'macrea';
+    // SECURITY: tenantId UNIQUEMENT depuis JWT
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(401).json({ ok: false, error: 'MISSING_TENANT' });
+    }
     const limit = parseInt(req.query.limit) || 20;
 
     const { data, error } = await supabase
@@ -294,7 +314,11 @@ router.get('/history', async (req, res) => {
  */
 router.get('/check', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant'] || req.ctx?.tenant || 'macrea';
+    // SECURITY: tenantId UNIQUEMENT depuis JWT
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(401).json({ ok: false, error: 'MISSING_TENANT' });
+    }
 
     const { data, error } = await supabase
       .from('whatsapp_billing_summary')

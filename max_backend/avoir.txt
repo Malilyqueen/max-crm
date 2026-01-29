@@ -1,0 +1,23 @@
+LES choses à voir vercel :
+tagsia ( si c'est pareil dans le CRM et autres )
+
+les erreurs : Le problème est que nginx est configuré pour api.max.studiomacrea.cloud mais le frontend utilise max-api.studiomacrea.cloud. Je dois ajouter cette config.
+Vercel : Le problème vient du nom de projet inféré. Laissez-moi essayer avec un nom explicite. Deploiment manuel cli
+Possibilité erreur 403 : 
+Clé API OpenAI - invalide, quota dépassé, ou facturation bloquée
+Authentification backend - JWT invalide ou expiré
+Vérifiez sur votre serveur Scaleway :
+
+
+# Vérifier les logs du backend
+pm2 logs max-backend --lines 50
+
+# Ou si c'est systemd
+journalctl -u max-backend -n 50
+Causes probables :
+
+Erreur	Cause	Solution
+403 OpenAI	Clé API invalide ou quota	Vérifier OPENAI_API_KEY dans .env
+403 Auth	JWT expiré	Se reconnecter sur le frontend
+404 /chat	Route non trouvée	Backend pas démarré ou mauvaise URL
+Pouvez-vous me donner les logs du serveur ou vérifier votre clé OpenAI sur platform.openai.com ?

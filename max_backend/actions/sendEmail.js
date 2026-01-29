@@ -30,7 +30,9 @@ export async function sendEmail(params) {
     bcc,
     replyTo,
     parentType,
-    parentId
+    parentId,
+    leadId,      // ✅ ID du lead pour message_events
+    campaignId   // ✅ ID campagne pour bulk sends
   } = params;
 
   if (!to || !subject || !body) {
@@ -286,7 +288,9 @@ export async function sendViaMailjet(params) {
         channel: 'email',
         provider: 'mailjet',
         direction: 'out',
-        leadId: params.parentId,
+        tenantId: params.tenantId,
+        leadId: params.leadId || params.parentId, // ✅ Priorité leadId, fallback parentId
+        campaignId: params.campaignId, // ✅ Lier à la campagne bulk
         email: params.to,
         providerMessageId: String(messageId),
         status: 'sent',

@@ -53,8 +53,23 @@ export async function updateLead(id, payload) {
   return espoFetch(`Lead/${id}`, { method: 'PATCH', body: JSON.stringify(payload) });
 }
 
-export async function createLead(payload) {
-  return espoFetch('Lead', { method: 'POST', body: JSON.stringify(payload) });
+/**
+ * Créer un lead dans EspoCRM
+ * @param {Object} payload - Données du lead
+ * @param {string} tenantId - Tenant ID (obligatoire pour isolation multi-tenant)
+ */
+export async function createLead(payload, tenantId) {
+  // SECURITY: Ajouter cTenantId pour isolation multi-tenant
+  const leadData = {
+    ...payload,
+    cTenantId: tenantId || payload.cTenantId || 'macrea' // Fallback vers macrea pour compatibilité
+  };
+
+  if (!leadData.cTenantId) {
+    console.error('[SECURITY] createLead appelé sans tenantId!');
+  }
+
+  return espoFetch('Lead', { method: 'POST', body: JSON.stringify(leadData) });
 }
 
 export async function findLeadByEmail(email) {
@@ -62,13 +77,18 @@ export async function findLeadByEmail(email) {
   return leads[0] || null;
 }
 
-export async function upsertLead(payload) {
+/**
+ * Créer ou mettre à jour un lead dans EspoCRM
+ * @param {Object} payload - Données du lead
+ * @param {string} tenantId - Tenant ID (obligatoire pour isolation multi-tenant)
+ */
+export async function upsertLead(payload, tenantId) {
   const existing = payload.emailAddress ? await findLeadByEmail(payload.emailAddress) : null;
 
   if (existing) {
     return await updateLead(existing.id, payload);
   } else {
-    return await createLead(payload);
+    return await createLead(payload, tenantId);
   }
 }
 

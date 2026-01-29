@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Wrench, BarChart3, CircleDot, MessageCircle, CheckCircle, AlertCircle, Building, User, Lightbulb } from 'lucide-react';
 import { apiClient } from '../api/client';
 
 interface Ticket {
@@ -69,7 +70,7 @@ export function AdminSupportPage() {
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center gap-3 mb-2">
-            <h1 className="text-3xl font-bold text-gray-900">🛠️ Admin Support - Tous les Tickets</h1>
+            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2"><Wrench className="w-8 h-8" /> Admin Support - Tous les Tickets</h1>
             <span className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-sm font-semibold">
               MaCréa Staff
             </span>
@@ -81,23 +82,23 @@ export function AdminSupportPage() {
         <div className="grid grid-cols-5 gap-4 mb-6">
           <div className="bg-white rounded-lg p-4 shadow">
             <div className="text-2xl font-bold text-gray-900">{stats.total}</div>
-            <div className="text-sm text-gray-600">📊 Total</div>
+            <div className="text-sm text-gray-600 flex items-center gap-1"><BarChart3 className="w-4 h-4" /> Total</div>
           </div>
           <div className="bg-white rounded-lg p-4 shadow">
             <div className="text-2xl font-bold text-green-600">{stats.open}</div>
-            <div className="text-sm text-gray-600">🟢 Ouverts</div>
+            <div className="text-sm text-gray-600 flex items-center gap-1"><CircleDot className="w-4 h-4 text-green-500" /> Ouverts</div>
           </div>
           <div className="bg-white rounded-lg p-4 shadow">
             <div className="text-2xl font-bold text-blue-600">{stats.replied}</div>
-            <div className="text-sm text-gray-600">💬 Répondus</div>
+            <div className="text-sm text-gray-600 flex items-center gap-1"><MessageCircle className="w-4 h-4" /> Répondus</div>
           </div>
           <div className="bg-white rounded-lg p-4 shadow">
             <div className="text-2xl font-bold text-gray-600">{stats.closed}</div>
-            <div className="text-sm text-gray-600">✅ Fermés</div>
+            <div className="text-sm text-gray-600 flex items-center gap-1"><CheckCircle className="w-4 h-4" /> Fermés</div>
           </div>
           <div className="bg-white rounded-lg p-4 shadow">
             <div className="text-2xl font-bold text-red-600">{stats.urgent}</div>
-            <div className="text-sm text-gray-600">🔴 Urgents actifs</div>
+            <div className="text-sm text-gray-600 flex items-center gap-1"><AlertCircle className="w-4 h-4 text-red-500" /> Urgents actifs</div>
           </div>
         </div>
 
@@ -191,19 +192,19 @@ export function AdminSupportPage() {
                         <span className="font-mono text-sm text-gray-500">
                           {ticket.ticket_number}
                         </span>
-                        <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded text-xs font-semibold">
-                          🏢 {ticket.tenant_id}
+                        <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded text-xs font-semibold flex items-center gap-1">
+                          <Building className="w-3 h-3" /> {ticket.tenant_id}
                         </span>
-                        <span className="text-xs text-gray-600">
-                          👤 {ticket.user_email}
+                        <span className="text-xs text-gray-600 flex items-center gap-1">
+                          <User className="w-3 h-3" /> {ticket.user_email}
                         </span>
                         {ticket.priority === 'urgent' && (
-                          <span className="bg-red-100 text-red-700 px-2 py-1 rounded text-xs font-semibold">
-                            🔴 URGENT
+                          <span className="bg-red-100 text-red-700 px-2 py-1 rounded text-xs font-semibold flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3" /> URGENT
                           </span>
                         )}
                         <span
-                          className={`px-2 py-1 rounded text-xs font-semibold ${
+                          className={`px-2 py-1 rounded text-xs font-semibold flex items-center gap-1 ${
                             ticket.status === 'open'
                               ? 'bg-green-100 text-green-700'
                               : ticket.status === 'replied'
@@ -212,10 +213,10 @@ export function AdminSupportPage() {
                           }`}
                         >
                           {ticket.status === 'open'
-                            ? '🟢 Ouvert'
+                            ? <><CircleDot className="w-3 h-3" /> Ouvert</>
                             : ticket.status === 'replied'
-                            ? '💬 Répondu'
-                            : '✅ Fermé'}
+                            ? <><MessageCircle className="w-3 h-3" /> Répondu</>
+                            : <><CheckCircle className="w-3 h-3" /> Fermé</>}
                         </span>
                       </div>
                       <h3 className="font-semibold text-gray-900 mb-1">
@@ -252,9 +253,9 @@ export function AdminSupportPage() {
 
         {/* Info */}
         <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <p className="text-sm text-blue-800">
-            💡 <strong>Conseil :</strong> Cliquez sur un ticket pour voir la conversation complète et répondre en tant que Support MaCréa.
-            Les réponses d'admin sont automatiquement marquées comme "Support MaCréa" et changent le statut en "Répondu".
+          <p className="text-sm text-blue-800 flex items-start gap-2">
+            <Lightbulb className="w-4 h-4 flex-shrink-0 mt-0.5" /> <span><strong>Conseil :</strong> Cliquez sur un ticket pour voir la conversation complète et répondre en tant que Support MaCréa.
+            Les réponses d'admin sont automatiquement marquées comme "Support MaCréa" et changent le statut en "Répondu".</span>
           </p>
         </div>
       </div>

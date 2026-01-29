@@ -5,15 +5,17 @@
  * - Aucun champ technique visible (instanceId, token, Green-API)
  * - QR code uniquement pour connexion
  * - Feature flag billing: whatsapp_enabled
- * - Upsell "+15€/mois" si désactivé
+ * - Nouveau pricing: 24,90€/mois (100 msg inclus) + recharges
  * - UX: "Je clique → Je scanne → Ça marche"
  */
 
 import { useState, useEffect, useRef } from 'react';
 import { useProvidersStore } from '../../stores/useProvidersStore';
 import { useSettingsStore } from '../../stores/useSettingsStore';
+import { useWhatsappBillingStore } from '../../stores/useWhatsappBillingStore';
 import { api } from '../../api/client';
 import { useToast } from '../../hooks/useToast';
+import { WhatsAppPricingBlock } from './WhatsAppPricingBlock';
 
 interface WhatsAppStatus {
   connected: boolean;
@@ -26,6 +28,7 @@ interface WhatsAppStatus {
 export function WhatsAppProPanel() {
   const { providers, fetchProviders } = useProvidersStore();
   const { tenant } = useSettingsStore();
+  const { loadBilling, isLoading: billingLoading } = useWhatsappBillingStore();
   const toast = useToast();
 
   const [whatsappEnabled, setWhatsappEnabled] = useState<boolean | null>(null);
@@ -51,19 +54,40 @@ export function WhatsAppProPanel() {
     checkWhatsAppEnabled();
   }, []);
 
-  // Vérifier si WhatsApp est déjà connecté
+  // Charger le billing WhatsApp
   useEffect(() => {
-    const whatsappProvider = providers.find(
-      p => p.provider_type === 'greenapi_whatsapp' && p.is_active
-    );
+    loadBilling();
+  }, [loadBilling]);
 
-    if (whatsappProvider) {
-      setStatus(prev => ({
-        ...prev,
-        connected: true,
-        phoneNumber: 'Connecté' // TODO: Récupérer numéro réel depuis API
-      }));
-    }
+  // Vérifier si WhatsApp est déjà connecté et récupérer le numéro réel
+  useEffect(() => {
+    const checkWhatsAppStatus = async () => {
+      const whatsappProvider = providers.find(
+        p => p.provider_type === 'greenapi_whatsapp' && p.is_active
+      );
+
+      if (whatsappProvider) {
+        try {
+          // Récupérer le statut réel depuis l'API pour obtenir le numéro
+          const response = await api.get('/wa/qr/status');
+          setStatus(prev => ({
+            ...prev,
+            connected: response.connected || true,
+            phoneNumber: response.phoneNumber || 'Connecté'
+          }));
+        } catch (error) {
+          // Si l'API échoue, afficher "Connecté" comme fallback
+          console.warn('[WhatsApp Pro] Impossible de récupérer le numéro:', error);
+          setStatus(prev => ({
+            ...prev,
+            connected: true,
+            phoneNumber: 'Connecté'
+          }));
+        }
+      }
+    };
+
+    checkWhatsAppStatus();
   }, [providers]);
 
   /**
@@ -206,62 +230,35 @@ export function WhatsAppProPanel() {
     );
   }
 
-  // Feature flag désactivé - Upsell
+  // Handler contact support
+  const handleContactSupport = () => {
+    toast.info('Contactez le support pour activer WhatsApp Pro');
+    // TODO: Ouvrir modal contact support ou rediriger
+  };
+
+  // Feature flag désactivé - Upsell avec nouveau pricing
   if (!whatsappEnabled) {
     return (
       <div className="max-w-2xl mx-auto">
-        <div className="bg-gradient-to-br from-green-50 to-blue-50 border-2 border-green-200 rounded-xl p-8 text-center">
-          <div className="text-6xl mb-4">💬</div>
+        <div className="text-center mb-6">
+          <div className="text-6xl mb-4">&#128172;</div>
           <h3 className="text-2xl font-bold text-gray-900 mb-3">
             WhatsApp Pro
           </h3>
-          <p className="text-gray-700 mb-6 text-lg">
+          <p className="text-gray-700 text-lg">
             Envoyez et recevez des messages WhatsApp directement depuis MAX CRM.
-            <br />
-            Gagnez du temps et améliorez votre relation api.
-          </p>
-
-          <div className="bg-white rounded-lg p-6 mb-6 border border-gray-200 inline-block">
-            <div className="flex items-center justify-center gap-3 mb-2">
-              <span className="text-3xl font-bold text-green-600">+15€</span>
-              <span className="text-gray-600">/mois</span>
-            </div>
-            <p className="text-sm text-gray-500">Option premium</p>
-          </div>
-
-          <div className="space-y-3 text-left max-w-md mx-auto mb-6">
-            <div className="flex items-center gap-3">
-              <span className="text-green-600 text-xl">✓</span>
-              <span className="text-gray-700">Envoi de messages WhatsApp illimités</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="text-green-600 text-xl">✓</span>
-              <span className="text-gray-700">Réception des réponses en temps réel</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="text-green-600 text-xl">✓</span>
-              <span className="text-gray-700">Historique complet des conversations</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="text-green-600 text-xl">✓</span>
-              <span className="text-gray-700">Support prioritaire</span>
-            </div>
-          </div>
-
-          <button
-            onClick={() => {
-              toast.info('Contactez le support pour activer WhatsApp Pro');
-              // TODO: Ouvrir modal contact support ou rediriger
-            }}
-            className="px-8 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold text-lg transition-colors shadow-md hover:shadow-lg"
-          >
-            Activer WhatsApp Pro
-          </button>
-
-          <p className="mt-4 text-sm text-gray-500">
-            Besoin d'aide? <a href="#" className="text-blue-600 hover:text-blue-700 underline">Contactez le support</a>
           </p>
         </div>
+
+        {/* Nouveau bloc pricing */}
+        <WhatsAppPricingBlock
+          mode="upsell"
+          onContactSupport={handleContactSupport}
+        />
+
+        <p className="mt-6 text-sm text-gray-500 text-center">
+          Besoin d'aide? <a href="#" className="text-blue-600 hover:text-blue-700 underline">Contactez le support</a>
+        </p>
       </div>
     );
   }
@@ -273,10 +270,10 @@ export function WhatsAppProPanel() {
         {/* Statut connecté */}
         <div className="bg-green-50 border-2 border-green-200 rounded-xl p-6">
           <div className="flex items-center gap-4">
-            <div className="text-5xl">✅</div>
+            <div className="text-5xl">&#9989;</div>
             <div className="flex-1">
               <h3 className="text-xl font-bold text-green-900 mb-1">
-                WhatsApp Pro Connecté
+                WhatsApp Pro Connecte
               </h3>
               <p className="text-green-700">
                 {status.phoneNumber && <span className="font-medium">{status.phoneNumber}</span>}
@@ -294,21 +291,27 @@ export function WhatsAppProPanel() {
             onClick={handleSendTest}
             className="flex-1 px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-colors shadow-sm"
           >
-            📤 Envoyer un test
+            &#128228; Envoyer un test
           </button>
           <button
             onClick={handleDisconnect}
             disabled={status.loading}
             className="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-medium transition-colors disabled:opacity-50"
           >
-            {status.loading ? '⏳' : '🔌'} Déconnecter
+            {status.loading ? '&#8987;' : '&#128268;'} Deconnecter
           </button>
         </div>
+
+        {/* Bloc Billing */}
+        <WhatsAppPricingBlock
+          mode="billing"
+          onContactSupport={handleContactSupport}
+        />
 
         {/* Info */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <p className="text-sm text-blue-800">
-            <strong>💡 Astuce:</strong> Vous pouvez envoyer des messages WhatsApp depuis les fiches leads en cliquant sur le numéro de téléphone.
+            <strong>&#128161; Astuce:</strong> Vous pouvez envoyer des messages WhatsApp depuis les fiches leads en cliquant sur le numero de telephone.
           </p>
         </div>
       </div>

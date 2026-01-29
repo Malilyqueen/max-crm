@@ -3,8 +3,35 @@
  * Types TypeScript pour le CRM MVP1
  */
 
-// Statuts possibles d'un lead
-export type LeadStatus = 'Nouveau' | 'Contacté' | 'Qualifié' | 'Proposition' | 'Gagné' | 'Perdu';
+/**
+ * Statuts possibles d'un lead (clés EspoCRM)
+ * Les labels FR sont définis dans les composants UI
+ */
+export type LeadStatus = 'New' | 'Assigned' | 'In Process' | 'Converted' | 'Recycled' | 'Dead';
+
+/**
+ * Mapping statut Espo → label FR (pour affichage)
+ */
+export const LEAD_STATUS_LABELS: Record<LeadStatus, string> = {
+  'New': 'Nouveau',
+  'Assigned': 'Assigné',
+  'In Process': 'En cours',
+  'Converted': 'Converti',
+  'Recycled': 'Recyclé',
+  'Dead': 'Perdu'
+};
+
+/**
+ * Couleurs par statut
+ */
+export const LEAD_STATUS_COLORS: Record<LeadStatus, string> = {
+  'New': '#3B82F6',
+  'Assigned': '#10B981',
+  'In Process': '#F59E0B',
+  'Converted': '#22C55E',
+  'Recycled': '#6B7280',
+  'Dead': '#EF4444'
+};
 
 // Lead
 export interface Lead {
@@ -22,6 +49,10 @@ export interface Lead {
   notes?: string;
   tags?: string[];
   score?: number; // 0-100
+  // V1 Starter - 3 nouveaux champs
+  industry?: string;
+  website?: string;
+  address?: string;
 }
 
 // Note sur un lead
@@ -42,6 +73,7 @@ export interface LeadFilters {
   tags?: string[];
   minScore?: number;
   maxScore?: number;
+  notContacted?: boolean; // Filtre leads sans message_event outbound
 }
 
 // Réponse API liste leads

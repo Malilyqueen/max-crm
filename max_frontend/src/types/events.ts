@@ -20,8 +20,9 @@ export type EventStatus =
   | 'blocked'       // Bloqué
   | 'spam'          // Spam
   | 'unsubscribed'  // Désabonné
-  | 'received'      // Reçu (entrant)
-  | 'read';         // Lu (WhatsApp)
+  | 'received'          // Reçu (entrant)
+  | 'received_unknown'  // Reçu (contact inconnu)
+  | 'read';             // Lu (WhatsApp)
 
 // Direction du message
 export type Direction = 'in' | 'out';
@@ -156,5 +157,6 @@ export const STATUS_CONFIGS: Record<EventStatus, { label: string; color: string;
   spam: { label: 'Spam', color: '#ef4444', emoji: '🗑️' },
   unsubscribed: { label: 'Désabonné', color: '#6b7280', emoji: '🚪' },
   received: { label: 'Reçu', color: '#3b82f6', emoji: '📥' },
+  received_unknown: { label: 'Reçu (inconnu)', color: '#9ca3af', emoji: '❓' },
   read: { label: 'Lu', color: '#10b981', emoji: '✅✅' }
 };

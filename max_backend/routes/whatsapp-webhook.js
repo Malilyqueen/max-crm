@@ -1,15 +1,15 @@
 /**
  * Webhook entrant WhatsApp - Reçoit les réponses Twilio
  *
+ * SECURITY V2 - MULTI-TENANT:
+ * - Résolution tenant via tenantResolver (prioritaire) ou ButtonPayload structuré
+ * - JAMAIS de fallback tenant hardcodé
+ * - Events non résolus → orphan_webhook_events
+ *
  * Ce webhook reçoit:
  * - Les réponses aux messages WhatsApp envoyés
  * - Les clics sur les boutons des templates
  * - Les statuts de livraison (delivered, read, failed...)
- *
- * Architecture multitenant:
- * - Parse le ButtonPayload pour extraire tenantId, contactId, action
- * - Route vers le bon tenant
- * - Met à jour l'état du lead/contact dans EspoCRM
  */
 
 import express from 'express';
@@ -17,6 +17,14 @@ import { parseButtonPayload } from '../config/whatsapp-templates.js';
 import { espoFetch } from '../lib/espoClient.js';
 import { executeWhatsAppAction } from '../config/whatsapp-actions.js';
 import { logActivity } from '../lib/activityLogger.js';
+import { logMessageEvent } from '../lib/messageEventLogger.js';
+import {
+  resolveLeadAndTenantByPhone,
+  isValidResolution,
+  isAmbiguousResolution,
+  logOrphanWebhookEvent
+} from '../lib/tenantResolver.js';
+import { normalizeStatus } from '../lib/statusNormalizer.js';
 
 const router = express.Router();
 
@@ -27,7 +35,7 @@ const router = express.Router();
 router.post('/incoming', async (req, res) => {
   try {
     console.log('\n' + '='.repeat(80));
-    console.log('📲 WEBHOOK WHATSAPP ENTRANT');
+    console.log('📲 WEBHOOK WHATSAPP ENTRANT (Twilio)');
     console.log('='.repeat(80));
 
     const {
@@ -50,15 +58,15 @@ router.post('/incoming', async (req, res) => {
 
     // CAS 1: Clic sur un bouton (template avec ButtonPayload)
     if (ButtonPayload) {
-      await handleButtonClick(ButtonPayload, From, Body, MessageSid);
+      await handleButtonClick(ButtonPayload, From, Body, MessageSid, req.body);
     }
     // CAS 2: Message texte libre (réponse sans bouton)
     else if (Body) {
-      await handleTextMessage(From, Body, MessageSid);
+      await handleTextMessage(From, Body, MessageSid, req.body);
     }
     // CAS 3: Statut de livraison uniquement (pas de réponse utilisateur)
     else if (MessageStatus) {
-      await handleStatusUpdate(MessageSid, MessageStatus);
+      await handleStatusUpdate(MessageSid, MessageStatus, To, req.body);
     }
     // CAS 4: Média (image, vidéo...)
     else if (NumMedia && parseInt(NumMedia) > 0) {
@@ -83,7 +91,7 @@ router.post('/incoming', async (req, res) => {
 /**
  * Gère le clic sur un bouton de template
  */
-async function handleButtonClick(buttonPayload, from, body, messageSid) {
+async function handleButtonClick(buttonPayload, from, body, messageSid, rawPayload) {
   console.log('\n🔘 CLIC SUR BOUTON DÉTECTÉ');
 
   try {
@@ -91,10 +99,10 @@ async function handleButtonClick(buttonPayload, from, body, messageSid) {
 
     // DETECTION DU FORMAT DE PAYLOAD
     // Format 1 (PRIORITAIRE): "action=confirm|type=appointment|lead=abc123|tenant=macrea"
-    // Format 2 (FALLBACK): "OUI" ou "NON"
+    // Format 2 (FALLBACK SÉCURISÉ): "OUI" ou "NON" → résolution via tenantResolver
 
     if (buttonPayload.includes('action=') && buttonPayload.includes('|')) {
-      // ===== CAS 1: PAYLOAD STRUCTURÉ (template prioritaire) =====
+      // ===== CAS 1: PAYLOAD STRUCTURÉ (template avec contexte complet) =====
       console.log('📦 Format STRUCTURÉ détecté (avec contexte complet)');
 
       const parsed = parseButtonPayload(buttonPayload);
@@ -105,6 +113,17 @@ async function handleButtonClick(buttonPayload, from, body, messageSid) {
 
       if (!action || !tenant || !leadId) {
         console.error('⚠️  Payload incomplet:', parsed);
+
+        // Logger comme orphelin
+        await logOrphanWebhookEvent({
+          channel: 'whatsapp',
+          provider: 'twilio',
+          reason: 'incomplete_payload',
+          contactIdentifier: phoneNumber,
+          providerMessageId: messageSid,
+          candidates: null,
+          payload: rawPayload
+        });
         return;
       }
 
@@ -114,6 +133,7 @@ async function handleButtonClick(buttonPayload, from, body, messageSid) {
       console.log(`   Type: ${type || 'N/A'}`);
       console.log(`   Phone: ${phoneNumber}`);
 
+      // SECURITY: tenantId vient du payload structuré (validé lors de l'envoi)
       // Logger l'activité entrante (clic bouton = réponse)
       try {
         await logActivity({
@@ -129,7 +149,7 @@ async function handleButtonClick(buttonPayload, from, body, messageSid) {
             action,
             type
           },
-          tenantId: tenant
+          tenantId: tenant // SECURITY: tenant du payload structuré
         });
         console.log(`   📝 Activité entrante loggée (clic bouton structuré)`);
       } catch (logError) {
@@ -148,7 +168,7 @@ async function handleButtonClick(buttonPayload, from, body, messageSid) {
 
       // Exécuter l'action via le système de handlers
       const result = await executeWhatsAppAction(type, action, {
-        tenantId: tenant,
+        tenantId: tenant, // SECURITY: tenant du payload
         leadId: leadId,
         from: phoneNumber,
         payload: additionalContext
@@ -161,27 +181,43 @@ async function handleButtonClick(buttonPayload, from, body, messageSid) {
       }
 
     } else {
-      // ===== CAS 2: PAYLOAD SIMPLE "OUI" / "NON" (template fallback) =====
-      console.log('📦 Format SIMPLE détecté (OUI/NON - reconstruction contexte nécessaire)');
+      // ===== CAS 2: PAYLOAD SIMPLE "OUI" / "NON" (résolution sécurisée obligatoire) =====
+      console.log('📦 Format SIMPLE détecté (OUI/NON - résolution tenant via tenantResolver)');
       console.log(`   Réponse: ${buttonPayload}`);
       console.log(`   Phone: ${phoneNumber}`);
 
-      // Chercher le lead par numéro de téléphone
-      const lead = await findLeadByPhone(phoneNumber);
+      // ============================================
+      // SECURITY: Résolution tenant obligatoire
+      // ============================================
+      const resolution = await resolveLeadAndTenantByPhone(phoneNumber, null);
 
-      if (!lead) {
-        console.error(`   ❌ Aucun lead trouvé pour le numéro ${phoneNumber}`);
-        // Créer une note orpheline pour tracer la réponse
-        console.log(`   💡 Réponse "${buttonPayload}" enregistrée mais non liée`);
-        return;
+      if (!isValidResolution(resolution)) {
+        const reason = isAmbiguousResolution(resolution) ? 'ambiguous' : 'no_match';
+
+        console.warn(`   ⚠️ TENANT NON RÉSOLU (${reason}) - Event sera orphelin`);
+
+        await logOrphanWebhookEvent({
+          channel: 'whatsapp',
+          provider: 'twilio',
+          reason,
+          contactIdentifier: phoneNumber,
+          providerMessageId: messageSid,
+          candidates: resolution?.candidates || null,
+          payload: rawPayload
+        });
+
+        console.log('   📝 Event enregistré comme orphelin');
+        return; // NE PAS traiter sans tenant!
       }
 
-      console.log(`   👤 Lead trouvé: ${lead.name} (ID: ${lead.id})`);
+      // Résolution OK
+      const { leadId, tenantId } = resolution;
+      console.log(`   ✅ Tenant résolu: ${tenantId}, Lead: ${leadId}`);
 
       // Logger l'activité entrante (clic bouton = réponse)
       try {
         await logActivity({
-          leadId: lead.id,
+          leadId,
           channel: 'whatsapp',
           direction: 'in',
           status: 'replied',
@@ -191,7 +227,7 @@ async function handleButtonClick(buttonPayload, from, body, messageSid) {
             twilioSid: messageSid,
             buttonPayload
           },
-          tenantId: 'macrea'
+          tenantId // SECURITY: tenant résolu
         });
         console.log(`   📝 Activité entrante loggée (clic bouton)`);
       } catch (logError) {
@@ -204,8 +240,8 @@ async function handleButtonClick(buttonPayload, from, body, messageSid) {
 
       // Exécuter l'action (type=appointment par défaut pour les RDV)
       const result = await executeWhatsAppAction('appointment', action, {
-        tenantId: 'macrea', // Tenant par défaut (à améliorer avec multi-tenant)
-        leadId: lead.id,
+        tenantId, // SECURITY: tenant résolu
+        leadId,
         from: phoneNumber,
         payload: {
           reconstructed: true,
@@ -220,16 +256,6 @@ async function handleButtonClick(buttonPayload, from, body, messageSid) {
       }
     }
 
-    // TODO: Envoyer une notification à M.A.X. pour ce tenant
-    // await notifyMAX(tenant, {
-    //   event: 'whatsapp_button_click',
-    //   contactId: leadId,
-    //   action,
-    //   type,
-    //   phoneNumber,
-    //   result
-    // });
-
   } catch (error) {
     console.error('❌ Erreur lors du traitement du clic bouton:', error);
   }
@@ -238,7 +264,7 @@ async function handleButtonClick(buttonPayload, from, body, messageSid) {
 /**
  * Gère un message texte libre (pas de bouton)
  */
-async function handleTextMessage(from, body, messageSid) {
+async function handleTextMessage(from, body, messageSid, rawPayload) {
   console.log('\n💬 MESSAGE TEXTE REÇU');
   console.log(`   De: ${from}`);
   console.log(`   Message: ${body}`);
@@ -250,80 +276,108 @@ async function handleTextMessage(from, body, messageSid) {
     // Normaliser le texte pour la détection
     const normalizedBody = body.trim().toLowerCase();
 
-    // Chercher le lead par numéro de téléphone dans EspoCRM
-    const lead = await findLeadByPhone(phoneNumber);
+    // ============================================
+    // SECURITY: Résolution tenant obligatoire
+    // ============================================
+    const resolution = await resolveLeadAndTenantByPhone(phoneNumber, null);
 
-    if (lead) {
-      console.log(`   👤 Lead trouvé: ${lead.name} (ID: ${lead.id})`);
+    if (!isValidResolution(resolution)) {
+      const reason = isAmbiguousResolution(resolution) ? 'ambiguous' : 'no_match';
 
-      // Logger l'activité entrante (best effort - ne bloque jamais le traitement)
-      try {
-        await logActivity({
-          leadId: lead.id,
-          channel: 'whatsapp',
-          direction: 'in',
-          status: 'replied',
-          messageSnippet: body.substring(0, 100),
-          meta: {
-            from: phoneNumber,
-            twilioSid: messageSid
-          },
-          tenantId: 'macrea'
-        });
-        console.log(`   📝 Activité entrante loggée pour lead ${lead.id}`);
-      } catch (logError) {
-        console.warn(`   ⚠️  Erreur log activité (non bloquant):`, logError.message);
+      console.warn(`   ⚠️ TENANT NON RÉSOLU (${reason}) - Event sera orphelin`);
+
+      await logOrphanWebhookEvent({
+        channel: 'whatsapp',
+        provider: 'twilio',
+        reason,
+        contactIdentifier: phoneNumber,
+        providerMessageId: messageSid,
+        candidates: resolution?.candidates || null,
+        payload: rawPayload
+      });
+
+      console.log('   📝 Event enregistré comme orphelin');
+      return; // NE PAS traiter sans tenant!
+    }
+
+    // Résolution OK
+    const { leadId, tenantId } = resolution;
+    console.log(`   ✅ Tenant résolu: ${tenantId}, Lead: ${leadId}`);
+
+    // Logger l'activité entrante
+    try {
+      await logActivity({
+        leadId,
+        channel: 'whatsapp',
+        direction: 'in',
+        status: 'replied',
+        messageSnippet: body.substring(0, 100),
+        meta: {
+          from: phoneNumber,
+          twilioSid: messageSid
+        },
+        tenantId // SECURITY: tenant résolu
+      });
+      console.log(`   📝 Activité entrante loggée pour lead ${leadId}`);
+    } catch (logError) {
+      console.warn(`   ⚠️  Erreur log activité (non bloquant):`, logError.message);
+    }
+
+    // Logger l'event message
+    await logMessageEvent({
+      channel: 'whatsapp',
+      provider: 'twilio',
+      direction: 'in',
+      tenantId, // SECURITY: tenant résolu
+      leadId,
+      phoneNumber,
+      providerMessageId: messageSid,
+      status: 'received',
+      messageSnippet: body.substring(0, 200),
+      rawPayload,
+      timestamp: new Date().toISOString()
+    });
+
+    // DÉTECTION DES RÉPONSES OUI/NON pour confirmation RDV
+    if (normalizedBody === 'oui' || normalizedBody === 'yes' || normalizedBody === 'o') {
+      console.log('   ✅ CONFIRMATION RDV détectée');
+
+      // Exécuter l'action de confirmation
+      const result = await executeWhatsAppAction('appointment', 'confirm', {
+        tenantId, // SECURITY: tenant résolu
+        leadId,
+        from: phoneNumber,
+        payload: { reconstructed: true, originalMessage: body }
+      });
+
+      if (result.success) {
+        console.log('   🎉 RDV confirmé avec succès !');
       }
 
-      // DÉTECTION DES RÉPONSES OUI/NON pour confirmation RDV
-      if (normalizedBody === 'oui' || normalizedBody === 'yes' || normalizedBody === 'o') {
-        console.log('   ✅ CONFIRMATION RDV détectée');
+    } else if (normalizedBody === 'non' || normalizedBody === 'no' || normalizedBody === 'n') {
+      console.log('   ❌ ANNULATION RDV détectée');
 
-        // Exécuter l'action de confirmation
-        const result = await executeWhatsAppAction('appointment', 'confirm', {
-          tenantId: 'macrea',
-          leadId: lead.id,
-          from: phoneNumber,
-          payload: { reconstructed: true, originalMessage: body }
-        });
+      // Exécuter l'action d'annulation
+      const result = await executeWhatsAppAction('appointment', 'cancel', {
+        tenantId, // SECURITY: tenant résolu
+        leadId,
+        from: phoneNumber,
+        payload: { reconstructed: true, originalMessage: body }
+      });
 
-        if (result.success) {
-          console.log('   🎉 RDV confirmé avec succès !');
-          // M.A.X. envoie automatiquement une réponse via executeWhatsAppAction
-        }
-
-      } else if (normalizedBody === 'non' || normalizedBody === 'no' || normalizedBody === 'n') {
-        console.log('   ❌ ANNULATION RDV détectée');
-
-        // Exécuter l'action d'annulation
-        const result = await executeWhatsAppAction('appointment', 'cancel', {
-          tenantId: 'macrea',
-          leadId: lead.id,
-          from: phoneNumber,
-          payload: { reconstructed: true, originalMessage: body }
-        });
-
-        if (result.success) {
-          console.log('   📝 RDV annulé avec succès !');
-          // M.A.X. envoie automatiquement une réponse via executeWhatsAppAction
-        }
-
-      } else {
-        // Message quelconque - on l'enregistre juste comme note
-        await createWhatsAppNote(
-          lead.id,
-          'Message WhatsApp reçu',
-          `Le contact a envoyé un message:\n\n"${body}"`
-        );
-        console.log('   ✅ Message enregistré dans EspoCRM');
+      if (result.success) {
+        console.log('   📝 RDV annulé avec succès !');
       }
 
     } else {
-      console.log(`   ⚠️  Aucun lead trouvé pour le numéro ${phoneNumber}`);
-      console.log(`   💡 Le message WhatsApp est enregistré mais non lié à un lead`);
-
-      // On pourrait créer un lead automatiquement ici si besoin
-      // await createLeadFromWhatsApp(phoneNumber, body);
+      // Message quelconque - on l'enregistre juste comme note
+      await createWhatsAppNote(
+        leadId,
+        tenantId,
+        'Message WhatsApp reçu',
+        `Le contact a envoyé un message:\n\n"${body}"`
+      );
+      console.log('   ✅ Message enregistré dans EspoCRM');
     }
 
   } catch (error) {
@@ -334,11 +388,8 @@ async function handleTextMessage(from, body, messageSid) {
 /**
  * Gère les mises à jour de statut (delivered, read, failed...)
  */
-async function handleStatusUpdate(messageSid, status) {
+async function handleStatusUpdate(messageSid, status, to, rawPayload) {
   console.log(`\n📊 STATUT: ${status} (MessageSid: ${messageSid})`);
-
-  // TODO: Mettre à jour le statut du message dans une table de tracking
-  // Pour l'instant, on log juste
 
   const statusEmoji = {
     'sent': '📤',
@@ -349,48 +400,80 @@ async function handleStatusUpdate(messageSid, status) {
   };
 
   console.log(`${statusEmoji[status] || '📋'} Message ${messageSid}: ${status}`);
-}
 
-/**
- * Trouve un lead dans EspoCRM par son numéro de téléphone
- */
-async function findLeadByPhone(phoneNumber) {
-  try {
-    // Normaliser le numéro (enlever les espaces, points, tirets)
-    const normalized = phoneNumber.replace(/[\s\.\-]/g, '');
+  // Extraire le numéro de téléphone
+  const phoneNumber = to ? to.replace('whatsapp:', '') : null;
 
-    // Chercher dans EspoCRM
-    // On utilise une recherche flexible car le format peut varier
-    const response = await espoFetch(`/Lead?where[0][type]=or&where[0][value][0][type]=contains&where[0][value][0][attribute]=phoneNumber&where[0][value][0][value]=${normalized}&maxSize=1`);
-
-    if (response && response.list && response.list.length > 0) {
-      const lead = response.list[0];
-      return {
-        id: lead.id,
-        name: `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || 'Lead sans nom'
-      };
-    }
-
-    return null;
-  } catch (error) {
-    console.error(`   ⚠️  Erreur lors de la recherche du lead:`, error.message);
-    return null;
+  if (!phoneNumber) {
+    console.warn('   ⚠️ Pas de numéro destinataire - impossible de résoudre le tenant');
+    return;
   }
+
+  // ============================================
+  // SECURITY: Résolution tenant obligatoire
+  // ============================================
+  // Pour un status callback, on a le MessageSid → utiliser prioritairement
+  const resolution = await resolveLeadAndTenantByPhone(phoneNumber, messageSid);
+
+  if (!isValidResolution(resolution)) {
+    const reason = isAmbiguousResolution(resolution) ? 'ambiguous' : 'no_match';
+
+    console.warn(`   ⚠️ TENANT NON RÉSOLU (${reason}) - Event sera orphelin`);
+
+    await logOrphanWebhookEvent({
+      channel: 'whatsapp',
+      provider: 'twilio',
+      reason,
+      contactIdentifier: phoneNumber,
+      providerMessageId: messageSid,
+      candidates: resolution?.candidates || null,
+      payload: rawPayload
+    });
+
+    console.log('   📝 Event enregistré comme orphelin');
+    return;
+  }
+
+  // Résolution OK
+  const { leadId, tenantId } = resolution;
+  console.log(`   ✅ Tenant résolu: ${tenantId}, Lead: ${leadId}`);
+
+  // Normaliser le statut
+  const normalizedStatus = normalizeStatus(status, 'twilio');
+
+  // Logger l'event avec tenant valide
+  await logMessageEvent({
+    channel: 'whatsapp',
+    provider: 'twilio',
+    direction: 'out',
+    tenantId, // SECURITY: tenant résolu
+    leadId,
+    phoneNumber,
+    providerMessageId: messageSid,
+    status: normalizedStatus,
+    rawPayload,
+    timestamp: new Date().toISOString()
+  });
+
+  console.log('   ✅ Statut enregistré');
 }
 
 /**
  * Crée une note dans EspoCRM pour tracer une interaction WhatsApp
+ * SECURITY: Requiert tenantId pour isolation
  */
-async function createWhatsAppNote(leadId, subject, body) {
+async function createWhatsAppNote(leadId, tenantId, subject, body) {
   try {
-    console.log(`   📝 Création d'une note pour le lead ${leadId}`);
+    console.log(`   📝 Création d'une note pour le lead ${leadId} (tenant: ${tenantId})`);
 
+    // Note: espoFetch devrait être tenant-aware dans une implémentation complète
+    // Pour l'instant, on log juste avec le tenant pour traçabilité
     await espoFetch('/Note', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: subject,
-        post: body + `\n\n📱 Interaction via WhatsApp le ${new Date().toLocaleString('fr-FR')}`,
+        post: body + `\n\n📱 Interaction via WhatsApp le ${new Date().toLocaleString('fr-FR')}\n🏢 Tenant: ${tenantId}`,
         parentType: 'Lead',
         parentId: leadId
       })
@@ -409,9 +492,15 @@ async function createWhatsAppNote(leadId, subject, body) {
  */
 router.get('/status', (req, res) => {
   res.json({
-    status: 'ok',
+    ok: true,
     service: 'whatsapp-webhook',
-    timestamp: new Date().toISOString()
+    version: 'v2-multitenant',
+    timestamp: new Date().toISOString(),
+    events_supported: [
+      'button_click',
+      'text_message',
+      'status_update'
+    ]
   });
 });
 

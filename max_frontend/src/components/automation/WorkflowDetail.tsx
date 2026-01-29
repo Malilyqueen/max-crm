@@ -3,8 +3,10 @@
  * Panneau latéral de détail d'un workflow
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
+import { Smartphone, Mail, MessageSquare } from 'lucide-react';
 import type { Workflow, WorkflowAction } from '../../types/automation';
+import { useTemplatesStore } from '../../stores/useTemplatesStore';
 
 interface WorkflowDetailProps {
   workflow: Workflow;
@@ -72,6 +74,9 @@ const actionTypeColors: Record<string, string> = {
 };
 
 function ActionCard({ action, index }: { action: WorkflowAction; index: number }) {
+  // Récupérer les templates depuis le store
+  const { templates, isLoading: templatesLoading } = useTemplatesStore();
+
   // Detect if this action has a template (channel config)
   const hasTemplate = action.config && 'channel' in action.config;
   const channel = hasTemplate ? action.config.channel : null;
@@ -81,21 +86,21 @@ function ActionCard({ action, index }: { action: WorkflowAction; index: number }
   // Channel icons and labels
   const channelConfig = {
     whatsapp: {
-      icon: '📱',
+      icon: <Smartphone className="w-4 h-4" />,
       label: 'WhatsApp',
       bgColor: 'bg-green-50',
       borderColor: 'border-green-200',
       textColor: 'text-green-700'
     },
     email: {
-      icon: '📧',
+      icon: <Mail className="w-4 h-4" />,
       label: 'Email',
       bgColor: 'bg-blue-50',
       borderColor: 'border-blue-200',
       textColor: 'text-blue-700'
     },
     sms: {
-      icon: '💬',
+      icon: <MessageSquare className="w-4 h-4" />,
       label: 'SMS',
       bgColor: 'bg-purple-50',
       borderColor: 'border-purple-200',
@@ -105,14 +110,11 @@ function ActionCard({ action, index }: { action: WorkflowAction; index: number }
 
   const channelInfo = channel ? channelConfig[channel as keyof typeof channelConfig] : null;
 
-  // Template message previews (mock for now - could be fetched from backend)
-  const templatePreviews: Record<string, string> = {
-    'relance-j3-whatsapp': 'Bonjour {{firstName}}, Je remarque que nous n\'avons pas eu de nouvelles depuis notre dernier échange. Y a-t-il des questions auxquelles je peux répondre pour vous aider dans votre décision ?',
-    'relance-j3': 'Bonjour {{firstName}}, Nous n\'avons pas eu de retour de votre part depuis {{daysAgo}} jours. Souhaitez-vous que nous reprogrammions un échange ?',
-    'newsletter': 'Newsletter personnalisée selon votre segment d\'activité et vos centres d\'intérêt.'
-  };
-
-  const templatePreview = templateName && templatePreviews[templateName] ? templatePreviews[templateName] : null;
+  // Rechercher le template dans le store (données réelles depuis l'API)
+  const matchedTemplate = templateName
+    ? templates.find(t => t.name === templateName || t.id === templateName)
+    : null;
+  const templatePreview = matchedTemplate?.content || null;
 
   return (
     <div className="flex gap-4">
@@ -166,18 +168,32 @@ function ActionCard({ action, index }: { action: WorkflowAction; index: number }
                   </div>
 
                   {/* Message preview */}
-                  {templatePreview && (
+                  {templatesLoading ? (
+                    <div className="mt-3 bg-white rounded-lg p-3 border border-gray-200">
+                      <p className="text-xs text-gray-500 font-medium mb-2">APERÇU DU MESSAGE:</p>
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                        <span className="text-sm text-gray-500">Chargement...</span>
+                      </div>
+                    </div>
+                  ) : templatePreview ? (
                     <div className="mt-3 bg-white rounded-lg p-3 border border-gray-200">
                       <p className="text-xs text-gray-500 font-medium mb-2">APERÇU DU MESSAGE:</p>
                       <p className="text-sm text-gray-700 italic leading-relaxed">
                         {templatePreview}
                       </p>
                     </div>
-                  )}
+                  ) : templateName ? (
+                    <div className="mt-3 bg-yellow-50 rounded-lg p-3 border border-yellow-200">
+                      <p className="text-xs text-yellow-600 font-medium">
+                        Template "{templateName}" non trouvé
+                      </p>
+                    </div>
+                  ) : null}
 
                   {/* Action button */}
                   <button className="mt-3 w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center justify-center gap-2">
-                    <span>💬</span>
+                    <MessageSquare className="w-4 h-4" />
                     <span>Demander à M.A.X. de modifier ce template</span>
                   </button>
                 </div>
@@ -191,6 +207,15 @@ function ActionCard({ action, index }: { action: WorkflowAction; index: number }
 }
 
 export function WorkflowDetail({ workflow, isLoading, onClose, onToggleStatus }: WorkflowDetailProps) {
+  const { templates, loadTemplates } = useTemplatesStore();
+
+  // Charger les templates au montage si pas déjà chargés
+  useEffect(() => {
+    if (templates.length === 0) {
+      loadTemplates();
+    }
+  }, [templates.length, loadTemplates]);
+
   const statusConfig = {
     active: {
       label: 'Actif',

@@ -37,12 +37,27 @@ export function authMiddleware(req, res, next) {
     const decoded = jwt.verify(token, JWT_SECRET);
 
     // Ajouter user à la request
+    // REGLE SECURITE: Le tenant vient UNIQUEMENT du token JWT, jamais du header X-Tenant
+    const tokenTenant = decoded.tenantId;
+    const headerTenant = req.headers['x-tenant'];
+
+    // Vérifier mismatch (mode strict) - log warning mais utilise token
+    if (headerTenant && headerTenant !== tokenTenant) {
+      console.warn(`   ⚠️ [authMiddleware] TENANT_MISMATCH - Header: ${headerTenant}, Token: ${tokenTenant} - UTILISATION TOKEN`);
+    }
+
     req.user = {
       id: decoded.userId,
       email: decoded.email,
       role: decoded.role,
-      tenantId: decoded.tenantId || 'macrea' // Fallback pour MVP1
+      tenantId: tokenTenant, // TOUJOURS depuis le token
+      tenantName: decoded.tenantName,
+      plan: decoded.plan,
+      isProvisioned: decoded.isProvisioned
     };
+
+    // Aussi mettre req.tenantId pour compatibilité avec autres middlewares
+    req.tenantId = tokenTenant;
 
     console.log(`   ✅ [authMiddleware] JWT valide - User: ${req.user.email}, Tenant: ${req.user.tenantId}, Path: ${req.path}`);
     next();
@@ -86,8 +101,12 @@ export function optionalAuthMiddleware(req, res, next) {
         id: decoded.userId,
         email: decoded.email,
         role: decoded.role,
-        tenantId: decoded.tenantId || 'macrea'
+        tenantId: decoded.tenantId, // TOUJOURS depuis le token
+        tenantName: decoded.tenantName,
+        plan: decoded.plan,
+        isProvisioned: decoded.isProvisioned
       };
+      req.tenantId = decoded.tenantId;
     }
   } catch (error) {
     // Ignore errors for optional auth

@@ -4,7 +4,7 @@
  */
 
 export type WorkflowStatus = 'active' | 'inactive' | 'draft';
-export type WorkflowTriggerType = 'lead_created' | 'lead_status_changed' | 'lead_scored' | 'time_based' | 'manual';
+export type WorkflowTriggerType = 'lead_created' | 'lead_status_changed' | 'lead_scored' | 'time_based' | 'lead_updated' | 'tag_added' | 'manual';
 export type WorkflowActionType = 'send_email' | 'update_field' | 'create_task' | 'add_tag' | 'assign_to' | 'wait' | 'notify';
 
 export interface WorkflowTrigger {

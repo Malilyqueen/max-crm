@@ -1,18 +1,23 @@
 /**
  * Webhook Green-API - Messages Entrants WhatsApp
  *
- * Ce webhook reçoit TOUS les events de Green-API:
- * - incomingMessageReceived: Message texte/média reçu
- * - outgoingMessageStatus: Statut message sortant (sent, delivered, read, failed)
- * - stateInstanceChanged: Changement état instance (authorized, notAuthorized)
- * - deviceInfo: Info appareil
+ * SECURITY V2 - MULTI-TENANT:
+ * - Résolution tenant via providerMessageId (prioritaire) ou waId/phone
+ * - JAMAIS de fallback tenant
+ * - Events non résolus → orphan_webhook_events
  *
- * Documentation: https://green-api.com/en/docs/api/receiving/
+ * Events supportés:
+ * - incomingMessageReceived, outgoingMessageStatus, stateInstanceChanged
  */
 
 import express from 'express';
-import { espoFetch } from '../lib/espoClient.js';
 import { logMessageEvent } from '../lib/messageEventLogger.js';
+import {
+  resolveLeadAndTenantByWaId,
+  isValidResolution,
+  isAmbiguousResolution,
+  logOrphanWebhookEvent
+} from '../lib/tenantResolver.js';
 import { normalizeStatus } from '../lib/statusNormalizer.js';
 
 const router = express.Router();
@@ -28,7 +33,7 @@ router.post('/', async (req, res) => {
     console.log('='.repeat(80));
 
     const webhookData = req.body;
-    const { typeWebhook, instanceData, timestamp, senderData, messageData, statusData } = webhookData;
+    const { typeWebhook, instanceData, timestamp } = webhookData;
 
     console.log('📋 Event type:', typeWebhook);
     console.log('📋 Instance:', instanceData?.idInstance);
@@ -70,23 +75,23 @@ router.post('/', async (req, res) => {
 
   } catch (error) {
     console.error('❌ Erreur lors du traitement du webhook Green-API:', error);
-
-    // Même en cas d'erreur, répondre 200 pour éviter les retries
     res.status(200).json({ ok: false, error: error.message });
   }
 });
 
 /**
- * Gère les messages entrants (réponses utilisateur)
+ * Gère les messages entrants avec résolution tenant sécurisée
  */
 async function handleIncomingMessage(webhookData) {
   console.log('\n💬 MESSAGE ENTRANT');
 
   const { senderData, messageData, idMessage, timestamp } = webhookData;
-  const phone = extractPhoneNumber(senderData?.chatId || senderData?.sender);
+  const chatId = senderData?.chatId || senderData?.sender;
+  const phone = extractPhoneNumber(chatId);
   const messageType = messageData?.typeMessage;
 
   console.log(`   De: ${phone}`);
+  console.log(`   ChatId: ${chatId}`);
   console.log(`   Type: ${messageType}`);
 
   // Extraire le contenu du message
@@ -110,59 +115,63 @@ async function handleIncomingMessage(webhookData) {
 
   console.log(`   Message: ${messageText.substring(0, 100)}`);
 
-  // Chercher le lead par numéro de téléphone
-  const lead = await findLeadByPhone(phone);
+  // ============================================
+  // SECURITY: Résolution tenant obligatoire
+  // ============================================
 
-  if (lead) {
-    console.log(`   👤 Lead trouvé: ${lead.name} (ID: ${lead.id})`);
+  const resolution = await resolveLeadAndTenantByWaId(chatId, null);
 
-    // Logger l'event (DB/JSON)
-    await logMessageEvent({
+  if (!isValidResolution(resolution)) {
+    const reason = isAmbiguousResolution(resolution) ? 'ambiguous' : 'no_match';
+
+    console.warn(`   ⚠️ TENANT NON RÉSOLU (${reason}) - Event sera orphelin`);
+
+    await logOrphanWebhookEvent({
       channel: 'whatsapp',
       provider: 'greenapi',
-      direction: 'in',
-      leadId: lead.id,
-      phoneNumber: phone,
+      reason,
+      contactIdentifier: chatId,
       providerMessageId: idMessage,
-      status: 'received',
-      messageSnippet: messageText.substring(0, 200),
-      rawPayload: webhookData,
-      timestamp: new Date(timestamp * 1000).toISOString()
+      candidates: resolution?.candidates || null,
+      payload: webhookData
     });
 
-    // Créer une note dans EspoCRM
-    await createNote(lead.id, 'Message WhatsApp reçu',
-      `Le contact a envoyé un message:\n\n"${messageText}"\n\n📱 Via WhatsApp Green-API le ${new Date(timestamp * 1000).toLocaleString('fr-FR')}`
-    );
-
-    console.log('   ✅ Message traité et enregistré');
-  } else {
-    console.log(`   ⚠️  Aucun lead trouvé pour ${phone}`);
-
-    // Logger quand même (lead inconnu)
-    await logMessageEvent({
-      channel: 'whatsapp',
-      provider: 'greenapi',
-      direction: 'in',
-      phoneNumber: phone,
-      providerMessageId: idMessage,
-      status: 'received_unknown',
-      messageSnippet: messageText.substring(0, 200),
-      rawPayload: webhookData,
-      timestamp: new Date(timestamp * 1000).toISOString()
-    });
+    console.log('   📝 Event enregistré comme orphelin');
+    return;
   }
+
+  // Résolution OK
+  const { leadId, tenantId } = resolution;
+  console.log(`   ✅ Tenant résolu: ${tenantId}, Lead: ${leadId}`);
+
+  // Logger l'event avec tenant valide
+  await logMessageEvent({
+    channel: 'whatsapp',
+    provider: 'greenapi',
+    direction: 'in',
+    tenantId, // SECURITY: tenant obligatoire
+    leadId,
+    phoneNumber: phone,
+    providerMessageId: idMessage,
+    status: 'received',
+    messageSnippet: messageText.substring(0, 200),
+    rawPayload: webhookData,
+    timestamp: new Date(timestamp * 1000).toISOString()
+  });
+
+  console.log('   ✅ Message traité et enregistré');
 }
 
 /**
- * Gère les status des messages sortants (sent, delivered, read, failed)
+ * Gère les status des messages sortants avec résolution tenant sécurisée
  */
 async function handleOutgoingStatus(webhookData) {
   console.log('\n📊 STATUT MESSAGE SORTANT');
 
   const { statusData, idMessage, timestamp } = webhookData;
   const status = statusData?.status;
-  const phone = extractPhoneNumber(statusData?.chatId);
+  const chatId = statusData?.chatId;
+  const phone = extractPhoneNumber(chatId);
 
   console.log(`   MessageId: ${idMessage}`);
   console.log(`   Statut: ${status}`);
@@ -175,20 +184,48 @@ async function handleOutgoingStatus(webhookData) {
     'failed': '❌'
   };
 
-  console.log(`${statusEmoji[status] || '📋'} ${status.toUpperCase()}`);
+  console.log(`${statusEmoji[status] || '📋'} ${status?.toUpperCase()}`);
 
-  // Chercher le lead
-  const lead = await findLeadByPhone(phone);
+  // ============================================
+  // SECURITY: Résolution tenant obligatoire
+  // ============================================
 
-  // Normaliser le statut Green-API vers format canonique
+  // Pour un status sortant, utiliser idMessage en priorité
+  const resolution = await resolveLeadAndTenantByWaId(chatId, idMessage);
+
+  if (!isValidResolution(resolution)) {
+    const reason = isAmbiguousResolution(resolution) ? 'ambiguous' : 'no_match';
+
+    console.warn(`   ⚠️ TENANT NON RÉSOLU (${reason}) - Event sera orphelin`);
+
+    await logOrphanWebhookEvent({
+      channel: 'whatsapp',
+      provider: 'greenapi',
+      reason,
+      contactIdentifier: chatId,
+      providerMessageId: idMessage,
+      candidates: resolution?.candidates || null,
+      payload: webhookData
+    });
+
+    console.log('   📝 Event enregistré comme orphelin');
+    return;
+  }
+
+  // Résolution OK
+  const { leadId, tenantId } = resolution;
+  console.log(`   ✅ Tenant résolu: ${tenantId}, Lead: ${leadId}`);
+
+  // Normaliser le statut
   const normalizedStatus = normalizeStatus(status, 'greenapi');
 
-  // Logger l'event status
+  // Logger l'event avec tenant valide
   await logMessageEvent({
     channel: 'whatsapp',
     provider: 'greenapi',
     direction: 'out',
-    leadId: lead?.id,
+    tenantId, // SECURITY: tenant obligatoire
+    leadId,
     phoneNumber: phone,
     providerMessageId: idMessage,
     status: normalizedStatus,
@@ -210,83 +247,28 @@ async function handleStateChange(webhookData) {
   console.log(`   Instance: ${instanceData?.idInstance}`);
   console.log(`   Nouvel état: ${stateInstance}`);
 
-  // TODO: Mettre à jour le statut de l'instance dans le storage
-  // await updateInstanceStatus(instanceData.idInstance, stateInstance);
+  // Note: Les changements d'état d'instance n'ont pas besoin de tenant
+  // car ils concernent l'infrastructure, pas les données utilisateur
 }
 
 /**
  * Extrait le numéro de téléphone d'un chatId Green-API
- * Format: "33612345678@c.us" -> "+33612345678"
  */
 function extractPhoneNumber(chatId) {
   if (!chatId) return '';
-
   const phoneNumber = chatId.replace('@c.us', '').replace('@g.us', '');
-
-  // Ajouter le + si pas présent
   return phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
 }
 
 /**
- * Cherche un lead par numéro de téléphone dans EspoCRM
- */
-async function findLeadByPhone(phoneNumber) {
-  try {
-    // Normaliser le numéro (enlever espaces, +, tirets)
-    const normalized = phoneNumber.replace(/[\s\+\-\(\)]/g, '');
-
-    // Chercher dans EspoCRM
-    const response = await espoFetch(
-      `/Lead?where[0][type]=or&where[0][value][0][type]=contains&where[0][value][0][attribute]=phoneNumber&where[0][value][0][value]=${normalized}&maxSize=1`
-    );
-
-    if (response && response.list && response.list.length > 0) {
-      const lead = response.list[0];
-      return {
-        id: lead.id,
-        name: `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || 'Lead sans nom'
-      };
-    }
-
-    return null;
-  } catch (error) {
-    console.error('   ⚠️  Erreur lors de la recherche du lead:', error.message);
-    return null;
-  }
-}
-
-/**
- * Crée une note dans EspoCRM pour tracer l'interaction
- */
-async function createNote(leadId, subject, body) {
-  try {
-    console.log(`   📝 Création note pour lead ${leadId}`);
-
-    await espoFetch('/Note', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: subject,
-        post: body,
-        parentType: 'Lead',
-        parentId: leadId
-      })
-    });
-
-    console.log('   ✅ Note créée');
-  } catch (error) {
-    console.error('   ⚠️  Impossible de créer la note:', error.message);
-  }
-}
-
-/**
  * GET /webhooks/greenapi/status
- * Endpoint de sanité pour vérifier que le webhook est accessible
+ * Endpoint de santé
  */
 router.get('/status', (req, res) => {
   res.json({
     ok: true,
     service: 'greenapi-webhook',
+    version: 'v2-multitenant',
     timestamp: new Date().toISOString(),
     events_supported: [
       'incomingMessageReceived',

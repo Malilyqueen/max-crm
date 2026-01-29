@@ -234,9 +234,11 @@ export async function resolveAlert(alertId, resolvedBy = 'system') {
  */
 export async function getActiveAlerts(tenantId = 'macrea') {
   const { data, error } = await supabase
-    .from('active_alerts')
+    .from('max_alerts')
     .select('*')
-    .eq('tenant_id', tenantId);
+    .eq('tenant_id', tenantId)
+    .is('resolved_at', null)
+    .order('created_at', { ascending: false });
 
   if (error) {
     console.error(`[AlertGenerator] ❌ Erreur getActiveAlerts:`, error);
@@ -244,4 +246,196 @@ export async function getActiveAlerts(tenantId = 'macrea') {
   }
 
   return data || [];
+}
+
+/**
+ * Scan batch pour détecter les leads dormants et générer des alertes collectives
+ * À appeler via CRON ou manuellement
+ *
+ * @param {string} tenantId - ID du tenant
+ * @returns {Promise<Object>} Résultat du scan
+ */
+export async function scanDormantLeads(tenantId) {
+  console.log(`[AlertGenerator] 🔍 Scan batch leads dormants pour tenant ${tenantId}`);
+
+  const result = {
+    scanned_leads: 0,
+    alerts_created: 0,
+    alerts_resolved: 0,
+    dormant_count: 0
+  };
+
+  try {
+    // 1. Récupérer tous les leads du cache
+    const { data: allLeads, error: leadsError } = await supabase
+      .from('leads_cache')
+      .select('id, espo_id, name, first_name, last_name, email, phone, status, created_at, updated_at')
+      .eq('tenant_id', tenantId)
+      .not('status', 'in', '("Converted","Dead","won","lost","archived")');
+
+    if (leadsError) {
+      console.error(`[AlertGenerator] ❌ Erreur fetch leads:`, leadsError);
+      return { ok: false, error: leadsError.message };
+    }
+
+    result.scanned_leads = allLeads?.length || 0;
+
+    // 2. Récupérer les lead_ids avec events outbound
+    const { data: contactedEvents } = await supabase
+      .from('message_events')
+      .select('lead_id')
+      .eq('tenant_id', tenantId)
+      .eq('direction', 'outbound')
+      .not('lead_id', 'is', null);
+
+    const contactedLeadIds = new Set(
+      (contactedEvents || []).map(e => e.lead_id).filter(Boolean)
+    );
+
+    // 3. Identifier les leads jamais contactés créés il y a > 7 jours
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    const dormantLeads = (allLeads || []).filter(lead => {
+      const leadId = lead.espo_id || lead.id;
+      const createdAt = new Date(lead.created_at);
+      return !contactedLeadIds.has(leadId) && createdAt < sevenDaysAgo;
+    });
+
+    result.dormant_count = dormantLeads.length;
+    console.log(`[AlertGenerator] 📊 ${dormantLeads.length} leads dormants (jamais contactés, +7j)`);
+
+    // 4. Générer des alertes individuelles pour chaque lead dormant
+    for (const lead of dormantLeads) {
+      const leadId = lead.espo_id || lead.id;
+      const existingAlert = await getActiveAlert(leadId, 'NoContact7d', tenantId);
+
+      if (!existingAlert) {
+        const daysSinceCreation = Math.floor((now - new Date(lead.created_at)) / (1000 * 60 * 60 * 24));
+
+        const suggestedChannel = lead.phone ? 'whatsapp' : (lead.email ? 'email' : 'other');
+        const suggestedAction = {
+          action: suggestedChannel === 'whatsapp' ? 'whatsapp_first_contact' : 'email_first_contact',
+          channel: suggestedChannel,
+          template: 'premier_contact'
+        };
+
+        await createAlert({
+          tenantId,
+          leadId,
+          type: 'NoContact7d',
+          severity: daysSinceCreation >= 14 ? 'high' : 'med',
+          message: `Ce lead n'a jamais été contacté depuis ${daysSinceCreation} jours. On lance un 1er message sur ${suggestedChannel === 'whatsapp' ? 'WhatsApp' : 'email'} ?`,
+          suggestedAction
+        });
+
+        result.alerts_created++;
+      }
+    }
+
+    // 5. Résoudre les alertes NoContact7d pour les leads maintenant contactés
+    const { data: activeNoContactAlerts } = await supabase
+      .from('max_alerts')
+      .select('id, lead_id')
+      .eq('tenant_id', tenantId)
+      .eq('type', 'NoContact7d')
+      .is('resolved_at', null);
+
+    for (const alert of (activeNoContactAlerts || [])) {
+      if (contactedLeadIds.has(alert.lead_id)) {
+        await resolveAlert(alert.id, 'batch_scan');
+        result.alerts_resolved++;
+      }
+    }
+
+    console.log(`[AlertGenerator] ✅ Scan terminé:`, result);
+    return { ok: true, ...result };
+
+  } catch (error) {
+    console.error(`[AlertGenerator] ❌ Erreur scan batch:`, error);
+    return { ok: false, error: error.message };
+  }
+}
+
+/**
+ * Récupérer les alertes actives avec enrichissement des infos lead
+ * + injection d'une alerte collective "DormantLeadsBulk" si applicable
+ *
+ * @param {string} tenantId - ID du tenant
+ * @returns {Promise<Object>} Alertes enrichies
+ */
+export async function getActiveAlertsEnriched(tenantId) {
+  try {
+    // 1. Récupérer les alertes individuelles
+    const alerts = await getActiveAlerts(tenantId);
+
+    // 2. Calculer les stats
+    const stats = {
+      total: alerts.length,
+      by_severity: { high: 0, med: 0, low: 0 },
+      by_type: { NoContact7d: 0, NoReply3d: 0 }
+    };
+
+    for (const alert of alerts) {
+      stats.by_severity[alert.severity] = (stats.by_severity[alert.severity] || 0) + 1;
+      stats.by_type[alert.type] = (stats.by_type[alert.type] || 0) + 1;
+    }
+
+    // 3. Enrichir avec infos lead depuis le cache
+    const leadIds = [...new Set(alerts.map(a => a.lead_id))];
+
+    if (leadIds.length > 0) {
+      const { data: leadsInfo } = await supabase
+        .from('leads_cache')
+        .select('espo_id, name, first_name, last_name, email, phone')
+        .in('espo_id', leadIds);
+
+      const leadsMap = new Map(
+        (leadsInfo || []).map(l => [l.espo_id, l])
+      );
+
+      for (const alert of alerts) {
+        const leadInfo = leadsMap.get(alert.lead_id);
+        if (leadInfo) {
+          alert.lead_name = leadInfo.name || `${leadInfo.first_name || ''} ${leadInfo.last_name || ''}`.trim();
+          alert.lead_email = leadInfo.email;
+          alert.lead_phone = leadInfo.phone;
+        }
+      }
+    }
+
+    // 4. Si beaucoup d'alertes NoContact7d, créer une alerte collective
+    const noContactCount = stats.by_type.NoContact7d || 0;
+    if (noContactCount >= 5) {
+      // Injecter une alerte "bulk" en premier
+      const bulkAlert = {
+        id: `bulk_dormant_${tenantId}_${Date.now()}`,
+        tenant_id: tenantId,
+        type: 'DormantLeadsBulk',
+        severity: noContactCount >= 20 ? 'high' : 'med',
+        message: `${noContactCount} leads n'ont jamais été contactés. Lancer une campagne de premier contact ?`,
+        suggested_action: {
+          action: 'bulk_first_contact',
+          label: 'Voir tous les leads dormants',
+          url: '/crm?notContacted=true'
+        },
+        created_at: new Date().toISOString(),
+        is_bulk: true,
+        count: noContactCount
+      };
+
+      alerts.unshift(bulkAlert);
+      stats.total++;
+    }
+
+    return {
+      success: true,
+      alerts,
+      stats
+    };
+
+  } catch (error) {
+    console.error(`[AlertGenerator] ❌ Erreur getActiveAlertsEnriched:`, error);
+    return { success: false, error: error.message, alerts: [], stats: {} };
+  }
 }

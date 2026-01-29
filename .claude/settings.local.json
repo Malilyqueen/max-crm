@@ -72,7 +72,11 @@
       "Bash(ls:*)",
       "Bash(psql:*)",
       "Bash(ssh-keyscan:*)",
-      "Bash(~/.ssh/known_hosts)"
+      "Bash(~/.ssh/known_hosts)",
+      "Bash(ssh -o ConnectTimeout=10 root@51.159.170.20 \"docker exec max-backend wget -q -O- --timeout=5 http://espocrm/api/v1/App/user 2>&1 | head -c 200\")",
+      "Bash(tar:*)",
+      "Bash(grep -i \"demo_client\\\\|test@demo\\\\|error\\\\|403\\\\|ISOLATION\" logs/*.log)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": []

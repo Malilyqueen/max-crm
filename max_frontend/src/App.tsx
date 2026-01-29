@@ -8,6 +8,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { LoginPage } from './pages/LoginPage';
 import { SignupPage } from './pages/SignupPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { AdminRoute } from './components/AdminRoute';
 import { AppShellSimple as AppShell } from './pages/AppShellSimple';
 import { DashboardPage } from './pages/DashboardPage';
 import { ChatPage } from './pages/ChatPage';
@@ -28,6 +29,9 @@ const SupportPage = lazy(() => import('./pages/SupportPage').then(m => ({ defaul
 const TicketDetailPage = lazy(() => import('./pages/TicketDetailPage').then(m => ({ default: m.TicketDetailPage })));
 const AdminSupportPage = lazy(() => import('./pages/AdminSupportPage').then(m => ({ default: m.AdminSupportPage })));
 const CampaignDetailPage = lazy(() => import('./pages/CampaignDetailPage').then(m => ({ default: m.CampaignDetailPage })));
+const CrmSetupPage = lazy(() => import('./pages/CrmSetupPage').then(m => ({ default: m.CrmSetupPage })));
+const JobsPage = lazy(() => import('./pages/JobsPage').then(m => ({ default: m.JobsPage })));
+const OutboxPage = lazy(() => import('./pages/OutboxPage').then(m => ({ default: m.OutboxPage })));
 
 // Loading fallback component
 const PageLoader = () => (
@@ -46,7 +50,16 @@ export default function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
 
-        {/* Routes protégées */}
+        {/* Route CRM Setup - protégée mais sans AppShell */}
+        <Route element={<ProtectedRoute />}>
+          <Route path="/crm-setup" element={
+            <Suspense fallback={<PageLoader />}>
+              <CrmSetupPage />
+            </Suspense>
+          } />
+        </Route>
+
+        {/* Routes protégées avec AppShell */}
         <Route element={<ProtectedRoute />}>
           <Route path="/" element={<AppShell />}>
             {/* Redirect root vers dashboard */}
@@ -64,6 +77,16 @@ export default function App() {
             <Route path="/activite" element={
               <Suspense fallback={<PageLoader />}>
                 <ActivityDashboardPage />
+              </Suspense>
+            } />
+            <Route path="/jobs" element={
+              <Suspense fallback={<PageLoader />}>
+                <JobsPage />
+              </Suspense>
+            } />
+            <Route path="/outbox" element={
+              <Suspense fallback={<PageLoader />}>
+                <OutboxPage />
               </Suspense>
             } />
             <Route path="/campagnes" element={
@@ -96,10 +119,13 @@ export default function App() {
                 <TicketDetailPage />
               </Suspense>
             } />
+            {/* Admin-only routes */}
             <Route path="/admin/support" element={
-              <Suspense fallback={<PageLoader />}>
-                <AdminSupportPage />
-              </Suspense>
+              <AdminRoute>
+                <Suspense fallback={<PageLoader />}>
+                  <AdminSupportPage />
+                </Suspense>
+              </AdminRoute>
             } />
           </Route>
         </Route>

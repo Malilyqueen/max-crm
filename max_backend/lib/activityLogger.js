@@ -27,8 +27,19 @@ export async function logActivity({
   status = 'sent',
   messageSnippet = null,
   meta = {},
-  tenantId = 'macrea'
+  tenantId // OBLIGATOIRE - plus de fallback 'macrea'
 }) {
+  // SECURITY: tenantId est OBLIGATOIRE - AUCUN fallback
+  if (!tenantId) {
+    console.error('🚫 [SECURITY] logActivity REFUSÉ - tenantId MANQUANT!', {
+      leadId,
+      channel,
+      direction,
+      status
+    });
+    throw new Error('SECURITY: tenantId obligatoire pour logActivity');
+  }
+
   // Validation
   const validChannels = ['whatsapp', 'email', 'call', 'other'];
   const validDirections = ['in', 'out'];
@@ -82,7 +93,11 @@ export async function logActivity({
  * @param {string} [tenantId='macrea'] - ID du tenant
  * @returns {Promise<Array>} Liste des activités
  */
-export async function getLeadActivities(leadId, days = 30, tenantId = 'macrea') {
+export async function getLeadActivities(leadId, days = 30, tenantId) {
+  // SECURITY: tenantId est OBLIGATOIRE
+  if (!tenantId) {
+    throw new Error('SECURITY: tenantId obligatoire pour getLeadActivities');
+  }
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() - days);
 
@@ -111,7 +126,11 @@ export async function getLeadActivities(leadId, days = 30, tenantId = 'macrea') 
  * @param {string} [tenantId='macrea'] - ID du tenant
  * @returns {Promise<Object>} Canal préféré + statistiques
  */
-export async function calculatePreferredChannel(leadId, tenantId = 'macrea') {
+export async function calculatePreferredChannel(leadId, tenantId) {
+  // SECURITY: tenantId est OBLIGATOIRE
+  if (!tenantId) {
+    throw new Error('SECURITY: tenantId obligatoire pour calculatePreferredChannel');
+  }
   const activities = await getLeadActivities(leadId, 30, tenantId);
 
   const channels = ['whatsapp', 'email', 'call'];
@@ -165,7 +184,11 @@ export async function calculatePreferredChannel(leadId, tenantId = 'macrea') {
  * @param {string} [tenantId='macrea'] - ID du tenant
  * @returns {Promise<number>} Nombre de jours
  */
-export async function daysSinceLastActivity(leadId, tenantId = 'macrea') {
+export async function daysSinceLastActivity(leadId, tenantId) {
+  // SECURITY: tenantId est OBLIGATOIRE
+  if (!tenantId) {
+    throw new Error('SECURITY: tenantId obligatoire pour daysSinceLastActivity');
+  }
   const activities = await getLeadActivities(leadId, 90, tenantId);
 
   if (activities.length === 0) {

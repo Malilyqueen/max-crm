@@ -303,7 +303,7 @@ router.post('/messages/:id/send', async (req, res) => {
             messageName: message.name,
             twilioSid: result.messageSid
           },
-          tenantId: message.tenantId || 'macrea'
+          tenantId: message.tenantId
         });
         console.log(`   📝 Activité loggée pour lead ${leadId}`);
       } catch (logError) {

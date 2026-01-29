@@ -60,6 +60,13 @@ router.post('/import', async (req, res) => {
     let created = 0, updated = 0, skipped = 0;
     const errors = [];
 
+    // SECURITY: tenantId UNIQUEMENT depuis JWT
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(401).json({ ok: false, error: 'MISSING_TENANT' });
+    }
+    console.log(`[Import] Tenant: ${tenantId} - Importing ${rows.length} rows`);
+
     for (const row of rows) {
       try {
         const email = row.Email || row.email;
@@ -72,9 +79,13 @@ router.post('/import', async (req, res) => {
 
         // Déterminer si c'est un Lead ou Contact basé sur les données
         const isLead = mappedData.status || mappedData.source;
-        const upsertFn = isLead ? upsertLead : upsertContact;
 
-        await upsertFn(mappedData);
+        if (isLead) {
+          // Passer le tenantId pour l'isolation multi-tenant
+          await upsertLead(mappedData, tenantId);
+        } else {
+          await upsertContact(mappedData);
+        }
         updated++; // Pour l'instant on compte tout comme updated
 
       } catch (rowError) {
@@ -89,7 +100,7 @@ router.post('/import', async (req, res) => {
     // Log activity
     activityService.push({
       actor: 'MAX',
-      tenant: req.ctx?.tenant || 'default',
+      tenant: tenantId,
       event: 'import.csv',
       rows: rows.length,
       created,

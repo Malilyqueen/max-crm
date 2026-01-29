@@ -21,7 +21,11 @@ async function getEspoActivity(tenant) {
 
 router.get('/reporting', async (req, res) => {
   try {
-    const tenant = req.ctx?.tenant || 'default';
+    // SECURITY: tenantId UNIQUEMENT depuis JWT
+    const tenant = req.tenantId;
+    if (!tenant) {
+      return res.status(401).json({ ok: false, error: 'MISSING_TENANT' });
+    }
     const activity = await getEspoActivity(tenant);
 
     res.json({

@@ -4,8 +4,8 @@
  */
 
 import axios, { AxiosInstance, AxiosError } from 'axios';
-import { useSettingsStore } from '../stores/useSettingsStore';
 import { API_BASE_URL as BASE_URL } from '../config/api';
+import { useAuthStore } from '../stores/useAuthStore';
 
 const API_BASE_URL = `${BASE_URL}/api`;
 
@@ -18,76 +18,29 @@ export const apiClient: AxiosInstance = axios.create({
   timeout: 30000 // 30 secondes
 });
 
-// Intercepteur REQUEST: Ajouter token d'authentification + headers multi-tenant
+// Intercepteur REQUEST: Ajouter token + tenant depuis authStore (PAS settings)
 apiClient.interceptors.request.use(
   (config) => {
-    let userRole = 'user'; // Default role
+    // Lire directement depuis le store Zustand (pas de require, ESM compatible)
+    const authState = useAuthStore.getState();
 
-    // Récupérer token depuis localStorage
-    const authStorage = localStorage.getItem('auth-storage');
-    console.log('[API] Auth storage:', authStorage ? 'présent' : 'VIDE');
+    const token = authState.token;
+    const user = authState.user;
 
-    if (authStorage) {
-      try {
-        const parsed = JSON.parse(authStorage);
-        console.log('[API] Parsed storage:', parsed);
-
-        const token = parsed?.state?.token;
-        userRole = parsed?.state?.user?.role || 'user';
-        console.log('[API] Token extrait:', token ? `${token.substring(0, 20)}...` : 'AUCUN');
-        console.log('[API] User role:', userRole);
-
-        if (token && config.headers) {
-          config.headers.Authorization = `Bearer ${token}`;
-          console.log('[API] ✅ Token ajouté au header Authorization');
-        } else {
-          console.warn('[API] ⚠️ Pas de token disponible');
-        }
-      } catch (error) {
-        console.error('[API] ❌ Erreur parsing auth storage:', error);
-      }
-    } else {
-      console.warn('[API] ⚠️ Aucun auth-storage dans localStorage');
+    // Ajouter token si présent
+    if (token && config.headers) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
 
-    // TOUJOURS ajouter headers multi-tenant (même sans token)
-    if (config.headers) {
-      // Priorité 1: tenantId depuis l'auth user
-      // Priorité 2: tenant depuis settings store
-      // Priorité 3: default 'macrea'
-      let tenant = 'macrea';
-
-      if (authStorage) {
-        try {
-          const parsed = JSON.parse(authStorage);
-          const userTenantId = parsed?.state?.user?.tenantId;
-          if (userTenantId) {
-            tenant = userTenantId;
-            console.log('[API] 🏢 Tenant depuis user.tenantId:', tenant);
-          } else {
-            const settingsState = useSettingsStore.getState();
-            tenant = settingsState.tenant || 'macrea';
-            console.log('[API] 🏢 Tenant depuis settings store:', tenant);
-          }
-        } catch (e) {
-          console.warn('[API] ⚠️ Erreur lecture tenant, utilisation par défaut');
-        }
-      } else {
-        const settingsState = useSettingsStore.getState();
-        tenant = settingsState.tenant || 'macrea';
-        console.log('[API] 🏢 Tenant depuis settings store (pas d\'auth):', tenant);
-      }
-
-      config.headers['X-Tenant'] = tenant;
-      config.headers['X-Role'] = userRole;
+    // REGLE SECURITE: Le tenant vient UNIQUEMENT du user authentifié
+    // Jamais de fallback vers settings store ou valeur par défaut
+    if (user?.tenantId && config.headers) {
+      config.headers['X-Tenant'] = user.tenantId;
+      config.headers['X-Role'] = user.role || 'user';
       config.headers['X-Preview'] = 'false';
-
-      console.log('[API] ✅ Headers multi-tenant ajoutés:', {
-        'X-Tenant': tenant,
-        'X-Role': userRole,
-        'X-Preview': 'false'
-      });
     }
+    // Si pas de user.tenantId, on n'envoie pas X-Tenant
+    // Le backend utilisera le tenant du token JWT
 
     return config;
   },

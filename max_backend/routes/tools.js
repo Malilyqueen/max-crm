@@ -60,7 +60,7 @@ function protectToolsExecute(req, res, next) {
   console.log(`[tools/execute] ✅ Accès autorisé`);
   console.log(`[tools/execute] 📍 IP: ${req.ip}`);
   console.log(`[tools/execute] 🕒 Timestamp: ${new Date().toISOString()}`);
-  console.log(`[tools/execute] 🏢 Tenant: ${req.headers['x-tenant'] || 'none'}`);
+  console.log(`[tools/execute] 🏢 Tenant: ${req.tenantId || 'none'}`);
 
   next();
 }

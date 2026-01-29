@@ -7,10 +7,14 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { API_BASE_URL } from '../config/api';
+import { useSettingsStore } from '../stores/useSettingsStore';
 
 const API_BASE = API_BASE_URL;
 
 export default function ConnectWhatsApp() {
+  // Récupérer le tenant depuis le store (multi-tenant)
+  const { tenant } = useSettingsStore();
+
   // État de connexion WhatsApp
   const [waState, setWaState] = useState({
     provider: 'greenapi',
@@ -48,7 +52,7 @@ export default function ConnectWhatsApp() {
         body: JSON.stringify({
           idInstance: waState.instanceId,
           apiTokenInstance: waState.apiToken,
-          tenant: 'macrea' // TODO: Récupérer le tenant depuis le contexte utilisateur
+          tenant: tenant
         })
       });
 

@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useAppCtx } from '../store/useAppCtx';
+import { useEffect } from 'react';
+import { useDashboardStore } from '../stores/useDashboardStore';
 
 interface HistoryItem {
   id: string;
@@ -10,46 +10,31 @@ interface HistoryItem {
 }
 
 export function HistoryList() {
-  const { flags } = useAppCtx();
-  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const { recentActivity, isLoading, loadDashboard } = useDashboardStore();
 
+  // Charger le dashboard au montage si pas déjà chargé
   useEffect(() => {
-    // Mock history data for now
-    const mockHistory: HistoryItem[] = [
-      {
-        id: '1',
-        title: 'Campagne email automatisée lancée',
-        description: '1250 contacts ciblés',
-        timestamp: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
-        type: 'campaign'
-      },
-      {
-        id: '2',
-        title: 'Lead mis à jour via import CSV',
-        description: '50 nouveaux leads ajoutés',
-        timestamp: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
-        type: 'import'
-      },
-      {
-        id: '3',
-        title: 'Workflow de relance activé',
-        description: 'J+3 automatique configuré',
-        timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-        type: 'workflow'
-      }
-    ];
-
-    if (flags.useMocks) {
-      setHistory(mockHistory);
-    } else {
-      // In real implementation, fetch from API
-      setHistory([]);
+    if (recentActivity.length === 0 && !isLoading) {
+      loadDashboard();
     }
-  }, [flags.useMocks]);
+  }, [recentActivity.length, isLoading, loadDashboard]);
+
+  // Mapper recentActivity vers HistoryItem format
+  const history: HistoryItem[] = recentActivity.map((activity) => ({
+    id: activity.id,
+    title: activity.title,
+    description: activity.description,
+    timestamp: activity.timestamp,
+    type: activity.type
+  }));
 
   return (
     <div className="space-y-3">
-      {history.length === 0 ? (
+      {isLoading ? (
+        <div className="flex items-center justify-center py-4">
+          <div className="w-5 h-5 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : history.length === 0 ? (
         <div className="text-sm text-macrea-mute">Aucun historique disponible</div>
       ) : (
         history.map((item) => (

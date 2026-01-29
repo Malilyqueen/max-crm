@@ -1,4 +1,12 @@
 // lib/espoClient.js
+/**
+ * Client EspoCRM avec support multi-tenant
+ *
+ * SÉCURITÉ MULTI-TENANT:
+ * - Utilisez injectTenantId() pour ajouter cTenantId aux données de création
+ * - Utilisez buildTenantFilter() pour filtrer les requêtes par tenant
+ * - ESPO_HAS_TENANT_FIELD contrôle si le filtrage est actif
+ */
 import { config } from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
@@ -14,6 +22,48 @@ const ESPO_TOKEN  = process.env.ESPO_TOKEN   || ''; // Authorization: Bearer
 const ESPO_APIKEY = process.env.ESPO_API_KEY || ''; // X-Api-Key
 const ESPO_USER   = process.env.ESPO_USERNAME || '';
 const ESPO_PASS   = process.env.ESPO_PASSWORD || '';
+
+// ═══════════════════════════════════════════════════════════════════
+// CONFIGURATION MULTI-TENANT
+// ═══════════════════════════════════════════════════════════════════
+const ESPO_HAS_TENANT_FIELD = process.env.ESPO_HAS_TENANT_FIELD === 'true';
+
+/**
+ * Injecter le cTenantId dans les données d'un lead
+ * À utiliser AVANT chaque création/modification de lead
+ *
+ * @param {Object} leadData - Données du lead
+ * @param {string} tenantId - ID du tenant (depuis JWT)
+ * @returns {Object} - Données avec cTenantId injecté
+ */
+export function injectTenantId(leadData, tenantId) {
+  if (!ESPO_HAS_TENANT_FIELD) return leadData;
+  if (!tenantId) {
+    console.warn('[ESPO_CLIENT] ⚠️ injectTenantId appelé sans tenantId!');
+    return leadData;
+  }
+  return { ...leadData, cTenantId: tenantId };
+}
+
+/**
+ * Construire le filtre tenant pour les requêtes EspoCRM
+ *
+ * @param {string} tenantId - ID du tenant
+ * @param {number} whereIndex - Index du where clause (default 0)
+ * @returns {string} - Query string à ajouter à l'URL
+ */
+export function buildTenantFilter(tenantId, whereIndex = 0) {
+  if (!ESPO_HAS_TENANT_FIELD) return '';
+  if (!tenantId) return '';
+  return `&where[${whereIndex}][type]=equals&where[${whereIndex}][attribute]=cTenantId&where[${whereIndex}][value]=${encodeURIComponent(tenantId)}`;
+}
+
+/**
+ * Vérifier si le filtrage tenant est actif
+ */
+export function isTenantFilterActive() {
+  return ESPO_HAS_TENANT_FIELD;
+}
 
 function buildAuthHeaders() {
   const h = { 'Content-Type': 'application/json' };

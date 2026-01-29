@@ -7,7 +7,11 @@ const clients = new Map(); // tenant -> Set<response>
 const activeTasks = new Map(); // tenant -> Map<taskId, taskData>
 
 router.get('/tasks/stream', (req, res) => {
-  const tenant = req.ctx?.tenant || 'default';
+  // SECURITY: tenantId UNIQUEMENT depuis JWT
+  const tenant = req.tenantId;
+  if (!tenant) {
+    return res.status(401).json({ ok: false, error: 'MISSING_TENANT' });
+  }
 
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',

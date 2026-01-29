@@ -6,12 +6,18 @@
  */
 
 import express from 'express';
+import { authMiddleware } from '../middleware/authMiddleware.js';
+import { resolveTenant } from '../core/resolveTenant.js';
 import { logActivity } from '../lib/activityLogger.js';
-import { generateAlertsForLead, getActiveAlerts, resolveAlert } from '../lib/alertGenerator.js';
+import { generateAlertsForLead, getActiveAlerts, resolveAlert, scanDormantLeads, getActiveAlertsEnriched } from '../lib/alertGenerator.js';
 import { espoFetch } from '../lib/espoClient.js';
 import { supabase } from '../lib/supabaseClient.js';
 
 const router = express.Router();
+
+// Appliquer authMiddleware + resolveTenant à toutes les routes
+router.use(authMiddleware);
+router.use(resolveTenant());
 
 /**
  * POST /api/activities/log
@@ -29,8 +35,17 @@ const router = express.Router();
  */
 router.post('/log', async (req, res) => {
   try {
+    // SECURITY: tenantId UNIQUEMENT depuis JWT - JAMAIS depuis X-Tenant header!
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      console.error('🚫 [SECURITY] MISSING_TENANT - POST /activities/log sans tenantId JWT');
+      return res.status(401).json({
+        success: false,
+        error: 'MISSING_TENANT'
+      });
+    }
+
     const { leadId, channel, direction, status, messageSnippet, meta } = req.body;
-    const tenantId = req.ctx?.tenant || req.headers['x-tenant'] || 'macrea';
 
     // Validation
     if (!leadId) {
@@ -112,7 +127,12 @@ router.post('/log', async (req, res) => {
  */
 router.get('/active', async (req, res) => {
   try {
-    const tenantId = req.ctx?.tenant || req.headers['x-tenant'] || 'macrea';
+    // SECURITY: tenantId UNIQUEMENT depuis JWT - JAMAIS depuis X-Tenant header!
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(401).json({ success: false, error: 'MISSING_TENANT' });
+    }
+
     const { severity, type } = req.query;
 
     console.log(`[Activities] 🔔 Récupération alertes actives (tenant: ${tenantId})`);
@@ -205,6 +225,64 @@ router.post('/:alertId/resolve', async (req, res) => {
 
   } catch (error) {
     console.error('[Activities] ❌ Erreur /resolve:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/alerts/scan-dormant
+ * Déclencher un scan batch des leads dormants
+ * Génère des alertes NoContact7d pour les leads jamais contactés > 7j
+ * Peut être appelé par CRON ou manuellement
+ */
+router.post('/scan-dormant', async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(401).json({ success: false, error: 'MISSING_TENANT' });
+    }
+
+    console.log(`[Activities] 🔍 Déclenchement scan leads dormants (tenant: ${tenantId})`);
+
+    const result = await scanDormantLeads(tenantId);
+
+    res.json({
+      success: result.ok,
+      ...result
+    });
+
+  } catch (error) {
+    console.error('[Activities] ❌ Erreur /scan-dormant:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/alerts/enriched
+ * Récupérer les alertes enrichies avec injection alerte bulk si applicable
+ * Alternative à /active qui utilise le cache leads au lieu d'EspoCRM
+ */
+router.get('/enriched', async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(401).json({ success: false, error: 'MISSING_TENANT' });
+    }
+
+    console.log(`[Activities] 🔔 Récupération alertes enrichies (tenant: ${tenantId})`);
+
+    const result = await getActiveAlertsEnriched(tenantId);
+
+    res.json(result);
+
+  } catch (error) {
+    console.error('[Activities] ❌ Erreur /enriched:', error);
     res.status(500).json({
       success: false,
       error: error.message

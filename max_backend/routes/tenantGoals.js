@@ -26,7 +26,11 @@ router.use(authMiddleware);
  */
 router.post('/', async (req, res) => {
   try {
-    const tenantId = req.user?.tenantId || 'macrea';
+    // SECURITY: tenantId UNIQUEMENT depuis JWT
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(401).json({ ok: false, error: 'MISSING_TENANT' });
+    }
     const {
       goal_text,
       goal_category,
@@ -87,7 +91,11 @@ router.post('/', async (req, res) => {
  */
 router.get('/', async (req, res) => {
   try {
-    const tenantId = req.user?.tenantId || 'macrea';
+    // SECURITY: tenantId UNIQUEMENT depuis JWT
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(401).json({ ok: false, error: 'MISSING_TENANT' });
+    }
     const {
       status,
       archived,
@@ -140,7 +148,11 @@ router.get('/', async (req, res) => {
  */
 router.get('/:goalId', async (req, res) => {
   try {
-    const tenantId = req.user?.tenantId || 'macrea';
+    // SECURITY: tenantId UNIQUEMENT depuis JWT
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(401).json({ ok: false, error: 'MISSING_TENANT' });
+    }
     const { goalId } = req.params;
 
     const result = await getTenantGoalById(goalId, tenantId);
@@ -179,7 +191,11 @@ router.get('/:goalId', async (req, res) => {
  */
 router.patch('/:goalId', async (req, res) => {
   try {
-    const tenantId = req.user?.tenantId || 'macrea';
+    // SECURITY: tenantId UNIQUEMENT depuis JWT
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(401).json({ ok: false, error: 'MISSING_TENANT' });
+    }
     const { goalId } = req.params;
     const updates = req.body;
 
@@ -218,7 +234,11 @@ router.patch('/:goalId', async (req, res) => {
  */
 router.delete('/:goalId', async (req, res) => {
   try {
-    const tenantId = req.user?.tenantId || 'macrea';
+    // SECURITY: tenantId UNIQUEMENT depuis JWT
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(401).json({ ok: false, error: 'MISSING_TENANT' });
+    }
     const { goalId } = req.params;
     const { reason } = req.query;
 
@@ -249,7 +269,11 @@ router.delete('/:goalId', async (req, res) => {
  */
 router.post('/:goalId/progress', async (req, res) => {
   try {
-    const tenantId = req.user?.tenantId || 'macrea';
+    // SECURITY: tenantId UNIQUEMENT depuis JWT
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(401).json({ ok: false, error: 'MISSING_TENANT' });
+    }
     const { goalId } = req.params;
     const { current_value } = req.body;
 

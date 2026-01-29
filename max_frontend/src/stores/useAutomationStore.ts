@@ -1,10 +1,13 @@
 /**
  * stores/useAutomationStore.ts
- * Store Zustand pour la gestion des workflows et automatisations MVP1
+ * Store Zustand pour la gestion des workflows et automatisations
+ *
+ * Consomme l'API /api/automations (données réelles en DB)
+ * Remplace l'ancienne version qui utilisait n8n + données mockées
  */
 
 import { create } from 'zustand';
-import { API_BASE_URL as BASE_URL } from '../config/api';
+import { apiClient } from '../api/client';
 import type { Workflow, AutomationFilters, WorkflowStatus } from '../types/automation';
 
 interface AutoGuardConfig {
@@ -27,6 +30,8 @@ interface AutomationState {
   // UI State
   isLoading: boolean;
   isLoadingDetail: boolean;
+  isCreating: boolean;
+  isUpdating: boolean;
   error: string | null;
 
   // Stats
@@ -36,171 +41,57 @@ interface AutomationState {
   loadWorkflows: () => Promise<void>;
   loadAutoGuardConfig: () => Promise<void>;
   loadWorkflowDetail: (workflowId: string) => Promise<void>;
+  createWorkflow: (data: CreateWorkflowData) => Promise<Workflow | null>;
+  updateWorkflow: (id: string, data: Partial<CreateWorkflowData>) => Promise<Workflow | null>;
+  deleteWorkflow: (id: string) => Promise<boolean>;
   toggleWorkflowStatus: (workflowId: string) => Promise<void>;
+  executeWorkflow: (workflowId: string, leadId?: string) => Promise<any>;
   setFilters: (filters: AutomationFilters) => void;
   clearFilters: () => void;
   clearSelectedWorkflow: () => void;
   clearError: () => void;
 }
 
-const API_BASE_URL = `${BASE_URL}/api`;
-
-// Helpers pour mapper les workflows n8n vers l'UI
-function getWorkflowLabel(code: string): string {
-  const labels: Record<string, string> = {
-    'wf-relance-j3': 'Relance automatique J+3',
-    'wf-relance-j3-whatsapp': 'Relance WhatsApp J+3',
-    'wf-tag-chaud': 'Tag automatique leads chauds',
-    'wf-nettoyage': 'Nettoyage automatique des données',
-    'wf-newsletter-segment': 'Newsletter segmentée automatique'
-  };
-  return labels[code] || code;
+// Type pour création de workflow
+export interface CreateWorkflowData {
+  name: string;
+  description?: string;
+  trigger_type: 'lead_created' | 'lead_status_changed' | 'time_based' | 'lead_updated' | 'tag_added' | 'manual';
+  trigger_label?: string;
+  trigger_config?: Record<string, any>;
+  actions?: WorkflowAction[];
+  status?: 'draft' | 'active' | 'inactive';
 }
 
-function getWorkflowDescription(code: string): string {
-  const descriptions: Record<string, string> = {
-    'wf-relance-j3': 'Relance automatique des leads froids après 3 jours sans réponse',
-    'wf-relance-j3-whatsapp': 'Envoi automatique d\'un message WhatsApp de relance après 3 jours',
-    'wf-tag-chaud': 'Détection et tagging automatique des leads avec forte intention d\'achat',
-    'wf-nettoyage': 'Nettoyage périodique des doublons et données obsolètes',
-    'wf-newsletter-segment': 'Envoi automatique de newsletters personnalisées par segment'
-  };
-  return descriptions[code] || 'Workflow automatisé créé par M.A.X.';
+export interface WorkflowAction {
+  id?: string;
+  type: 'send_email' | 'wait' | 'add_tag' | 'create_task' | 'update_field' | 'notify';
+  label: string;
+  description?: string;
+  config: Record<string, any>;
+  order: number;
 }
 
-function getWorkflowTrigger(code: string): { type: string; label: string; config: any } {
-  const triggers: Record<string, { type: string; label: string; config: any }> = {
-    'wf-relance-j3': {
-      type: 'time_based',
-      label: 'Tous les jours à 9h00',
-      config: { schedule: '0 9 * * *' }
-    },
-    'wf-relance-j3-whatsapp': {
-      type: 'time_based',
-      label: 'Tous les jours à 9h00',
-      config: { schedule: '0 9 * * *' }
-    },
-    'wf-tag-chaud': {
-      type: 'lead_scored',
-      label: 'Score lead > 80',
-      config: { threshold: 80 }
-    },
-    'wf-nettoyage': {
-      type: 'time_based',
-      label: 'Tous les lundis à 6h00',
-      config: { schedule: '0 6 * * 1' }
-    },
-    'wf-newsletter-segment': {
-      type: 'time_based',
-      label: 'Tous les vendredis à 10h00',
-      config: { schedule: '0 10 * * 5' }
-    }
-  };
-  return triggers[code] || {
-    type: 'manual',
-    label: 'Déclenchement manuel',
-    config: {}
-  };
+// API Response types
+interface WorkflowsResponse {
+  ok: boolean;
+  workflows: Workflow[];
+  total: number;
 }
 
-function getWorkflowActions(code: string): any[] {
-  const actions: Record<string, any[]> = {
-    'wf-relance-j3': [
-      {
-        id: 'a1',
-        type: 'wait',
-        label: 'Attendre 10 secondes (test)',
-        description: 'Délai de test pour validation',
-        config: { duration: 10, unit: 'seconds' },
-        order: 1
-      },
-      {
-        id: 'a2',
-        type: 'send_email',
-        label: 'Envoyer message de relance',
-        description: 'Message généré par M.A.X. adapté au contexte',
-        config: { channel: 'email', template: 'relance-j3' },
-        order: 2
-      }
-    ],
-    'wf-relance-j3-whatsapp': [
-      {
-        id: 'a1',
-        type: 'wait',
-        label: 'Attendre 10 secondes (test)',
-        description: 'Délai de test pour validation',
-        config: { duration: 10, unit: 'seconds' },
-        order: 1
-      },
-      {
-        id: 'a2',
-        type: 'send_email',
-        label: 'Envoyer WhatsApp de relance',
-        description: 'Template Twilio WhatsApp via n8n',
-        config: {
-          channel: 'whatsapp',
-          template: 'relance-j3-whatsapp',
-          from: 'whatsapp:+14155238886'
-        },
-        order: 2
-      }
-    ],
-    'wf-tag-chaud': [
-      {
-        id: 'a1',
-        type: 'add_tag',
-        label: 'Ajouter tag "Lead Chaud"',
-        description: 'Marquer le lead comme prioritaire',
-        config: { tags: ['Lead Chaud', 'Priorité Haute'] },
-        order: 1
-      },
-      {
-        id: 'a2',
-        type: 'notify',
-        label: 'Notifier le commercial',
-        description: 'Alerte en temps réel',
-        config: { channel: 'email', recipients: ['commercial'] },
-        order: 2
-      }
-    ],
-    'wf-nettoyage': [
-      {
-        id: 'a1',
-        type: 'update_field',
-        label: 'Identifier les doublons',
-        description: 'Scan des emails et téléphones',
-        config: { fields: ['email', 'phone'] },
-        order: 1
-      },
-      {
-        id: 'a2',
-        type: 'update_field',
-        label: 'Fusionner les doublons',
-        description: 'Consolidation automatique',
-        config: { action: 'merge' },
-        order: 2
-      }
-    ],
-    'wf-newsletter-segment': [
-      {
-        id: 'a1',
-        type: 'update_field',
-        label: 'Segmenter les leads',
-        description: 'Par statut, secteur et score',
-        config: { criteria: ['status', 'sector', 'score'] },
-        order: 1
-      },
-      {
-        id: 'a2',
-        type: 'send_email',
-        label: 'Envoyer newsletter personnalisée',
-        description: 'Contenu adapté par segment',
-        config: { channel: 'email', template: 'newsletter' },
-        order: 2
-      }
-    ]
-  };
-  return actions[code] || [];
+interface WorkflowResponse {
+  ok: boolean;
+  workflow: Workflow;
+  message?: string;
+}
+
+interface ExecuteResponse {
+  ok: boolean;
+  execution_id: string;
+  status: string;
+  duration_ms: number;
+  actions_executed: number;
+  message?: string;
 }
 
 export const useAutomationStore = create<AutomationState>((set, get) => ({
@@ -211,64 +102,50 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
   autoGuardConfig: null,
   isLoading: false,
   isLoadingDetail: false,
+  isCreating: false,
+  isUpdating: false,
   error: null,
   total: 0,
 
-  // Load workflows list (vrais workflows n8n)
+  // Load workflows list (depuis /api/automations)
   loadWorkflows: async () => {
     set({ isLoading: true, error: null });
 
     try {
-      // Récupérer le token depuis le store auth (Zustand persist)
-      const authStorage = localStorage.getItem('auth-storage');
-      const token = authStorage ? JSON.parse(authStorage).state?.token : null;
+      const { filters } = get();
 
-      if (!token) {
-        throw new Error('Non authentifié');
+      // Build query params
+      const params = new URLSearchParams();
+      if (filters.status) {
+        params.append('status', Array.isArray(filters.status) ? filters.status.join(',') : filters.status);
+      }
+      if (filters.triggerType) {
+        params.append('triggerType', Array.isArray(filters.triggerType) ? filters.triggerType.join(',') : filters.triggerType);
+      }
+      if (filters.search) {
+        params.append('search', filters.search);
       }
 
-      // CHANGEMENT: Appeler l'endpoint n8n au lieu du mock MVP1
-      const response = await fetch(`${API_BASE_URL}/n8n/workflows`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      const queryString = params.toString();
+      const url = `/automations${queryString ? `?${queryString}` : ''}`;
 
-      if (!response.ok) {
-        throw new Error('Erreur lors du chargement des workflows');
+      console.log('[AUTOMATION STORE] Loading workflows:', url);
+
+      const response = await apiClient.get<WorkflowsResponse>(url);
+
+      if (response.ok) {
+        set({
+          workflows: response.workflows,
+          total: response.total,
+          isLoading: false
+        });
+        console.log(`[AUTOMATION STORE] Loaded ${response.workflows.length} workflows`);
+      } else {
+        throw new Error('Failed to load workflows');
       }
-
-      const data = await response.json();
-
-      // data.list contient les noms de workflows n8n
-      // On les transforme en format Workflow pour l'UI
-      const workflowsList = (data.list || []).map((code: string) => ({
-        id: code,
-        name: getWorkflowLabel(code),
-        description: getWorkflowDescription(code),
-        status: 'active', // TODO: récupérer le vrai statut depuis auto.json
-        trigger: getWorkflowTrigger(code),
-        actions: [], // TODO: récupérer depuis n8n
-        stats: {
-          totalExecutions: 0,
-          successRate: 0,
-          lastExecuted: null,
-          averageDuration: 0
-        },
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        createdBy: 'M.A.X.'
-      }));
-
-      set({
-        workflows: workflowsList,
-        total: workflowsList.length,
-        isLoading: false
-      });
 
     } catch (error) {
-      console.error('[AutomationStore] Erreur loadWorkflows:', error);
+      console.error('[AUTOMATION STORE] Erreur loadWorkflows:', error);
       set({
         error: error instanceof Error ? error.message : 'Erreur inconnue',
         isLoading: false
@@ -276,14 +153,12 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
     }
   },
 
-  // Load auto-guard config (auto.json)
+  // Load auto-guard config (pour compatibilité, config hardcodée)
   loadAutoGuardConfig: async () => {
     try {
-      // Pour l'instant, on hardcode la config depuis auto.json
-      // TODO: Créer un endpoint backend pour exposer auto.json
       const config: AutoGuardConfig = {
         enabled: true,
-        allowed: ['wf-relance-j3', 'wf-tag-chaud', 'wf-newsletter-segment'],
+        allowed: [],
         rateLimitPerHour: 50,
         schedule: {
           start: '09:00',
@@ -293,43 +168,30 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
 
       set({ autoGuardConfig: config });
     } catch (error) {
-      console.error('[AutomationStore] Erreur loadAutoGuardConfig:', error);
+      console.error('[AUTOMATION STORE] Erreur loadAutoGuardConfig:', error);
     }
   },
 
-  // Load workflow detail - Charge depuis n8n + auto.json
+  // Load workflow detail
   loadWorkflowDetail: async (workflowId: string) => {
     set({ isLoadingDetail: true, error: null });
 
     try {
-      // Pour l'instant, on construit le détail depuis nos helpers
-      // TODO: Charger les vraies données depuis n8n API et auto.json
+      console.log('[AUTOMATION STORE] Loading workflow detail:', workflowId);
 
-      const workflow: Workflow = {
-        id: workflowId,
-        name: getWorkflowLabel(workflowId),
-        description: getWorkflowDescription(workflowId),
-        status: 'active', // TODO: vérifier dans auto.json
-        trigger: getWorkflowTrigger(workflowId),
-        actions: getWorkflowActions(workflowId),
-        stats: {
-          totalExecutions: 0,
-          successRate: 0,
-          lastExecuted: null,
-          averageDuration: 0
-        },
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        createdBy: 'M.A.X.'
-      };
+      const response = await apiClient.get<WorkflowResponse>(`/automations/${workflowId}`);
 
-      set({
-        selectedWorkflow: workflow,
-        isLoadingDetail: false
-      });
+      if (response.ok) {
+        set({
+          selectedWorkflow: response.workflow,
+          isLoadingDetail: false
+        });
+      } else {
+        throw new Error('Workflow not found');
+      }
 
     } catch (error) {
-      console.error('[AutomationStore] Erreur loadWorkflowDetail:', error);
+      console.error('[AUTOMATION STORE] Erreur loadWorkflowDetail:', error);
       set({
         error: error instanceof Error ? error.message : 'Erreur inconnue',
         isLoadingDetail: false
@@ -337,51 +199,153 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
     }
   },
 
-  // Toggle workflow status (active/inactive) - Déclenche le workflow n8n
+  // Create new workflow
+  createWorkflow: async (data: CreateWorkflowData) => {
+    set({ isCreating: true, error: null });
+
+    try {
+      console.log('[AUTOMATION STORE] Creating workflow:', data.name);
+
+      const response = await apiClient.post<WorkflowResponse>('/automations', data);
+
+      if (response.ok) {
+        await get().loadWorkflows();
+        set({ isCreating: false });
+        console.log(`[AUTOMATION STORE] Workflow created: ${response.workflow.id}`);
+        return response.workflow;
+      } else {
+        throw new Error('Failed to create workflow');
+      }
+    } catch (error) {
+      console.error('[AUTOMATION STORE] Erreur createWorkflow:', error);
+      set({
+        isCreating: false,
+        error: error instanceof Error ? error.message : 'Erreur lors de la création'
+      });
+      return null;
+    }
+  },
+
+  // Update workflow
+  updateWorkflow: async (id: string, data: Partial<CreateWorkflowData>) => {
+    set({ isUpdating: true, error: null });
+
+    try {
+      console.log('[AUTOMATION STORE] Updating workflow:', id);
+
+      const response = await apiClient.patch<WorkflowResponse>(`/automations/${id}`, data);
+
+      if (response.ok) {
+        set(state => ({
+          workflows: state.workflows.map(w =>
+            w.id === id ? response.workflow : w
+          ),
+          selectedWorkflow: state.selectedWorkflow?.id === id
+            ? response.workflow
+            : state.selectedWorkflow,
+          isUpdating: false
+        }));
+        console.log(`[AUTOMATION STORE] Workflow updated: ${id}`);
+        return response.workflow;
+      } else {
+        throw new Error('Failed to update workflow');
+      }
+    } catch (error) {
+      console.error('[AUTOMATION STORE] Erreur updateWorkflow:', error);
+      set({
+        isUpdating: false,
+        error: error instanceof Error ? error.message : 'Erreur lors de la mise à jour'
+      });
+      return null;
+    }
+  },
+
+  // Delete (archive) workflow
+  deleteWorkflow: async (id: string) => {
+    try {
+      console.log('[AUTOMATION STORE] Deleting workflow:', id);
+
+      const response = await apiClient.delete<{ ok: boolean }>(`/automations/${id}`);
+
+      if (response.ok) {
+        set(state => ({
+          workflows: state.workflows.filter(w => w.id !== id),
+          selectedWorkflow: state.selectedWorkflow?.id === id
+            ? null
+            : state.selectedWorkflow
+        }));
+        await get().loadWorkflows();
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('[AUTOMATION STORE] Erreur deleteWorkflow:', error);
+      set({ error: error instanceof Error ? error.message : 'Erreur lors de la suppression' });
+      return false;
+    }
+  },
+
+  // Toggle workflow status (active/inactive)
   toggleWorkflowStatus: async (workflowId: string) => {
     try {
-      // Récupérer le token depuis le store auth (Zustand persist)
-      const authStorage = localStorage.getItem('auth-storage');
-      const token = authStorage ? JSON.parse(authStorage).state?.token : null;
+      console.log('[AUTOMATION STORE] Toggling workflow status:', workflowId);
 
-      if (!token) {
-        throw new Error('Non authentifié');
+      const response = await apiClient.post<{ ok: boolean; status: string; message?: string }>(
+        `/automations/${workflowId}/toggle`,
+        {}
+      );
+
+      if (response.ok) {
+        // Update local state
+        set(state => ({
+          workflows: state.workflows.map(w =>
+            w.id === workflowId
+              ? { ...w, status: response.status as WorkflowStatus }
+              : w
+          ),
+          selectedWorkflow: state.selectedWorkflow?.id === workflowId
+            ? { ...state.selectedWorkflow, status: response.status as WorkflowStatus }
+            : state.selectedWorkflow
+        }));
+
+        console.log(`[AUTOMATION STORE] Workflow ${workflowId} → ${response.status}`);
+      } else {
+        throw new Error('Failed to toggle workflow status');
       }
-
-      // Pour l'instant, on déclenche manuellement le workflow
-      // TODO: Implémenter un vrai système d'activation/désactivation
-      const response = await fetch(`${API_BASE_URL}/n8n/trigger`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'X-Preview': 'false' // Execution réelle, pas preview
-        },
-        body: JSON.stringify({
-          code: workflowId,
-          mode: 'manual',
-          payload: {}
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Erreur lors du déclenchement du workflow');
-      }
-
-      const result = await response.json();
-
-      console.log('[AutomationStore] Workflow déclenché:', result);
-
-      // Pour l'instant, on ne change pas vraiment le statut
-      // Le workflow est déclenché manuellement
-      // TODO: Gérer un vrai état active/inactive
 
     } catch (error) {
-      console.error('[AutomationStore] Erreur toggleWorkflowStatus:', error);
+      console.error('[AUTOMATION STORE] Erreur toggleWorkflowStatus:', error);
       set({
         error: error instanceof Error ? error.message : 'Erreur inconnue'
       });
+    }
+  },
+
+  // Execute workflow manually
+  executeWorkflow: async (workflowId: string, leadId?: string) => {
+    try {
+      console.log('[AUTOMATION STORE] Executing workflow:', workflowId);
+
+      const response = await apiClient.post<ExecuteResponse>(
+        `/automations/${workflowId}/execute`,
+        { lead_id: leadId }
+      );
+
+      if (response.ok) {
+        console.log(`[AUTOMATION STORE] Workflow executed: ${response.execution_id}`);
+        // Reload to update stats
+        await get().loadWorkflows();
+        return response;
+      } else {
+        throw new Error('Failed to execute workflow');
+      }
+
+    } catch (error) {
+      console.error('[AUTOMATION STORE] Erreur executeWorkflow:', error);
+      set({
+        error: error instanceof Error ? error.message : 'Erreur lors de l\'exécution'
+      });
+      return null;
     }
   },
 

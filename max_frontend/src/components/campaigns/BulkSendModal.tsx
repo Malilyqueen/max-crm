@@ -6,6 +6,7 @@
 import { useState } from 'react';
 import { X, Mail, MessageSquare, Smartphone, Send, AlertTriangle, CheckCircle } from 'lucide-react';
 import { apiClient } from '../../api/client';
+import { EmailEditor } from './EmailEditor';
 import type { Channel } from '../../types/events';
 
 interface SegmentCriteria {
@@ -133,14 +134,14 @@ export function BulkSendModal({ isOpen, onClose, segment, onSuccess }: BulkSendM
           {/* Content */}
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
             {/* Segment summary */}
-            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+            <div className="bg-gray-50 rounded-lg p-4 border border-gray-300">
               <h4 className="text-sm font-semibold text-gray-900 mb-2">Segment cible:</h4>
-              <p className="text-sm text-gray-700">{getSegmentSummary()}</p>
+              <p className="text-sm text-gray-800">{getSegmentSummary()}</p>
             </div>
 
             {/* Channel selection */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">
+              <label className="block text-sm font-semibold text-gray-900 mb-3">
                 Canal de communication
               </label>
               <div className="grid grid-cols-3 gap-3">
@@ -169,7 +170,7 @@ export function BulkSendModal({ isOpen, onClose, segment, onSuccess }: BulkSendM
             {/* Subject (Email only) */}
             {channel === 'email' && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-semibold text-gray-900 mb-2">
                   Sujet de l'email
                 </label>
                 <input
@@ -177,30 +178,47 @@ export function BulkSendModal({ isOpen, onClose, segment, onSuccess }: BulkSendM
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
                   placeholder="Ex: Nouvelle offre exclusive pour vous"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 text-gray-900 placeholder:text-gray-500"
                 />
               </div>
             )}
 
             {/* Message */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-gray-900 mb-2">
                 Message
               </label>
-              <p className="text-xs text-gray-500 mb-2">
-                Variables disponibles: {'{{firstName}}, {{lastName}}, {{email}}, {{phone}}, {{company}}'}
-              </p>
-              <textarea
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                placeholder={
-                  channel === 'email'
-                    ? "Bonjour {{firstName}},\n\nNous sommes ravis de vous présenter notre nouvelle offre...\n\nCordialement,\nL'équipe"
-                    : "Bonjour {{firstName}}, découvrez notre nouvelle offre..."
-                }
-                rows={8}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 font-mono text-sm"
-              />
+
+              {/* Email: éditeur WYSIWYG */}
+              {channel === 'email' ? (
+                <EmailEditor
+                  value={message}
+                  onChange={setMessage}
+                  placeholder="Bonjour {{firstName}}, nous sommes ravis de vous présenter..."
+                />
+              ) : (
+                /* SMS/WhatsApp: textarea simple */
+                <>
+                  <p className="text-xs text-gray-600 mb-2 font-medium">
+                    Variables disponibles: {'{{firstName}}, {{lastName}}, {{email}}, {{phone}}, {{company}}'}
+                  </p>
+                  <textarea
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    placeholder="Bonjour {{firstName}}, découvrez notre nouvelle offre..."
+                    rows={6}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 text-sm text-gray-900 placeholder:text-gray-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    {message.length} caractères
+                    {channel === 'sms' && message.length > 160 && (
+                      <span className="text-orange-600 ml-2">
+                        ({Math.ceil(message.length / 160)} SMS)
+                      </span>
+                    )}
+                  </p>
+                </>
+              )}
             </div>
 
             {/* Warning */}

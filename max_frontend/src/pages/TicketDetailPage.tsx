@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { AlertCircle, CircleDot, MessageCircle, CheckCircle, RefreshCw, Wrench, User, Paperclip, PenLine, Send, AlertTriangle } from 'lucide-react';
 import { apiClient } from '../api/client';
 import { useAuthStore } from '../stores/useAuthStore';
 
@@ -151,12 +152,12 @@ export function TicketDetailPage() {
                     {ticket.ticket_number}
                   </span>
                   {ticket.priority === 'urgent' && (
-                    <span className="bg-red-100 text-red-700 px-3 py-1 rounded text-sm font-semibold">
-                      🔴 URGENT
+                    <span className="bg-red-100 text-red-700 px-3 py-1 rounded text-sm font-semibold flex items-center gap-1">
+                      <AlertCircle className="w-4 h-4" /> URGENT
                     </span>
                   )}
                   <span
-                    className={`px-3 py-1 rounded text-sm font-semibold ${
+                    className={`px-3 py-1 rounded text-sm font-semibold flex items-center gap-1 ${
                       ticket.status === 'open'
                         ? 'bg-green-100 text-green-700'
                         : ticket.status === 'replied'
@@ -165,10 +166,10 @@ export function TicketDetailPage() {
                     }`}
                   >
                     {ticket.status === 'open'
-                      ? '🟢 OUVERT'
+                      ? <><CircleDot className="w-4 h-4" /> OUVERT</>
                       : ticket.status === 'replied'
-                      ? '💬 RÉPONDU'
-                      : '✅ FERMÉ'}
+                      ? <><MessageCircle className="w-4 h-4" /> RÉPONDU</>
+                      : <><CheckCircle className="w-4 h-4" /> FERMÉ</>}
                   </span>
                 </div>
                 <h1 className="text-2xl font-bold text-gray-900 mb-2">
@@ -197,17 +198,17 @@ export function TicketDetailPage() {
                 {canReopen && (
                   <button
                     onClick={handleReopenTicket}
-                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
                   >
-                    🔄 Réouvrir
+                    <RefreshCw className="w-4 h-4" /> Réouvrir
                   </button>
                 )}
                 {canClose && (
                   <button
                     onClick={handleCloseTicket}
-                    className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors"
+                    className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
                   >
-                    ✅ Fermer
+                    <CheckCircle className="w-4 h-4" /> Fermer
                   </button>
                 )}
               </div>
@@ -218,7 +219,7 @@ export function TicketDetailPage() {
         {/* Conversation */}
         <div className="bg-white rounded-lg shadow mb-6">
           <div className="p-4 border-b border-gray-200">
-            <h2 className="font-semibold text-gray-900">💬 Conversation</h2>
+            <h2 className="font-semibold text-gray-900 flex items-center gap-2"><MessageCircle className="w-5 h-5" /> Conversation</h2>
           </div>
           <div className="divide-y divide-gray-200">
             {messages.map((msg) => (
@@ -232,7 +233,7 @@ export function TicketDetailPage() {
                       msg.is_support ? 'bg-blue-600' : 'bg-gray-600'
                     }`}
                   >
-                    {msg.is_support ? '🛠️' : '👤'}
+                    {msg.is_support ? <Wrench className="w-5 h-5" /> : <User className="w-5 h-5" />}
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
@@ -260,7 +261,7 @@ export function TicketDetailPage() {
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium"
                         >
-                          📎 {msg.attachment_filename}
+                          <Paperclip className="w-4 h-4" /> {msg.attachment_filename}
                           <span className="text-gray-500">
                             ({((msg.attachment_size || 0) / 1024).toFixed(0)} KB)
                           </span>
@@ -277,7 +278,7 @@ export function TicketDetailPage() {
         {/* Formulaire réponse */}
         {canReply ? (
           <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="font-semibold text-gray-900 mb-4">✍️ Ajouter un message</h3>
+            <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2"><PenLine className="w-5 h-5" /> Ajouter un message</h3>
             <form onSubmit={handleSendMessage}>
               <textarea
                 value={newMessage}
@@ -294,15 +295,15 @@ export function TicketDetailPage() {
                   disabled={submitting || !newMessage.trim()}
                   className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {submitting ? 'Envoi en cours...' : '📤 Envoyer'}
+                  {submitting ? 'Envoi en cours...' : <><Send className="w-4 h-4 inline mr-1" /> Envoyer</>}
                 </button>
               </div>
             </form>
           </div>
         ) : (
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
-            <p className="text-yellow-800 font-medium">
-              ⚠️ Ce ticket est fermé. Vous ne pouvez plus ajouter de messages.
+            <p className="text-yellow-800 font-medium flex items-center justify-center gap-2">
+              <AlertTriangle className="w-5 h-5" /> Ce ticket est fermé. Vous ne pouvez plus ajouter de messages.
             </p>
             <button
               onClick={handleReopenTicket}

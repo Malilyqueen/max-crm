@@ -101,7 +101,8 @@ export const AppShellSimple = () => {
             { to: '/dashboard', label: 'Dashboard', icon: 'M3 3h7v7H3V3zm11 0h7v7h-7V3zM3 14h7v7H3v-7zm11 0h7v7h-7v-7z' },
             { to: '/chat', label: 'Cockpit', icon: 'M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z' },
             { to: '/crm', label: 'Tour de Contrôle', icon: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 7a4 4 0 100 8 4 4 0 000-8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75' },
-            { to: '/activite', label: 'Activité ⚠️ TEST', icon: 'M13 10V3L4 14h7v7l9-11h-7z' },
+            { to: '/activite', label: 'Activité', icon: 'M13 10V3L4 14h7v7l9-11h-7z' },
+            { to: '/jobs', label: 'Jobs', icon: 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15' },
             { to: '/campagnes', label: 'Campagnes', icon: 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z' },
             { to: '/automation', label: 'Pilote Automatique', icon: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z' },
             { to: '/settings/integrations', label: 'Intégrations', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z' },
@@ -195,25 +196,27 @@ export const AppShellSimple = () => {
               }}
             />
 
-            {/* Token bar */}
-            <div
-              className="flex items-center gap-2 px-4 py-2 rounded-full"
-              style={{
-                background: 'rgba(0, 145, 255, 0.08)',
-                border: '1px solid rgba(0, 145, 255, 0.2)'
-              }}
-            >
-              <svg className="w-4 h-4" fill="none" stroke="#00cfff" strokeWidth={2} viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="10" />
-                <path d="M12 6v6l4 2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              <span
-                className="text-xs font-semibold"
-                style={{ color: '#00cfff' }}
+            {/* Token bar - only show if loaded successfully */}
+            {tokenUsage.isLoaded && !tokenUsage.hasError && tokenUsage.limit > 0 && (
+              <div
+                className="flex items-center gap-2 px-4 py-2 rounded-full"
+                style={{
+                  background: 'rgba(0, 145, 255, 0.08)',
+                  border: '1px solid rgba(0, 145, 255, 0.2)'
+                }}
               >
-                {tokenUsage.used.toLocaleString()} / {tokenUsage.limit.toLocaleString()}
-              </span>
-            </div>
+                <svg className="w-4 h-4" fill="none" stroke="#00cfff" strokeWidth={2} viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 6v6l4 2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <span
+                  className="text-xs font-semibold"
+                  style={{ color: '#00cfff' }}
+                >
+                  {tokenUsage.used.toLocaleString()} / {tokenUsage.limit.toLocaleString()}
+                </span>
+              </div>
+            )}
 
             {/* Tenant selector */}
             <div className="flex items-center gap-2">

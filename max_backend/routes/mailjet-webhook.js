@@ -1,22 +1,23 @@
 /**
  * Webhook Mailjet - Events Email
  *
- * Ce webhook reçoit TOUS les events Mailjet:
- * - sent: Email envoyé avec succès
- * - delivered: Email livré à la boîte de réception
- * - open: Email ouvert par le destinataire
- * - click: Lien cliqué dans l'email
- * - bounce: Email bounced (hard ou soft)
- * - spam: Email marqué comme spam
- * - blocked: Email bloqué par Mailjet (liste noire, réputation)
- * - unsub: Désabonnement
+ * SECURITY V2 - MULTI-TENANT:
+ * - Résolution tenant via providerMessageId (prioritaire) ou email
+ * - JAMAIS de fallback tenant
+ * - Events non résolus → orphan_webhook_events
  *
- * Documentation: https://dev.mailjet.com/email/guides/webhooks/
+ * Events supportés:
+ * - sent, delivered, open, click, bounce, spam, blocked, unsub
  */
 
 import express from 'express';
 import { logMessageEvent } from '../lib/messageEventLogger.js';
-import { espoFetch } from '../lib/espoClient.js';
+import {
+  resolveLeadAndTenantByEmail,
+  isValidResolution,
+  isAmbiguousResolution,
+  logOrphanWebhookEvent
+} from '../lib/tenantResolver.js';
 import { normalizeStatus } from '../lib/statusNormalizer.js';
 
 const router = express.Router();
@@ -55,34 +56,27 @@ router.post('/', async (req, res) => {
 
   } catch (error) {
     console.error('❌ Erreur lors du traitement du webhook Mailjet:', error);
-
-    // Même en cas d'erreur, répondre 200 pour éviter les retries
     res.status(200).send('OK');
   }
 });
 
 /**
- * Gère un event Mailjet
+ * Gère un event Mailjet avec résolution tenant sécurisée
  */
 async function handleMailjetEvent(event) {
   const {
     event: eventType,
     time,
     MessageID,
-    Message_GUID,
     email,
-    mj_campaign_id,
-    mj_contact_id,
-    customcampaign,
-    CustomID,
-    Payload,
     url,
     ip,
     geo,
     agent,
     error_related_to,
     error,
-    comment
+    comment,
+    CustomID
   } = event;
 
   console.log(`\n📨 EVENT: ${eventType}`);
@@ -90,28 +84,50 @@ async function handleMailjetEvent(event) {
   console.log(`   Email: ${email}`);
   console.log(`   Timestamp: ${new Date(time * 1000).toISOString()}`);
 
-  // Extraire leadId depuis CustomID si présent (format: "Lead_xxx")
-  let leadId = null;
-  if (CustomID) {
-    const match = CustomID.match(/^(Lead|Account|Contact)_(.+)$/);
-    if (match) {
-      leadId = match[2];
-    }
+  // ============================================
+  // SECURITY: Résolution tenant obligatoire
+  // ============================================
+
+  // 1. Résoudre le tenant via providerMessageId (prioritaire) puis email
+  const resolution = await resolveLeadAndTenantByEmail(email, String(MessageID));
+
+  // 2. Vérifier la résolution
+  if (!isValidResolution(resolution)) {
+    // Pas de résolution valide → logger comme orphan
+    const reason = isAmbiguousResolution(resolution) ? 'ambiguous' : 'no_match';
+
+    console.warn(`   ⚠️ TENANT NON RÉSOLU (${reason}) - Event sera orphelin`);
+
+    await logOrphanWebhookEvent({
+      channel: 'email',
+      provider: 'mailjet',
+      reason,
+      contactIdentifier: email,
+      providerMessageId: String(MessageID),
+      candidates: resolution?.candidates || null,
+      payload: event
+    });
+
+    console.log('   📝 Event enregistré comme orphelin');
+    return; // NE PAS logger dans message_events sans tenant!
   }
 
-  // Si pas de leadId, chercher par email
-  if (!leadId && email) {
-    leadId = await findLeadByEmail(email);
-  }
+  // 3. Résolution OK → on a leadId et tenantId
+  const { leadId, tenantId } = resolution;
 
-  // Normaliser le statut Mailjet vers format canonique
+  console.log(`   ✅ Tenant résolu: ${tenantId}, Lead: ${leadId}`);
+
+  // ============================================
+  // Logger l'event avec tenant valide
+  // ============================================
+
   const status = normalizeStatus(eventType, 'mailjet');
 
-  // Logger l'event (DB/JSON)
   await logMessageEvent({
     channel: 'email',
     provider: 'mailjet',
     direction: 'out', // Mailjet webhooks = statuts messages sortants
+    tenantId, // SECURITY: tenant obligatoire
     leadId,
     email,
     providerMessageId: String(MessageID),
@@ -121,45 +137,29 @@ async function handleMailjetEvent(event) {
     timestamp: new Date(time * 1000).toISOString()
   });
 
-  // Mettre à jour le statut dans EspoCRM si leadId trouvé
-  if (leadId) {
-    await updateEmailStatusInCRM(leadId, eventType, email);
-  }
-
   // Logs spécifiques par type d'event
   switch (eventType) {
     case 'delivered':
       console.log(`   ✅ Email livré à ${email}`);
       break;
-
     case 'open':
       console.log(`   👁️  Email ouvert par ${email}`);
-      if (ip) console.log(`   IP: ${ip}, Geo: ${geo}, Agent: ${agent}`);
       break;
-
     case 'click':
       console.log(`   🔗 Lien cliqué: ${url}`);
-      console.log(`   IP: ${ip}, Agent: ${agent}`);
       break;
-
     case 'bounce':
-      console.log(`   ❌ Bounce: ${error_related_to}`);
-      console.log(`   Error: ${error}`);
-      console.log(`   Comment: ${comment}`);
+      console.log(`   ❌ Bounce: ${error_related_to} - ${error}`);
       break;
-
     case 'spam':
       console.log(`   ⚠️  Marqué comme spam par ${email}`);
       break;
-
     case 'blocked':
       console.log(`   🚫 Bloqué: ${error}`);
       break;
-
     case 'unsub':
       console.log(`   🚪 Désabonnement: ${email}`);
       break;
-
     default:
       console.log(`   📋 Event: ${eventType}`);
   }
@@ -168,84 +168,18 @@ async function handleMailjetEvent(event) {
 }
 
 /**
- * Cherche un lead par email dans EspoCRM
- */
-async function findLeadByEmail(email) {
-  try {
-    const normalized = email.toLowerCase().trim();
-
-    // Chercher dans EspoCRM
-    const response = await espoFetch(
-      `/Lead?where[0][type]=equals&where[0][attribute]=emailAddress&where[0][value]=${encodeURIComponent(normalized)}&maxSize=1`
-    );
-
-    if (response && response.list && response.list.length > 0) {
-      const lead = response.list[0];
-      console.log(`   👤 Lead trouvé: ${lead.firstName || ''} ${lead.lastName || ''} (ID: ${lead.id})`);
-      return lead.id;
-    }
-
-    return null;
-  } catch (error) {
-    console.error('   ⚠️  Erreur lors de la recherche du lead:', error.message);
-    return null;
-  }
-}
-
-/**
- * Met à jour le statut Email dans EspoCRM (ajouter une note)
- */
-async function updateEmailStatusInCRM(leadId, eventType, email) {
-  try {
-    const messages = {
-      'delivered': `✅ Email livré à ${email}`,
-      'open': `👁️ Email ouvert par ${email}`,
-      'click': `🔗 Lien cliqué dans l'email envoyé à ${email}`,
-      'bounce': `❌ Email bounced pour ${email}`,
-      'spam': `⚠️ Email marqué comme spam par ${email}`,
-      'blocked': `🚫 Email bloqué pour ${email}`,
-      'unsub': `🚪 ${email} s'est désabonné`
-    };
-
-    const message = messages[eventType] || `📧 Event email: ${eventType}`;
-
-    console.log(`   📝 Création note pour lead ${leadId}`);
-
-    await espoFetch('/Note', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: `Email: ${eventType}`,
-        post: `${message}\n\nTimestamp: ${new Date().toLocaleString('fr-FR')}`,
-        parentType: 'Lead',
-        parentId: leadId
-      })
-    });
-
-    console.log('   ✅ Note créée dans CRM');
-  } catch (error) {
-    console.error('   ⚠️  Impossible de créer la note:', error.message);
-  }
-}
-
-/**
  * GET /webhooks/mailjet/status
- * Endpoint de sanité pour vérifier que le webhook est accessible
+ * Endpoint de sanité
  */
 router.get('/status', (req, res) => {
   res.json({
     ok: true,
     service: 'mailjet-webhook',
+    version: 'v2-multitenant',
     timestamp: new Date().toISOString(),
     events_supported: [
-      'sent',
-      'delivered',
-      'open',
-      'click',
-      'bounce',
-      'spam',
-      'blocked',
-      'unsub'
+      'sent', 'delivered', 'open', 'click',
+      'bounce', 'spam', 'blocked', 'unsub'
     ]
   });
 });

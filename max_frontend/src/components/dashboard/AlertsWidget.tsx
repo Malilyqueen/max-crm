@@ -9,6 +9,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { Check } from 'lucide-react';
 import { api } from '../../api/client';
 
 interface Alert {
@@ -195,7 +196,7 @@ const AlertsWidget: React.FC = () => {
         </div>
 
         <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center">
-          <div className="text-4xl mb-3">✓</div>
+          <div className="flex justify-center mb-3"><Check className="w-10 h-10 text-green-600" /></div>
           <p className="text-green-900 font-medium mb-2">
             R.A.S. aujourd'hui. Ton pipeline est propre.
           </p>

@@ -1,21 +1,11 @@
-// routes/resolve.js – resolve multi-tenant + role/preview for UI
+// routes/resolve.js – resolve multi-tenant from JWT
 import express from 'express';
-import { TENANTS, findTenantByApiKey } from '../core/tenants.js';
+import { authMiddleware } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-function pickTenant(req) {
-  // Priority: X-Tenant id, then X-Api-Key
-  const tId = req.header('X-Tenant') || req.header('x-tenant');
-  if (tId && TENANTS[tId]) return TENANTS[tId];
-
-  const key = req.header('X-Api-Key') || req.header('x-api-key');
-  if (key) {
-    const t = findTenantByApiKey(key);
-    if (t) return t;
-  }
-  return null;
-}
+// SECURITY: authMiddleware OBLIGATOIRE pour extraire tenantId du JWT
+router.use(authMiddleware);
 
 function parseBool(v, d = false) {
   if (typeof v === 'boolean') return v;
@@ -28,20 +18,22 @@ function parseBool(v, d = false) {
 }
 
 // GET /api/resolve-tenant -> { ok, tenant, role, preview }
+// SECURITY: tenant extrait UNIQUEMENT depuis JWT (req.tenantId)
 router.get('/resolve-tenant', (req, res) => {
-  const t = pickTenant(req);
-  if (!t) {
-    return res.status(401).json({ ok: false, error: 'TENANT_NOT_RESOLVED' });
+  // SECURITY: tenantId UNIQUEMENT depuis JWT
+  const tenantId = req.tenantId;
+  if (!tenantId) {
+    return res.status(401).json({ ok: false, error: 'MISSING_TENANT' });
   }
 
   const roleHeader = req.header('X-Role') || req.header('x-role');
   const previewHeader = req.header('X-Preview') || req.header('x-preview');
   const role = (roleHeader === 'admin' || roleHeader === 'user')
     ? roleHeader
-    : (t?.flags?.isAdmin ? 'admin' : 'user');
+    : (req.user?.role || 'user');
   const preview = parseBool(previewHeader, false);
 
-  return res.json({ ok: true, tenant: t.id, role, preview });
+  return res.json({ ok: true, tenant: tenantId, role, preview });
 });
 
 export default router;

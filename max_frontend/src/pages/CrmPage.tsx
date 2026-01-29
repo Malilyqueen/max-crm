@@ -7,13 +7,15 @@
  * - Sinon, afficher le Tour de Controle avec la liste des leads
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { Check } from 'lucide-react';
 import { useCrmStore } from '../stores/useCrmStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import { LeadsListEnhanced } from '../components/crm/LeadsListEnhanced';
 import { LeadsFilters } from '../components/crm/LeadsFilters';
 import { LeadDetail } from '../components/crm/LeadDetail';
 import { CreateCrmGate } from '../components/CreateCrmGate';
+import { BulkOutreachModal } from '../components/crm/BulkOutreachModal';
 import { useThemeColors } from '../hooks/useThemeColors';
 
 export function CrmPage() {
@@ -40,6 +42,9 @@ export function CrmPage() {
     clearError
   } = useCrmStore();
   const colors = useThemeColors();
+
+  // Modal bulk outreach
+  const [showBulkModal, setShowBulkModal] = useState(false);
 
   // GATE: Si CRM non provisionne, afficher la page de creation
   if (user && user.isProvisioned === false) {
@@ -112,26 +117,39 @@ export function CrmPage() {
             {total} lead{total > 1 ? 's' : ''} au total • Vue panoramique de votre pipeline
           </p>
         </div>
-        <button
-          onClick={() => loadLeads(page)}
-          disabled={isLoading}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
-        >
-          <svg
-            className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+        <div className="flex items-center gap-2">
+          {/* Bouton action de masse */}
+          <button
+            onClick={() => setShowBulkModal(true)}
+            disabled={leads.length === 0}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
+            title="Marquer les leads filtrés comme contactés"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-            />
-          </svg>
-          Actualiser
-        </button>
+            <Check className="w-4 h-4" />
+            Marquer contactés
+          </button>
+
+          <button
+            onClick={() => loadLeads(page)}
+            disabled={isLoading}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+          >
+            <svg
+              className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
+            </svg>
+            Actualiser
+          </button>
+        </div>
       </div>
 
       {/* Filtres */}
@@ -209,6 +227,14 @@ export function CrmPage() {
           onAddNote={handleAddNote}
         />
       )}
+
+      {/* Modal action de masse - utilise les filtres serveur (pas les IDs page) */}
+      <BulkOutreachModal
+        isOpen={showBulkModal}
+        onClose={() => setShowBulkModal(false)}
+        filters={filters}
+        onSuccess={() => loadLeads(page)}
+      />
     </div>
   );
 }

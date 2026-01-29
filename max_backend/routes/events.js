@@ -34,7 +34,11 @@ const supabase = createClient(
  */
 router.get('/', async (req, res) => {
   try {
-    const tenantId = req.ctx?.tenant || req.user?.tenantId || 'macrea';
+    // SECURITY: tenantId UNIQUEMENT depuis JWT
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(401).json({ ok: false, error: 'MISSING_TENANT' });
+    }
 
     // Pagination
     const page = parseInt(req.query.page) || 1;
@@ -119,13 +123,24 @@ router.get('/', async (req, res) => {
  * GET /api/events/lead/:leadId
  * Récupère tous les events d'un lead
  * Timeline unifiée triée par event_timestamp DESC
+ *
+ * Query params:
+ * - phone: numéro de téléphone du lead (fallback si lead_id ne trouve rien)
+ * - email: email du lead (fallback si lead_id ne trouve rien)
  */
 router.get('/lead/:leadId', async (req, res) => {
   try {
-    const { leadId } = req.params;
-    const tenantId = req.ctx?.tenant || req.user?.tenantId || 'macrea';
+    // SECURITY: tenantId UNIQUEMENT depuis JWT
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(401).json({ ok: false, error: 'MISSING_TENANT' });
+    }
 
-    const { data, error } = await supabase
+    const { leadId } = req.params;
+    const { phone, email } = req.query;
+
+    // 1. Chercher par lead_id
+    let { data, error } = await supabase
       .from('message_events')
       .select('*')
       .eq('tenant_id', tenantId)
@@ -138,6 +153,54 @@ router.get('/lead/:leadId', async (req, res) => {
         ok: false,
         error: 'Erreur lors de la récupération des events du lead'
       });
+    }
+
+    // 2. Si pas de résultats par lead_id, chercher par phone/email
+    if (data.length === 0 && (phone || email)) {
+      console.log(`[EVENTS] Pas d'events pour lead_id=${leadId}, fallback phone=${phone} email=${email}`);
+
+      // Normaliser le téléphone (enlever espaces, etc.)
+      const normalizedPhone = phone ? phone.replace(/[\s\-\.]/g, '') : null;
+
+      // Construire les conditions OR pour phone et email
+      const conditions = [];
+      if (normalizedPhone) {
+        // Supporter plusieurs formats de stockage du téléphone
+        conditions.push(`phone_number.ilike.%${normalizedPhone.slice(-9)}%`);
+      }
+      if (email) {
+        conditions.push(`email.ilike.${email}`);
+      }
+
+      if (conditions.length > 0) {
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('message_events')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .or(conditions.join(','))
+          .order('event_timestamp', { ascending: false });
+
+        if (fallbackError) {
+          console.error('[EVENTS] Erreur Supabase fallback:', fallbackError);
+        } else if (fallbackData.length > 0) {
+          console.log(`[EVENTS] ✅ Trouvé ${fallbackData.length} events par phone/email`);
+          data = fallbackData;
+
+          // Optionnel: mettre à jour les events trouvés avec le bon lead_id
+          // pour qu'ils soient trouvés directement la prochaine fois
+          const eventIds = fallbackData.map(e => e.id);
+          const { error: updateError } = await supabase
+            .from('message_events')
+            .update({ lead_id: leadId })
+            .in('id', eventIds);
+
+          if (updateError) {
+            console.warn('[EVENTS] Erreur mise à jour lead_id:', updateError.message);
+          } else {
+            console.log(`[EVENTS] ✅ ${eventIds.length} events mis à jour avec lead_id=${leadId}`);
+          }
+        }
+      }
     }
 
     res.json({
@@ -166,7 +229,12 @@ router.get('/lead/:leadId', async (req, res) => {
  */
 router.get('/stats', async (req, res) => {
   try {
-    const tenantId = req.ctx?.tenant || req.user?.tenantId || 'macrea';
+    // SECURITY: tenantId UNIQUEMENT depuis JWT
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(401).json({ ok: false, error: 'MISSING_TENANT' });
+    }
+
     const range = req.query.range || '7d';
 
     // Calculer date de début selon range

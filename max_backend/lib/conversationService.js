@@ -47,7 +47,9 @@ export function createSession(mode = 'assisté', options = {}) {
     mode: mode, // 'assisté', 'auto', 'conseil'
     entity: options.entity || null, // 'Lead', 'Account', null
     entityId: options.entityId || null, // ID de l'entité EspoCRM
-    title: options.title || 'Conversation'
+    title: options.title || 'Conversation',
+    // SÉCURITÉ MULTI-TENANT: Stocker le tenantId dans la session
+    tenantId: options.tenantId || null
   };
 
   fs.writeFileSync(sessionFile, JSON.stringify(initialData, null, 2));

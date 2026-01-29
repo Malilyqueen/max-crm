@@ -3,64 +3,45 @@
  * Page M.A.X. - "Le Cerveau IA" avec Suggestions, Execution Log et Admin Tools
  */
 
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useApi } from '../hooks/useApi';
 import { useThemeColors } from '../hooks/useThemeColors';
+import { useAuthStore } from '../stores/useAuthStore';
+import { useRecommendationsStore, getTypeIcon, type Recommendation } from '../stores/useRecommendationsStore';
 import { SuggestionCard, type Suggestion } from '../components/max/SuggestionCard';
 import { TaskTrayComponent, type ExecutionLogEntry } from '../components/max/TaskTrayComponent';
 import { AdminPanel } from '../components/max/AdminPanel';
 
 /**
- * Génération de suggestions IA côté front (logique simple)
- * En Phase 2, ces suggestions pourront venir de l'API backend
+ * Mapper un type de recommandation API vers un type de suggestion UI
  */
-function generateSuggestions(leads: any[]): Suggestion[] {
-  const suggestions: Suggestion[] = [];
+function mapRecommendationType(apiType: string): Suggestion['type'] {
+  const typeMap: Record<string, Suggestion['type']> = {
+    follow_up_j1: 'relance',
+    follow_up_j3: 'relance',
+    cart_abandoned: 'action',
+    invoice_unpaid: 'action',
+    hot_lead: 'action',
+    appointment_reminder: 'relance',
+    welcome_new_lead: 'email',
+    reactivation: 'relance'
+  };
+  return typeMap[apiType] || 'action';
+}
 
-  // Exemple: Lead sans email
-  const leadsWithoutEmail = leads.filter((l) => !l.email);
-  if (leadsWithoutEmail.length > 0) {
-    const lead = leadsWithoutEmail[0];
-    suggestions.push({
-      id: `email-${lead.id}`,
-      type: 'email',
-      title: '📧 Compléter l\'email',
-      description: `Lead "${lead.name}" n'a pas d'email enregistré`,
-      leadId: lead.id,
-      leadName: lead.name
-    });
-  }
-
-  // Exemple: Lead ancien (créé il y a plus de 3 jours)
-  const threeDaysAgo = Date.now() - 3 * 24 * 60 * 60 * 1000;
-  const oldLeads = leads.filter((l) => new Date(l.createdAt).getTime() < threeDaysAgo);
-  if (oldLeads.length > 0) {
-    const lead = oldLeads[0];
-    suggestions.push({
-      id: `relance-${lead.id}`,
-      type: 'relance',
-      title: '⏰ Relancer J+3',
-      description: `Lead "${lead.name}" créé il y a plus de 3 jours sans activité`,
-      leadId: lead.id,
-      leadName: lead.name
-    });
-  }
-
-  // Exemple: Lead sans tag
-  const leadsWithoutTag = leads.filter((l) => !l.tags || l.tags.length === 0);
-  if (leadsWithoutTag.length > 0) {
-    const lead = leadsWithoutTag[0];
-    suggestions.push({
-      id: `tag-${lead.id}`,
-      type: 'tag',
-      title: '🏷️ Taguer comme Prospect chaud',
-      description: `Lead "${lead.name}" n'a aucun tag assigné`,
-      leadId: lead.id,
-      leadName: lead.name
-    });
-  }
-
-  return suggestions;
+/**
+ * Convertir une recommandation API en suggestion UI
+ */
+function recommendationToSuggestion(rec: Recommendation): Suggestion {
+  const icon = getTypeIcon(rec.type);
+  return {
+    id: rec.id,
+    type: mapRecommendationType(rec.type),
+    title: `${icon} ${rec.name}`,
+    description: rec.reason || rec.description,
+    leadId: rec.lead_id,
+    leadName: rec.lead_name
+  };
 }
 
 interface ApiExecutionLog {
@@ -76,64 +57,46 @@ interface ApiExecutionLog {
 
 export function MaxPage() {
   const colors = useThemeColors();
+  const { user } = useAuthStore();
   const { data: executionLogData } = useApi<ApiExecutionLog>('/api/max/execution-log');
 
-  // Mock data pour les suggestions (Phase 1 - logique front simple)
-  const [suggestions] = useState<Suggestion[]>([
-    {
-      id: '1',
-      type: 'email',
-      title: '📧 Compléter l\'email',
-      description: 'Lead "John Doe" n\'a pas d\'email enregistré',
-      leadId: 'lead-123',
-      leadName: 'John Doe'
-    },
-    {
-      id: '2',
-      type: 'relance',
-      title: '⏰ Relancer J+3',
-      description: 'Lead "Jane Smith" créé il y a plus de 3 jours sans activité',
-      leadId: 'lead-456',
-      leadName: 'Jane Smith'
-    },
-    {
-      id: '3',
-      type: 'tag',
-      title: '🏷️ Taguer comme Prospect chaud',
-      description: 'Lead "Bob Martin" n\'a aucun tag assigné',
-      leadId: 'lead-789',
-      leadName: 'Bob Martin'
-    }
-  ]);
+  // Recommendations store
+  const {
+    recommendations,
+    isLoading: recommendationsLoading,
+    loadRecommendations,
+    executeRecommendation
+  } = useRecommendationsStore();
 
-  const executionLogs: ExecutionLogEntry[] = executionLogData?.logs || [
-    {
-      id: '1',
-      timestamp: new Date(Date.now() - 300000).toISOString(),
-      action: 'Relance automatique J+3',
-      status: 'success',
-      details: '15 emails envoyés avec succès'
-    },
-    {
-      id: '2',
-      timestamp: new Date(Date.now() - 180000).toISOString(),
-      action: 'Tag automatique #chaud',
-      status: 'success',
-      details: '8 leads tagués'
-    },
-    {
-      id: '3',
-      timestamp: new Date(Date.now() - 60000).toISOString(),
-      action: 'Analyse des leads',
-      status: 'running',
-      details: 'En cours d\'exécution...'
-    }
-  ];
+  // SECURITY: Seuls les admins peuvent voir le panneau d'administration
+  const isAdmin = user?.role === 'admin';
 
-  const handleExecuteSuggestion = (suggestion: Suggestion) => {
-    console.log('Exécution de la suggestion:', suggestion);
-    // En Phase 2: Appel API pour exécuter l'action
-    alert(`Suggestion "${suggestion.title}" exécutée pour ${suggestion.leadName}`);
+  // Charger les recommandations au montage
+  useEffect(() => {
+    loadRecommendations();
+  }, [loadRecommendations]);
+
+  // Convertir les recommandations API en suggestions UI
+  const suggestions = useMemo(() => {
+    return recommendations.map(recommendationToSuggestion);
+  }, [recommendations]);
+
+  // Execution logs depuis l'API (pas de fallback mock)
+  const executionLogs: ExecutionLogEntry[] = executionLogData?.logs || [];
+
+  const handleExecuteSuggestion = async (suggestion: Suggestion) => {
+    console.log('[MAX PAGE] Exécution suggestion:', suggestion);
+
+    // Appeler l'API pour marquer comme exécutée
+    const success = await executeRecommendation(
+      suggestion.id,
+      suggestion.type,
+      `Action ${suggestion.type} exécutée pour ${suggestion.leadName}`
+    );
+
+    if (success) {
+      console.log('[MAX PAGE] Suggestion exécutée avec succès');
+    }
   };
 
   return (
@@ -164,7 +127,11 @@ export function MaxPage() {
             Actions recommandées par M.A.X. pour optimiser votre CRM
           </p>
 
-          {suggestions.length === 0 ? (
+          {recommendationsLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : suggestions.length === 0 ? (
             <div className="text-center py-8">
               <svg
                 className="w-12 h-12 mx-auto mb-4"
@@ -214,8 +181,8 @@ export function MaxPage() {
         </div>
       </div>
 
-      {/* Section 3: Admin Tools */}
-      <AdminPanel />
+      {/* Section 3: Admin Tools - ADMIN ONLY */}
+      {isAdmin && <AdminPanel />}
     </div>
   );
 }

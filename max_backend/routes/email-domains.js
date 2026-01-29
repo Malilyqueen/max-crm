@@ -13,7 +13,11 @@ const router = express.Router();
 router.post('/request-domain', async (req, res) => {
   try {
     const { domain, email } = req.body;
-    const tenantId = req.ctx?.tenant || 'macrea';
+    // SECURITY: tenantId UNIQUEMENT depuis JWT
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(401).json({ error: 'MISSING_TENANT' });
+    }
 
     if (!domain || !email) {
       return res.status(400).json({ error: 'Domain et email requis' });

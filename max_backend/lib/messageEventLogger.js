@@ -52,10 +52,21 @@ setInterval(() => {
  * @returns {Promise<void>}
  */
 export async function logMessageEvent(event) {
-  // Validation
+  // SECURITY: tenantId est OBLIGATOIRE - AUCUN fallback
+  if (!event.tenantId) {
+    console.error('🚫 [SECURITY] logMessageEvent REFUSÉ - tenantId MANQUANT!', {
+      channel: event.channel,
+      leadId: event.leadId,
+      status: event.status
+    });
+    // NE PAS LOGGER L'EVENT - retourner sans écrire en DB
+    return null;
+  }
+
+  // Validation autres champs
   if (!event.channel || !event.direction || !event.status) {
     console.error('[EVENT_LOGGER] ⚠️  Event incomplet:', event);
-    return;
+    return null;
   }
 
   // Enrichir l'event
@@ -63,7 +74,7 @@ export async function logMessageEvent(event) {
     id: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
     ...event,
     timestamp: event.timestamp || new Date().toISOString(),
-    tenantId: event.tenantId || 'macrea', // Multi-tenant support
+    tenantId: event.tenantId, // OBLIGATOIRE - plus de fallback
     createdAt: new Date().toISOString()
   };
 

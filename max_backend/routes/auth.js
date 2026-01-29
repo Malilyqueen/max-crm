@@ -130,22 +130,29 @@ router.post('/login', async (req, res) => {
           // Vérifier password
           const isValid = await bcrypt.compare(password, userRow.password_hash);
           if (isValid) {
-            user = {
-              id: userRow.user_id,
-              email: userRow.email,
-              name: userRow.user_name,
-              role: userRow.role,
-              tenantId: userRow.tenant_slug,
-              tenantName: userRow.tenant_name,
-              plan: userRow.plan,
-              isProvisioned: userRow.is_provisioned
-            };
+            // SECURITY: Vérifier que le tenant est valide (pas null, undefined, ou 'default')
+            const tenantSlug = userRow.tenant_slug;
+            if (!tenantSlug || tenantSlug === 'default') {
+              console.warn(`[AUTH] ⚠️ User ${email} a un tenant invalide: '${tenantSlug}', fallback legacy`);
+              user = await loginLegacy(email, password);
+            } else {
+              user = {
+                id: userRow.user_id,
+                email: userRow.email,
+                name: userRow.user_name,
+                role: userRow.role,
+                tenantId: tenantSlug,
+                tenantName: userRow.tenant_name,
+                plan: userRow.plan,
+                isProvisioned: userRow.is_provisioned
+              };
 
-            // Mettre à jour last_login_at
-            await db.query(
-              `UPDATE users SET last_login_at = NOW() WHERE id = $1`,
-              [userRow.user_id]
-            );
+              // Mettre à jour last_login_at
+              await db.query(
+                `UPDATE users SET last_login_at = NOW() WHERE id = $1`,
+                [userRow.user_id]
+              );
+            }
           }
         }
       } catch (dbError) {
@@ -156,6 +163,12 @@ router.post('/login', async (req, res) => {
     } else {
       // Mode Legacy: Tables DB non migrées
       console.log('[AUTH] 📦 Mode legacy (tables DB non migrées)');
+      user = await loginLegacy(email, password);
+    }
+
+    // Si toujours pas d'user, essayer legacy en dernier recours
+    if (!user) {
+      console.log('[AUTH] 📦 Dernier recours: fallback legacy...');
       user = await loginLegacy(email, password);
     }
 

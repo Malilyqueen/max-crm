@@ -34,6 +34,7 @@ import headers from './middleware/headers.js';
 // GPT-4o-mini | Fenêtre glissante 72h + limite 100 messages | Newsletter COMPACT
 import acl from './middleware/acl.js';
 import { initialize as initializeSelfHealing } from './lib/selfHealing.js';
+import { requeueStaleJobs } from './lib/batchJobEngine.js';
 import { loadWhatsAppPresets } from './lib/whatsappPresetsLoader.js';
 import brainRouter from './routes/brain.js';
 import logsRouter from './routes/logs.js';
@@ -99,6 +100,12 @@ import settingsTestRouter from './routes/settings-test.js';
 import emailDomainsRouter from './routes/email-domains.js';
 import smsSettingsRouter from './routes/sms-settings.js';
 import whatsappBillingRouter from './routes/whatsapp-billing.js';
+import templatesRouter from './routes/templates.js';
+import automationsRouter from './routes/automations.js';
+import recommendationsRouter from './routes/recommendations.js';
+import importBatchRouter from './routes/import-batch.js'; // 📦 Import async batch (10k+ leads)
+import batchJobsRouter from './routes/batch-jobs.js'; // 📦 Unified batch job engine (import + bulk_update)
+import syncRouter from './routes/sync.js'; // 🔄 Sync EspoCRM → Supabase
 
 process.on('unhandledRejection', (reason)=> console.error('[FATAL] UnhandledRejection:', reason));
 process.on('uncaughtException', (err)=> { console.error('[FATAL] UncaughtException:', err); process.exit(1); });
@@ -189,14 +196,27 @@ try {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true })); // ⚡ Support Twilio webhooks (application/x-www-form-urlencoded)
 // Allow custom headers for UI
+// CORS avec origin dynamique pour supporter Vercel + domaine principal
+const allowedOrigins = [
+  'http://localhost:5173', 'http://127.0.0.1:5173',
+  'http://localhost:5174', 'http://127.0.0.1:5174',
+  'http://localhost:5175', 'http://127.0.0.1:5175',
+  'http://localhost:8081', 'http://127.0.0.1:8081',
+  'https://max.studiomacrea.cloud',
+  'https://max-app-frontend.vercel.app'
+];
+
 app.use(cors({
-  origin: [
-    'http://localhost:5173', 'http://127.0.0.1:5173',
-    'http://localhost:5174', 'http://127.0.0.1:5174',
-    'http://localhost:5175', 'http://127.0.0.1:5175',
-    'http://localhost:8081', 'http://127.0.0.1:8081',
-    'https://max.studiomacrea.cloud'
-  ],
+  origin: function(origin, callback) {
+    // Allow requests with no origin (mobile apps, curl, Postman, etc.)
+    if (!origin) return callback(null, true);
+    // Allow any Vercel preview deployment
+    if (origin.includes('vercel.app')) return callback(null, origin);
+    // Allow listed origins
+    if (allowedOrigins.includes(origin)) return callback(null, origin);
+    // Block others
+    return callback(null, false);
+  },
   methods: ['GET', 'POST', 'OPTIONS', 'DELETE', 'PUT', 'PATCH'],
   allowedHeaders: ['Content-Type','X-Api-Key','X-Tenant','X-Role','X-Preview','X-Client','Authorization'],
   exposedHeaders: ['Content-Type'],
@@ -279,13 +299,30 @@ app.use('/api', importRouter);
 app.use('/api', segmentsRouter);
 app.use('/api', healthRouter);
 app.use('/api/max', maxRouter);
+
+// ============================================================================
+// 🔄 ROUTE SYNC - AVANT resolveRouter qui a authMiddleware global
+// ============================================================================
+app.use('/api/sync', syncRouter); // 🔄 Sync EspoCRM → Supabase leads_cache
+
 app.use('/api', resolveRouter);
+
+// ============================================================================
+// 🔓 ROUTE CRM ACTIVATION - AVANT resolveTenant() pour éviter dépendance circulaire
+// Un tenant sans CRM doit pouvoir appeler /api/crm/request-activation
+// ============================================================================
+app.use('/api/crm', crmRouter); // Route CRM avec auth (nécessite JWT utilisateur)
+
 app.use('/api', resolveTenant(), agentRouter);
 app.use('/api/brain', resolveTenant(), brainRouter);
 app.use('/api/logs', logsRouter);
-app.use('/api/crm', crmRouter); // Route CRM avec auth (nécessite JWT utilisateur)
 app.use('/api/events', resolveTenant(), eventsRouter); // Routes events multi-canal (auth + tenant)
 app.use('/api/campaigns', resolveTenant(), campaignsRouter); // Routes campaigns bulk send (auth + tenant)
+app.use('/api/templates', resolveTenant(), templatesRouter); // Routes templates CRUD + MAX draft (auth + tenant)
+app.use('/api/automations', resolveTenant(), automationsRouter); // Routes automations CRUD (auth + tenant)
+app.use('/api/max/recommendations', resolveTenant(), recommendationsRouter); // Routes recommandations intelligentes MAX (auth + tenant)
+app.use('/api/import', authMiddleware, resolveTenant(), importBatchRouter); // 📦 Import async batch (10k+ leads)
+app.use('/api/batch-jobs', batchJobsRouter); // 📦 Unified batch job engine (import + bulk_update)
 app.use('/api/support', authMiddleware, resolveTenant(), supportRouter); // Routes support lite MVP (auth + tenant)
 // IMPORTANT: Routes spécifiques AVANT routes générales
 app.use('/api/settings/sms', authMiddleware, resolveTenant(), smsSettingsRouter); // Routes SMS settings (auth + tenant)
@@ -396,6 +433,13 @@ const PORT = process.env.PORT || 3005;
     await loadWhatsAppPresets();
   } catch (error) {
     console.error('[WHATSAPP_PRESETS] ❌ Erreur lors du chargement:', error.message);
+  }
+
+  // Requeue stale batch jobs (crashed during previous run)
+  try {
+    await requeueStaleJobs();
+  } catch (error) {
+    console.error('[BATCH_ENGINE] ❌ Erreur requeue stale jobs:', error.message);
   }
 })();
 

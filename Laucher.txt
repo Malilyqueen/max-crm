@@ -1,4 +1,4 @@
-cd D:\Macrea\CRM\max_backend ; node server.js
+cd D:\Macrea\CRM\max_backend ; node server.js ( attention le cron secret key different en prod - si un utilisateur veut un nouveau espo=
  cd D:\Macrea\CRM\max_frontend; npm run dev
 cd "d:\Macrea\CRM\max_backend"; npx n8n
 cloudflared tunnel run max
@@ -171,3 +171,23 @@ https://max.studiomacrea.cloud/
 ➡️ Donc tu ouvres simplement :
 
 https://crm.studiomacrea.cloud
+ANCIEN DNS : f825aebda82bed63.vercel-dns-017.com
+Tenant de test créé. Voici les credentials:
+
+Connexion:
+
+Email: demo@democlient.com
+Mot de passe: demo123
+Tenant: demo_client
+WhatsApp Billing:
+
+Abonnement actif (expire dans 30 jours)
+75 messages inclus restants (100 - 25 utilisés)
+40 messages rechargés restants (50 - 10 utilisés)
+Total: 115 messages disponibles
+
+cd /opt/max-infrastructure
+git pull origin main
+docker compose build max-backend
+docker compose up -d max-backend
+docker logs -f max-backend --tail 50

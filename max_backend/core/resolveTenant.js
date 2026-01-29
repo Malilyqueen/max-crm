@@ -20,7 +20,7 @@ const CRM_STATUS = {
 
 /**
  * Résout un tenant dynamiquement depuis la DB
- * Utilise crm_url du tenant si configuré, sinon fallback sur env vars
+ * SÉCURITÉ: Pas de fallback CRM pour les tenants non-provisionnés
  */
 async function resolveTenantFromDB(tenantSlug, db) {
   if (!db) return null;
@@ -41,10 +41,31 @@ async function resolveTenantFromDB(tenantSlug, db) {
 
     const tenantRow = result.rows[0];
 
-    // Déterminer l'URL CRM: DB > env fallback
-    const crmUrl = tenantRow.crm_url || process.env.ESPO_BASE_URL || "http://127.0.0.1:8081/espocrm/api/v1";
-    const crmApiKey = tenantRow.crm_api_key || process.env.ESPO_API_KEY || "";
-    const crmStatus = tenantRow.crm_status || CRM_STATUS.PENDING;
+    // SÉCURITÉ: Déterminer l'URL CRM
+    // - Si le tenant a sa propre crm_url → l'utiliser
+    // - Si le tenant est "macrea" (legacy) → utiliser env fallback
+    // - Sinon → PAS de CRM (doit être provisionné)
+    let crmUrl = tenantRow.crm_url;
+    let crmApiKey = tenantRow.crm_api_key;
+    let crmStatus = tenantRow.crm_status || CRM_STATUS.PENDING;
+    let usingFallback = false;
+
+    // Seul le tenant legacy "macrea" peut utiliser le fallback env
+    if (!crmUrl && tenantSlug === 'macrea') {
+      crmUrl = process.env.ESPO_BASE_URL || "http://127.0.0.1:8081/espocrm/api/v1";
+      crmApiKey = process.env.ESPO_API_KEY || "";
+      usingFallback = true;
+      console.log(`   🔧 [resolveTenant] Tenant macrea: utilisation fallback env ESPO_BASE_URL`);
+    } else if (!crmUrl) {
+      // Autres tenants sans crm_url → status PENDING, pas de CRM
+      crmUrl = null;
+      crmApiKey = null;
+      crmStatus = CRM_STATUS.PENDING;
+      console.log(`   ⚠️ [resolveTenant] Tenant ${tenantSlug}: PAS de crm_url configuré, status=PENDING`);
+    }
+
+    // Log détaillé pour debug multi-tenant
+    console.log(`   📊 [resolveTenant] DB lookup: tenant=${tenantSlug}, crm_url=${crmUrl ? crmUrl.substring(0, 30) + '...' : 'NULL'}, status=${crmStatus}, fallback=${usingFallback}`);
 
     // Construire l'objet tenant compatible avec le système existant
     const tenant = {
@@ -103,25 +124,24 @@ function checkCrmStatus(tenant) {
 
   switch (status) {
     case CRM_STATUS.PENDING:
-      // CRM pas encore provisionné - utilise fallback env, donc OK pour continuer
-      // Mais si pas de fallback disponible, erreur
-      if (!tenant.espo.baseUrl || tenant.espo.baseUrl.includes('127.0.0.1')) {
+      // CRM pas encore provisionné
+      // Si pas de CRM URL configurée, erreur explicite
+      if (!tenant.espo.baseUrl) {
         return {
-          status: 503,
+          status: 409,
           body: {
             ok: false,
-            error: "CRM_NOT_CONFIGURED",
-            message: "Votre espace CRM est en cours de configuration.",
+            error: "TENANT_NOT_PROVISIONED",
+            message: "Votre espace CRM n'est pas encore activé.",
             resolve: {
-              action: "wait",
-              message: "Votre CRM sera disponible sous peu. Réessayez dans quelques minutes.",
-              retry: true,
-              retryAfter: 60
+              action: "activate_crm",
+              message: "Activez votre CRM pour commencer à gérer vos prospects.",
+              redirect: "/crm-setup"
             }
           }
         };
       }
-      return null; // Utilise le fallback, OK
+      return null; // A une URL CRM, OK
 
     case CRM_STATUS.PROVISIONING:
       return {
