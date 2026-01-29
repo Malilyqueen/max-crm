@@ -153,7 +153,11 @@ function transformLeadForCache(espoLead, tenantId) {
     if (Array.isArray(espoLead.maxTags)) {
       maxTags = espoLead.maxTags;
     } else if (typeof espoLead.maxTags === 'string') {
-      maxTags = espoLead.maxTags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
+      // Supporte séparateurs virgule OU espaces
+      maxTags = espoLead.maxTags
+        .split(/[\s,]+/)
+        .map(tag => tag.trim())
+        .filter(tag => tag.length > 0);
     }
   }
   
