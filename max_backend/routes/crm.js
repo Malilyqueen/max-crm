@@ -1,26 +1,89 @@
 /**
  * routes/crm.js
  * Routes CRM pour Phase 2A - Connexion réelle à EspoCRM
+ *
+ * SÉCURITÉ MULTI-TENANT:
+ * - Toutes les requêtes EspoCRM DOIVENT filtrer par cTenantId
+ * - Le guard fail-closed refuse l'accès si le filtre n'est pas actif
+ * - La route /request-activation est exemptée (onboarding)
  */
 
 import express from 'express';
 import { espoFetch, safeUpdateLead } from '../lib/espoClient.js';
 import { authMiddleware } from '../middleware/authMiddleware.js';
 import { logMaxAction } from '../lib/maxLogger.js';
+import { getTagsFromCache } from '../lib/leadsCacheSync.js';
 
 const router = express.Router();
 
-// Note: DEFAULT_TENANT_ID n'est plus utilisé - on utilise req.user?.tenantId || 'macrea' partout
-// (Conservé temporairement pour compatibilité si besoin, mais non utilisé)
+// ═══════════════════════════════════════════════════════════════════
+// CONFIGURATION MULTI-TENANT
+// ═══════════════════════════════════════════════════════════════════
 
-// ⚠️ TEMPORAIRE : Désactiver authMiddleware pour permettre accès depuis frontend
-// TODO Phase 3: Réactiver authMiddleware une fois JWT implémenté côté frontend
-// router.use(authMiddleware);
+// Flag: true si le champ cTenantId existe dans EspoCRM
+const ESPO_HAS_TENANT_FIELD = process.env.ESPO_HAS_TENANT_FIELD === 'true';
+
+// SÉCURITÉ FAIL-CLOSED: Refuser les requêtes shared-mode sans filtre tenant
+const ENFORCE_TENANT_ISOLATION = process.env.ENFORCE_TENANT_ISOLATION !== 'false';
+
+/**
+ * GUARD FAIL-CLOSED: Vérifier l'isolation multi-tenant
+ * Refuse l'accès aux tenants non-macrea sur CRM partagé si cTenantId pas actif
+ */
+function checkTenantIsolation(tenantId) {
+  if (!ENFORCE_TENANT_ISOLATION) return { allowed: true };
+  if (tenantId === 'macrea') return { allowed: true };
+  if (!ESPO_HAS_TENANT_FIELD) {
+    return {
+      allowed: false,
+      error: 'TENANT_ISOLATION_REQUIRED',
+      message: 'L\'isolation multi-tenant n\'est pas encore configurée.'
+    };
+  }
+  return { allowed: true };
+}
+
+/**
+ * Middleware: Injecter le filtre tenant dans les requêtes
+ * EXEMPTE: /request-activation (onboarding)
+ */
+function tenantGuardMiddleware(req, res, next) {
+  // Route d'activation exemptée (onboarding)
+  if (req.path === '/request-activation') {
+    return next();
+  }
+
+  const tenantId = req.tenantId;
+
+  // Vérifier isolation
+  const isolationCheck = checkTenantIsolation(tenantId);
+  if (!isolationCheck.allowed) {
+    console.error(`[CRM] 🚫 ISOLATION REFUSÉE: ${tenantId} - ${isolationCheck.error}`);
+    return res.status(403).json({
+      success: false,
+      error: isolationCheck.error,
+      message: isolationCheck.message
+    });
+  }
+
+  // Injecter le tenantId dans req pour les routes
+  req.tenantFilter = ESPO_HAS_TENANT_FIELD ? tenantId : null;
+  next();
+}
+
+// SECURITY: authMiddleware OBLIGATOIRE pour req.tenantId
+router.use(authMiddleware);
+router.use(tenantGuardMiddleware);
 
 /**
  * Mapper un lead EspoCRM vers le format frontend attendu
  */
 function mapEspoLeadToFrontend(espoLead) {
+  // Fusionner tagsIA et maxTags (sans doublons)
+  const tagsIA = Array.isArray(espoLead.tagsIA) ? espoLead.tagsIA : [];
+  const maxTags = Array.isArray(espoLead.maxTags) ? espoLead.maxTags : [];
+  const allTags = [...new Set([...tagsIA, ...maxTags])];
+
   return {
     id: espoLead.id,
     firstName: espoLead.firstName || '',
@@ -34,17 +97,23 @@ function mapEspoLeadToFrontend(espoLead) {
     createdAt: espoLead.createdAt || new Date().toISOString(),
     updatedAt: espoLead.modifiedAt || espoLead.createdAt || new Date().toISOString(),
     notes: espoLead.description || '',
-    tags: espoLead.tags || [],
-    score: espoLead.score || 0
+    tags: allTags,  // Fusion de tagsIA + maxTags
+    score: espoLead.scoreIA || espoLead.score || 0,
+    // V1 Starter - 3 nouveaux champs (lecture)
+    industry: espoLead.industry || espoLead.secteurInfere || '',
+    website: espoLead.website || '',
+    address: espoLead.addressStreet || espoLead.addressCity || ''
   };
 }
 
 /**
  * GET /api/crm/leads
  * Liste des leads avec filtres et pagination - VRAI EspoCRM
+ * SÉCURITÉ: Filtre automatique par cTenantId si ESPO_HAS_TENANT_FIELD=true
  */
 router.get('/leads', async (req, res) => {
   try {
+    const tenantId = req.tenantId;
     const {
       page = 1,
       pageSize = 20,
@@ -56,8 +125,22 @@ router.get('/leads', async (req, res) => {
       maxScore
     } = req.query;
 
+    console.log(`[CRM] 📋 GET /leads - tenant: ${tenantId}, filter: ${req.tenantFilter || 'NONE'}`);
+
     // Construire les filtres EspoCRM
     const where = [];
+
+    // ═══════════════════════════════════════════════════════════════════
+    // SÉCURITÉ: Filtre tenant OBLIGATOIRE en premier
+    // ═══════════════════════════════════════════════════════════════════
+    if (req.tenantFilter) {
+      where.push({
+        type: 'equals',
+        attribute: 'cTenantId',
+        value: req.tenantFilter
+      });
+      console.log(`[CRM] 🔒 Filtre tenant actif: cTenantId=${req.tenantFilter}`);
+    }
 
     if (status) {
       const statuses = Array.isArray(status) ? status : [status];
@@ -118,7 +201,9 @@ router.get('/leads', async (req, res) => {
       maxSize: pageSize,
       offset: offset,
       orderBy: 'createdAt',
-      order: 'desc'
+      order: 'desc',
+      // Inclure explicitement les champs nécessaires (tagsIA + maxTags + scoreIA)
+      select: 'id,firstName,lastName,emailAddress,phoneNumber,accountName,status,source,assignedUserName,createdAt,modifiedAt,description,tagsIA,maxTags,score,scoreIA,industry,secteurInfere,website,addressStreet,addressCity'
     });
 
     // Ajouter le filtre where si nécessaire
@@ -153,10 +238,14 @@ router.get('/leads', async (req, res) => {
 /**
  * GET /api/crm/leads/:id
  * Détail d'un lead avec notes et activités - VRAI EspoCRM
+ * SÉCURITÉ: Vérifie que le lead appartient au tenant
  */
 router.get('/leads/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const tenantId = req.tenantId;
+
+    console.log(`[CRM] 📋 GET /leads/${id} - tenant: ${tenantId}`);
 
     // Récupérer le lead depuis EspoCRM
     const espoLead = await espoFetch(`/Lead/${id}`);
@@ -165,6 +254,17 @@ router.get('/leads/:id', async (req, res) => {
       return res.status(404).json({
         success: false,
         error: 'Lead non trouvé dans EspoCRM'
+      });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // SÉCURITÉ: Vérifier que le lead appartient au tenant
+    // ═══════════════════════════════════════════════════════════════════
+    if (req.tenantFilter && espoLead.cTenantId !== req.tenantFilter) {
+      console.error(`[CRM] 🚫 ACCÈS REFUSÉ: Lead ${id} appartient à ${espoLead.cTenantId}, pas à ${req.tenantFilter}`);
+      return res.status(404).json({
+        success: false,
+        error: 'Lead non trouvé'
       });
     }
 
@@ -207,7 +307,7 @@ router.get('/leads/:id', async (req, res) => {
     logMaxAction({
       action_type: 'lead_viewed',
       action_category: 'crm',
-      tenant_id: req.user?.tenantId || 'macrea',
+      tenant_id: req.tenantId,
       user_id: req.user?.id,
       entity_type: 'Lead',
       entity_id: id,
@@ -241,19 +341,35 @@ router.get('/leads/:id', async (req, res) => {
 /**
  * PATCH /api/crm/leads/:id/status
  * Changer le statut d'un lead - VRAI EspoCRM
+ * SÉCURITÉ: Vérifie que le lead appartient au tenant avant modification
  */
 router.patch('/leads/:id/status', async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
+    const tenantId = req.tenantId;
 
-    console.log('[CRM] PATCH /leads/:id/status - ID:', id, 'Status:', status);
+    console.log(`[CRM] PATCH /leads/${id}/status - tenant: ${tenantId}, status: ${status}`);
 
     if (!status) {
       return res.status(400).json({
         success: false,
         error: 'Le statut est requis'
       });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // SÉCURITÉ: Vérifier que le lead appartient au tenant AVANT modification
+    // ═══════════════════════════════════════════════════════════════════
+    if (req.tenantFilter) {
+      const existingLead = await espoFetch(`/Lead/${id}`);
+      if (!existingLead || existingLead.cTenantId !== req.tenantFilter) {
+        console.error(`[CRM] 🚫 ACCÈS REFUSÉ: Lead ${id} n'appartient pas à ${req.tenantFilter}`);
+        return res.status(404).json({
+          success: false,
+          error: 'Lead non trouvé'
+        });
+      }
     }
 
     // Mettre à jour le statut dans EspoCRM
@@ -282,7 +398,7 @@ router.patch('/leads/:id/status', async (req, res) => {
     logMaxAction({
       action_type: 'lead_status_changed',
       action_category: 'crm',
-      tenant_id: req.user?.tenantId || 'macrea',
+      tenant_id: req.tenantId,
       user_id: req.user?.id,
       entity_type: 'Lead',
       entity_id: id,
@@ -312,7 +428,7 @@ router.patch('/leads/:id/status', async (req, res) => {
     logMaxAction({
       action_type: 'lead_status_changed',
       action_category: 'crm',
-      tenant_id: req.user?.tenantId || 'macrea',
+      tenant_id: req.tenantId,
       user_id: req.user?.id,
       entity_type: 'Lead',
       entity_id: id,
@@ -331,14 +447,216 @@ router.patch('/leads/:id/status', async (req, res) => {
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════
+// WHITELIST CRM STARTER V1 - Contrat produit
+// ═══════════════════════════════════════════════════════════════════
+const CRM_STARTER_WHITELIST = {
+  // Frontend field → Espo field mapping
+  firstName: { espoField: 'firstName', type: 'string' },
+  lastName: { espoField: 'lastName', type: 'string' },
+  email: { espoField: 'emailAddress', type: 'string' },
+  phone: { espoField: 'phoneNumber', type: 'string' },
+  company: { espoField: 'accountName', type: 'string' },
+  status: { espoField: 'status', type: 'string' },
+  source: { espoField: 'source', type: 'string' },
+  notes: { espoField: 'description', type: 'string' },
+  tags: { espoField: 'tagsIA', type: 'array' },  // Champ EspoCRM: tagsIA
+  score: { espoField: 'score', type: 'number', min: 0, max: 100 },
+  industry: { espoField: 'industry', type: 'string' },
+  website: { espoField: 'website', type: 'string' },
+  address: { espoField: 'addressStreet', type: 'string' }
+  // assignedTo: display-only pour V1 (nécessite assignedUserId)
+};
+
+/**
+ * Valide et mappe les champs frontend → Espo selon la whitelist
+ * @returns {{ valid: boolean, espoData: Object, errors: string[] }}
+ */
+function validateAndMapToEspo(frontendData) {
+  const errors = [];
+  const espoData = {};
+
+  for (const [field, value] of Object.entries(frontendData)) {
+    // Ignorer les champs vides/null
+    if (value === undefined || value === null) continue;
+
+    // Vérifier whitelist
+    const mapping = CRM_STARTER_WHITELIST[field];
+    if (!mapping) {
+      errors.push(`Champ "${field}" non autorisé (whitelist CRM Starter V1)`);
+      continue;
+    }
+
+    // Valider le type
+    if (mapping.type === 'string' && typeof value !== 'string') {
+      errors.push(`Champ "${field}" doit être une chaîne`);
+      continue;
+    }
+    if (mapping.type === 'number') {
+      const num = Number(value);
+      if (isNaN(num)) {
+        errors.push(`Champ "${field}" doit être un nombre`);
+        continue;
+      }
+      if (mapping.min !== undefined && num < mapping.min) {
+        errors.push(`Champ "${field}" doit être >= ${mapping.min}`);
+        continue;
+      }
+      if (mapping.max !== undefined && num > mapping.max) {
+        errors.push(`Champ "${field}" doit être <= ${mapping.max}`);
+        continue;
+      }
+    }
+    if (mapping.type === 'array' && !Array.isArray(value)) {
+      errors.push(`Champ "${field}" doit être un tableau`);
+      continue;
+    }
+
+    // Mapper vers le nom Espo
+    espoData[mapping.espoField] = mapping.type === 'number' ? Number(value) : value;
+  }
+
+  return {
+    valid: errors.length === 0,
+    espoData,
+    errors
+  };
+}
+
+/**
+ * PATCH /api/crm/leads/:id
+ * Mise à jour générique d'un lead - WHITELIST CRM STARTER V1
+ *
+ * SÉCURITÉ:
+ * - Whitelist-only: seuls les 13 champs du contrat sont acceptés
+ * - Fail-closed multi-tenant: vérifie cTenantId AVANT modification
+ * - Logging Supabase pour audit
+ */
+router.patch('/leads/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+    const tenantId = req.tenantId;
+
+    console.log(`[CRM] PATCH /leads/${id} - tenant: ${tenantId}`);
+    console.log('[CRM] Données reçues:', Object.keys(updateData));
+
+    // Validation input
+    if (!updateData || Object.keys(updateData).length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Aucune donnée à mettre à jour'
+      });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // WHITELIST VALIDATION - Rejeter les champs non autorisés
+    // ═══════════════════════════════════════════════════════════════════
+    const validation = validateAndMapToEspo(updateData);
+    if (!validation.valid) {
+      console.warn('[CRM] ❌ Validation whitelist échouée:', validation.errors);
+      return res.status(400).json({
+        success: false,
+        error: 'Champs non autorisés',
+        details: validation.errors
+      });
+    }
+
+    if (Object.keys(validation.espoData).length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Aucun champ valide à mettre à jour'
+      });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // SÉCURITÉ FAIL-CLOSED: Vérifier que le lead appartient au tenant
+    // ═══════════════════════════════════════════════════════════════════
+    if (req.tenantFilter) {
+      const existingLead = await espoFetch(`/Lead/${id}`);
+      if (!existingLead) {
+        return res.status(404).json({
+          success: false,
+          error: 'Lead non trouvé'
+        });
+      }
+      if (existingLead.cTenantId !== req.tenantFilter) {
+        console.error(`[CRM] 🚫 ACCÈS REFUSÉ: Lead ${id} n'appartient pas à ${req.tenantFilter}`);
+        return res.status(404).json({
+          success: false,
+          error: 'Lead non trouvé'
+        });
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // MISE À JOUR ESPOCRM
+    // ═══════════════════════════════════════════════════════════════════
+    console.log('[CRM] Envoi à EspoCRM:', validation.espoData);
+    const updatedLead = await espoFetch(`/Lead/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(validation.espoData)
+    });
+
+    const lead = mapEspoLeadToFrontend(updatedLead);
+
+    // Logger l'action (non-bloquant)
+    logMaxAction({
+      action_type: 'lead_updated',
+      action_category: 'crm',
+      tenant_id: tenantId,
+      user_id: req.user?.id,
+      entity_type: 'Lead',
+      entity_id: id,
+      description: `Lead mis à jour: ${Object.keys(updateData).join(', ')}`,
+      input_data: updateData,
+      output_data: { success: true, fields: Object.keys(validation.espoData) },
+      success: true,
+      metadata: { source: 'crm_ui', route: 'PATCH /api/crm/leads/:id' }
+    }).catch(err => console.warn('[CRM] Logging Supabase échoué:', err.message));
+
+    console.log(`[CRM] ✅ Lead ${id} mis à jour avec succès`);
+
+    res.json({
+      success: true,
+      lead,
+      updatedFields: Object.keys(validation.espoData)
+    });
+
+  } catch (error) {
+    console.error('[CRM] ❌ Erreur PATCH /leads/:id:', error);
+
+    logMaxAction({
+      action_type: 'lead_updated',
+      action_category: 'crm',
+      tenant_id: req.tenantId,
+      entity_type: 'Lead',
+      entity_id: req.params.id,
+      success: false,
+      error_message: error.message,
+      metadata: { source: 'crm_ui', route: 'PATCH /api/crm/leads/:id' }
+    }).catch(err => console.warn('[CRM] Logging Supabase échoué:', err.message));
+
+    res.status(500).json({
+      success: false,
+      error: 'Erreur lors de la mise à jour du lead',
+      details: error.message
+    });
+  }
+});
+
 /**
  * POST /api/crm/leads/:id/notes
  * Ajouter une note à un lead - VRAI EspoCRM
+ * SÉCURITÉ: Vérifie que le lead appartient au tenant
  */
 router.post('/leads/:id/notes', async (req, res) => {
   try {
     const { id } = req.params;
     const { content } = req.body;
+    const tenantId = req.tenantId;
+
+    console.log(`[CRM] POST /leads/${id}/notes - tenant: ${tenantId}`);
 
     if (!content || !content.trim()) {
       return res.status(400).json({
@@ -353,6 +671,17 @@ router.post('/leads/:id/notes', async (req, res) => {
       return res.status(404).json({
         success: false,
         error: 'Lead non trouvé dans EspoCRM'
+      });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // SÉCURITÉ: Vérifier que le lead appartient au tenant
+    // ═══════════════════════════════════════════════════════════════════
+    if (req.tenantFilter && lead.cTenantId !== req.tenantFilter) {
+      console.error(`[CRM] 🚫 ACCÈS REFUSÉ: Lead ${id} n'appartient pas à ${req.tenantFilter}`);
+      return res.status(404).json({
+        success: false,
+        error: 'Lead non trouvé'
       });
     }
 
@@ -379,7 +708,7 @@ router.post('/leads/:id/notes', async (req, res) => {
     logMaxAction({
       action_type: 'note_added',
       action_category: 'crm',
-      tenant_id: req.user?.tenantId || 'macrea',
+      tenant_id: req.tenantId,
       user_id: req.user?.id,
       entity_type: 'Lead',
       entity_id: id,
@@ -409,7 +738,7 @@ router.post('/leads/:id/notes', async (req, res) => {
     logMaxAction({
       action_type: 'note_added',
       action_category: 'crm',
-      tenant_id: req.user?.tenantId || 'macrea',
+      tenant_id: req.tenantId,
       user_id: req.user?.id,
       entity_type: 'Lead',
       entity_id: id,
@@ -468,6 +797,53 @@ router.get('/metadata/lead-statuses', async (req, res) => {
 });
 
 /**
+ * GET /api/crm/tags
+ * Récupérer tous les tags uniques utilisés par les leads du tenant
+ * Utilisé pour le segment builder des campagnes
+ *
+ * SOURCE: Supabase leads_cache (évite 403 EspoCRM avec filtre tenant)
+ * PRÉ-REQUIS: Exécuter sync leads-cache pour peupler les tags
+ */
+router.get('/tags', async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    const { search } = req.query;
+
+    console.log(`[CRM] 🏷️ GET /tags - tenant: ${tenantId} (source: Supabase leads_cache)`);
+
+    // Récupérer les tags depuis Supabase (évite 403 EspoCRM)
+    const result = await getTagsFromCache(tenantId, search);
+
+    if (!result.ok) {
+      console.error(`[CRM] ❌ Erreur getTagsFromCache:`, result.error);
+      // Fallback: retourner liste vide au lieu d'erreur
+      return res.json({
+        ok: true,
+        tags: [],
+        count: 0,
+        info: 'Cache non disponible - lancez une sync'
+      });
+    }
+
+    res.json({
+      ok: true,
+      tags: result.tags,
+      count: result.count
+    });
+
+  } catch (error) {
+    console.error('[CRM] Erreur récupération tags:', error);
+    // Fallback: retourner liste vide au lieu d'erreur
+    res.json({
+      ok: true,
+      tags: [],
+      count: 0,
+      info: 'Erreur - lancez une sync pour peupler le cache'
+    });
+  }
+});
+
+/**
  * Legacy endpoint /contact (pour compatibilité)
  */
 router.get("/contact", (req, res) => {
@@ -489,6 +865,118 @@ router.get("/contact", (req, res) => {
       { id: "t-03", title: "Mettre à jour le score d'engagement", badge: "Automatique", priority: "basse", type: "auto" }
     ]
   });
+});
+
+/**
+ * POST /api/crm/request-activation
+ * Auto-provisionner le CRM pour un tenant
+ *
+ * Flow:
+ * 1. Vérifier que le tenant existe en DB
+ * 2. Mettre à jour crm_url et crm_status = 'active'
+ * 3. Retourner success pour redirection vers dashboard
+ */
+router.post('/request-activation', async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    const user = req.user;
+    const db = req.app?.locals?.db;
+
+    console.log(`[CRM] 🚀 AUTO-PROVISIONING CRM pour tenant: ${tenantId}, user: ${user?.email}`);
+
+    if (!db) {
+      console.error('[CRM] ❌ Database connection non disponible');
+      return res.status(500).json({
+        success: false,
+        error: 'Service temporairement indisponible'
+      });
+    }
+
+    // Vérifier que le tenant existe
+    const checkResult = await db.query(
+      'SELECT slug, name, crm_url, crm_status FROM tenants WHERE slug = $1',
+      [tenantId]
+    );
+
+    if (checkResult.rows.length === 0) {
+      console.error(`[CRM] ❌ Tenant ${tenantId} non trouvé en DB`);
+      return res.status(404).json({
+        success: false,
+        error: 'Tenant non trouvé'
+      });
+    }
+
+    const tenant = checkResult.rows[0];
+
+    // Si déjà activé, retourner succès
+    if (tenant.crm_status === 'active' && tenant.crm_url) {
+      console.log(`[CRM] ℹ️ Tenant ${tenantId} déjà activé`);
+      return res.json({
+        success: true,
+        message: 'Votre CRM est déjà activé !',
+        status: 'active',
+        alreadyActive: true
+      });
+    }
+
+    // AUTO-PROVISIONING: Donner accès au CRM partagé
+    // Utilise le même EspoCRM que macrea avec isolation par cTenantId
+    const sharedCrmUrl = process.env.ESPO_BASE_URL || 'http://127.0.0.1:8081/espocrm/api/v1';
+    const sharedCrmApiKey = process.env.ESPO_API_KEY || '';
+
+    // Mettre à jour le tenant en DB
+    await db.query(
+      `UPDATE tenants
+       SET crm_url = $2,
+           crm_api_key = $3,
+           crm_status = 'active',
+           crm_provisioned_at = NOW(),
+           is_provisioned = true,
+           updated_at = NOW()
+       WHERE slug = $1`,
+      [tenantId, sharedCrmUrl, sharedCrmApiKey]
+    );
+
+    console.log(`[CRM] ✅ Tenant ${tenantId} AUTO-PROVISIONNÉ avec CRM partagé`);
+
+    // Logger l'activation dans Supabase (non-bloquant)
+    logMaxAction({
+      action_type: 'crm_activated',
+      action_category: 'onboarding',
+      tenant_id: tenantId,
+      user_id: user?.id,
+      entity_type: 'Tenant',
+      entity_id: tenantId,
+      description: `CRM auto-provisionné pour ${user?.email}`,
+      input_data: {
+        user_email: user?.email,
+        user_name: user?.name,
+        tenant_id: tenantId
+      },
+      output_data: {
+        status: 'active',
+        crm_type: 'shared',
+        crm_url: sharedCrmUrl.substring(0, 30) + '...'
+      },
+      success: true,
+      metadata: { source: 'crm_setup_page', route: 'POST /api/crm/request-activation' }
+    }).catch(err => console.warn('[CRM] Logging Supabase échoué:', err.message));
+
+    res.json({
+      success: true,
+      message: 'Votre CRM est maintenant activé ! Vous pouvez commencer à gérer vos prospects.',
+      status: 'active',
+      redirect: '/dashboard'
+    });
+
+  } catch (error) {
+    console.error('[CRM] ❌ Erreur auto-provisioning:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erreur lors de l\'activation de votre CRM',
+      details: error.message
+    });
+  }
 });
 
 export default router;

@@ -3,8 +3,9 @@
  * Modal de construction de segment pour campagnes bulk
  */
 
-import React, { useState } from 'react';
-import { X, Users, Tag, TrendingUp, Search, Plus, Trash2 } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { X, Users, Tag, TrendingUp, Search, Plus, Trash2, Loader2, AlertCircle } from 'lucide-react';
+import { apiClient } from '../../api/client';
 import type { LeadStatus } from '../../types/crm';
 
 interface SegmentCriteria {
@@ -28,9 +29,44 @@ export function SegmentBuilderModal({ isOpen, onClose, onConfirm }: SegmentBuild
   const [manualLeadIds, setManualLeadIds] = useState<string>('');
   const [estimatedCount, setEstimatedCount] = useState<number>(0);
 
+  // Tags from CRM
+  const [availableTags, setAvailableTags] = useState<string[]>([]);
+  const [tagsLoading, setTagsLoading] = useState(false);
+  const [tagsError, setTagsError] = useState<string | null>(null);
+  const [tagSearch, setTagSearch] = useState('');
+
   const availableStatuses: LeadStatus[] = ['Nouveau', 'Contacté', 'Qualifié', 'Proposition', 'Gagné', 'Perdu'];
-  const availableTags = ['VIP', 'Newsletter', 'Webinar', 'Demo', 'Trial'];
   const availableSources = ['Website', 'LinkedIn', 'Google Ads', 'Referral', 'Event'];
+
+  // Charger les tags depuis le CRM
+  useEffect(() => {
+    if (isOpen) {
+      loadTags();
+    }
+  }, [isOpen]);
+
+  const loadTags = async () => {
+    setTagsLoading(true);
+    setTagsError(null);
+    try {
+      const response = await apiClient.get('/crm/tags') as { ok: boolean; tags: string[] };
+      if (response.ok) {
+        setAvailableTags(response.tags || []);
+      }
+    } catch (err: any) {
+      console.error('[SegmentBuilder] Erreur chargement tags:', err);
+      setTagsError('Impossible de charger les tags');
+    } finally {
+      setTagsLoading(false);
+    }
+  };
+
+  // Filtrer les tags par recherche
+  const filteredTags = useMemo(() => {
+    if (!tagSearch.trim()) return availableTags;
+    const searchLower = tagSearch.toLowerCase();
+    return availableTags.filter(tag => tag.toLowerCase().includes(searchLower));
+  }, [availableTags, tagSearch]);
 
   const handleStatusToggle = (status: LeadStatus) => {
     setSelectedStatuses(prev =>
@@ -160,22 +196,80 @@ export function SegmentBuilderModal({ isOpen, onClose, onConfirm }: SegmentBuild
                   <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-3">
                     <Tag className="w-4 h-4" />
                     Tags
+                    {selectedTags.length > 0 && (
+                      <span className="ml-2 px-2 py-0.5 text-xs bg-violet-100 text-violet-700 rounded-full">
+                        {selectedTags.length} sélectionné{selectedTags.length > 1 ? 's' : ''}
+                      </span>
+                    )}
                   </label>
-                  <div className="flex flex-wrap gap-2">
-                    {availableTags.map((tag) => (
-                      <button
-                        key={tag}
-                        onClick={() => handleTagToggle(tag)}
-                        className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
-                          selectedTags.includes(tag)
-                            ? 'bg-violet-100 text-violet-700 ring-2 ring-violet-500'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
-                      >
-                        {tag}
-                      </button>
-                    ))}
+
+                  {/* Barre de recherche tags */}
+                  <div className="relative mb-3">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={tagSearch}
+                      onChange={(e) => setTagSearch(e.target.value)}
+                      placeholder="Rechercher un tag..."
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-violet-500 focus:border-violet-500 text-gray-900 bg-white placeholder:text-gray-400"
+                    />
                   </div>
+
+                  {/* État de chargement */}
+                  {tagsLoading && (
+                    <div className="flex items-center gap-2 py-4 text-gray-500">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span className="text-sm">Chargement des tags...</span>
+                    </div>
+                  )}
+
+                  {/* Erreur */}
+                  {tagsError && (
+                    <div className="flex items-center gap-2 py-3 px-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                      <AlertCircle className="w-4 h-4" />
+                      {tagsError}
+                      <button onClick={loadTags} className="ml-auto text-red-600 hover:underline">
+                        Réessayer
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Aucun tag disponible */}
+                  {!tagsLoading && !tagsError && availableTags.length === 0 && (
+                    <div className="py-6 text-center border-2 border-dashed border-gray-200 rounded-lg">
+                      <Tag className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                      <p className="text-gray-500 text-sm mb-2">Aucun tag dans votre CRM</p>
+                      <p className="text-gray-400 text-xs">
+                        Ajoutez des tags à vos leads pour pouvoir segmenter vos campagnes
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Liste des tags */}
+                  {!tagsLoading && !tagsError && availableTags.length > 0 && (
+                    <>
+                      <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto p-1">
+                        {filteredTags.map((tag) => (
+                          <button
+                            key={tag}
+                            onClick={() => handleTagToggle(tag)}
+                            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
+                              selectedTags.includes(tag)
+                                ? 'bg-violet-100 text-violet-700 ring-2 ring-violet-500'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                          >
+                            {tag}
+                          </button>
+                        ))}
+                      </div>
+                      {tagSearch && filteredTags.length === 0 && (
+                        <p className="text-gray-500 text-sm mt-2">
+                          Aucun tag correspondant à "{tagSearch}"
+                        </p>
+                      )}
+                    </>
+                  )}
                 </div>
 
                 {/* Source */}
@@ -186,11 +280,11 @@ export function SegmentBuilderModal({ isOpen, onClose, onConfirm }: SegmentBuild
                   <select
                     value={selectedSource}
                     onChange={(e) => setSelectedSource(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 text-gray-900 bg-white"
                   >
-                    <option value="">Toutes les sources</option>
+                    <option value="" className="text-gray-500">Toutes les sources</option>
                     {availableSources.map((source) => (
-                      <option key={source} value={source}>
+                      <option key={source} value={source} className="text-gray-900">
                         {source}
                       </option>
                     ))}

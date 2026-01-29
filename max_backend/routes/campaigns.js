@@ -6,14 +6,32 @@
 
 import express from 'express';
 import pg from 'pg';
+import multer from 'multer';
 import { sendEmail } from '../actions/sendEmail.js';
 import { sendWhatsapp } from '../actions/sendWhatsapp.js';
 import { sendSms } from '../actions/sendSms.js';
 import { logMessageEvent } from '../lib/messageEventLogger.js';
 import { espoFetch } from '../lib/espoClient.js';
+import { supabase } from '../lib/supabaseClient.js';
 
 const { Pool } = pg;
 const router = express.Router();
+
+// Multer config pour upload en mémoire
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 2 * 1024 * 1024, // 2MB max
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Format non supporté. Utilisez PNG, JPG, WebP ou GIF.'));
+    }
+  }
+});
 
 // DB helper
 function getPool() {
@@ -24,6 +42,92 @@ function getPool() {
       : false
   });
 }
+
+/**
+ * POST /api/campaigns/upload-image
+ * Upload d'une image pour les campagnes email (logo, etc.)
+ * Stockage dans Supabase Storage bucket "campaign-assets"
+ * Path: {tenantId}/{timestamp}-{filename}
+ */
+router.post('/upload-image', upload.single('image'), async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(401).json({ ok: false, error: 'MISSING_TENANT' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ ok: false, error: 'NO_FILE', message: 'Aucun fichier fourni' });
+    }
+
+    const file = req.file;
+    const timestamp = Date.now();
+    const ext = file.originalname.split('.').pop()?.toLowerCase() || 'png';
+    const fileName = `${tenantId}/${timestamp}-${file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+
+    console.log(`[Campaigns] 📤 Upload image: ${fileName} (${file.size} bytes)`);
+
+    // Upload vers Supabase Storage
+    const { data, error } = await supabase.storage
+      .from('campaign-assets')
+      .upload(fileName, file.buffer, {
+        contentType: file.mimetype,
+        upsert: false
+      });
+
+    if (error) {
+      console.error('[Campaigns] ❌ Erreur upload Supabase:', error);
+
+      // Si le bucket n'existe pas, on le crée
+      if (error.message?.includes('not found') || error.statusCode === '404') {
+        console.log('[Campaigns] 🔧 Création du bucket campaign-assets...');
+        const { error: createError } = await supabase.storage.createBucket('campaign-assets', {
+          public: true,
+          fileSizeLimit: 2 * 1024 * 1024
+        });
+
+        if (createError && !createError.message?.includes('already exists')) {
+          throw createError;
+        }
+
+        // Réessayer l'upload
+        const { data: retryData, error: retryError } = await supabase.storage
+          .from('campaign-assets')
+          .upload(fileName, file.buffer, {
+            contentType: file.mimetype,
+            upsert: false
+          });
+
+        if (retryError) throw retryError;
+      } else {
+        throw error;
+      }
+    }
+
+    // Obtenir l'URL publique
+    const { data: urlData } = supabase.storage
+      .from('campaign-assets')
+      .getPublicUrl(fileName);
+
+    console.log(`[Campaigns] ✅ Image uploadée: ${urlData.publicUrl}`);
+
+    res.json({
+      ok: true,
+      url: urlData.publicUrl,
+      fileName,
+      size: file.size,
+      type: file.mimetype
+    });
+
+  } catch (error) {
+    console.error('[Campaigns] ❌ Erreur upload:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'UPLOAD_FAILED',
+      message: error.message || 'Erreur lors de l\'upload'
+    });
+  }
+});
 
 /**
  * POST /api/campaigns/send-bulk
@@ -51,7 +155,17 @@ router.post('/send-bulk', async (req, res) => {
     console.log('📤 BULK CAMPAIGN SEND REQUEST');
     console.log('='.repeat(80));
 
-    const tenantId = req.ctx?.tenant || req.user?.tenantId || 'macrea';
+    // SECURITY: tenantId UNIQUEMENT depuis JWT (injecté par authMiddleware)
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      console.error('🚫 [SECURITY] MISSING_TENANT - send-bulk appelé sans tenantId JWT');
+      return res.status(401).json({
+        ok: false,
+        error: 'MISSING_TENANT',
+        message: 'Authentification requise avec tenant valide'
+      });
+    }
+
     const { channel, name, subject, message, segment } = req.body;
 
     console.log('📋 Channel:', channel);
@@ -90,8 +204,8 @@ router.post('/send-bulk', async (req, res) => {
       });
     }
 
-    // Récupérer les leads du segment
-    const leads = await fetchLeadsBySegment(segment);
+    // Récupérer les leads du segment (FILTRÉ PAR TENANT)
+    const leads = await fetchLeadsBySegment(segment, tenantId);
 
     if (leads.length === 0) {
       return res.status(400).json({
@@ -198,7 +312,8 @@ router.post('/send-bulk', async (req, res) => {
               message: personalizeMessage(message, lead),
               tenantId,
               leadId: lead.id,
-              campaignId // ✅ Nouveau: passer campaign_id
+              campaignId,
+              db: pool  // ✅ Requis pour récupérer credentials Green-API
             });
             break;
         }
@@ -267,17 +382,34 @@ router.post('/send-bulk', async (req, res) => {
 });
 
 /**
- * Récupère les leads selon le segment
+ * Récupère les leads selon le segment - AVEC FILTRE TENANT OBLIGATOIRE
+ * @param {Object} segment - Critères de segmentation
+ * @param {string} tenantId - Tenant ID (obligatoire pour isolation multi-tenant)
+ *
+ * STRATÉGIE:
+ * - Si filtre par tags → Supabase leads_cache (EspoCRM 403 sur arrayAnyOf)
+ * - Sinon → EspoCRM direct (status, source, leadIds)
  */
-async function fetchLeadsBySegment(segment) {
+async function fetchLeadsBySegment(segment, tenantId) {
   try {
-    // Si leadIds fourni, récupérer directement
+    // SECURITY: tenantId est obligatoire
+    if (!tenantId) {
+      console.error('🚫 [SECURITY] fetchLeadsBySegment appelé sans tenantId!');
+      return [];
+    }
+
+    // Si leadIds fourni, récupérer et vérifier chaque lead depuis EspoCRM
     if (segment.leadIds && segment.leadIds.length > 0) {
       const leads = [];
       for (const leadId of segment.leadIds) {
         try {
           const lead = await espoFetch(`/Lead/${leadId}`);
-          if (lead) leads.push(lead);
+          // SECURITY: Vérifier que le lead appartient au tenant
+          if (lead && lead.cTenantId === tenantId) {
+            leads.push(lead);
+          } else if (lead && lead.cTenantId !== tenantId) {
+            console.error(`🚫 [SECURITY] CROSS_TENANT_BULK - Lead ${leadId} belongs to ${lead.cTenantId}, requested by ${tenantId}`);
+          }
         } catch (error) {
           console.error(`⚠️  Lead ${leadId} introuvable`);
         }
@@ -285,9 +417,62 @@ async function fetchLeadsBySegment(segment) {
       return leads;
     }
 
-    // Sinon, construire une requête avec filtres
+    // ═══════════════════════════════════════════════════════════════════
+    // STRATÉGIE: Tags → Supabase cache (évite 403 EspoCRM sur arrayAnyOf)
+    // ═══════════════════════════════════════════════════════════════════
+    if (segment.tags && segment.tags.length > 0) {
+      console.log(`🏷️ Filtre tags via Supabase cache: ${segment.tags.join(', ')}`);
+
+      // Construire la requête Supabase
+      let query = supabase
+        .from('leads_cache')
+        .select('espo_id, first_name, last_name, email, phone, status, tags')
+        .eq('tenant_id', tenantId)
+        .overlaps('tags', segment.tags);  // Filtre tags (OR logic)
+
+      // Ajouter filtres status si présents
+      if (segment.status && segment.status.length > 0) {
+        query = query.in('status', segment.status);
+      }
+
+      // Ajouter filtre source si présent
+      if (segment.source) {
+        query = query.eq('source', segment.source);
+      }
+
+      const { data, error } = await query.limit(1000);
+
+      if (error) {
+        console.error('❌ Erreur Supabase leads_cache:', error);
+        return [];
+      }
+
+      console.log(`✅ ${data?.length || 0} leads trouvés via Supabase cache`);
+
+      // Mapper vers format EspoCRM attendu par personalizeMessage()
+      return (data || []).map(lead => ({
+        id: lead.espo_id,
+        firstName: lead.first_name,
+        lastName: lead.last_name,
+        emailAddress: lead.email,
+        phoneNumber: lead.phone,
+        status: lead.status,
+        cTenantId: tenantId,
+        tagsIA: lead.tags || []
+      }));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // PAS DE TAGS: Requête EspoCRM standard (status, source)
+    // ═══════════════════════════════════════════════════════════════════
     let whereConditions = [];
     let whereIndex = 0;
+
+    // SECURITY: Filtre tenant OBLIGATOIRE (premier filtre)
+    whereConditions.push(
+      `where[${whereIndex}][type]=equals&where[${whereIndex}][attribute]=cTenantId&where[${whereIndex}][value]=${encodeURIComponent(tenantId)}`
+    );
+    whereIndex++;
 
     // Filtre par status
     if (segment.status && segment.status.length > 0) {
@@ -305,13 +490,10 @@ async function fetchLeadsBySegment(segment) {
       whereIndex++;
     }
 
-    // Note: Les tags nécessitent une requête plus complexe (relation many-to-many)
-    // Pour MVP, on les ignore ici
-
     const queryString = whereConditions.join('&');
-    const url = `/Lead?${queryString}&maxSize=1000&select=id,firstName,lastName,emailAddress,phoneNumber,status`;
+    const url = `/Lead?${queryString}&maxSize=1000&select=id,firstName,lastName,emailAddress,phoneNumber,status,cTenantId,tagsIA,maxTags`;
 
-    console.log('🔍 Fetching leads:', url);
+    console.log(`🔍 [Tenant: ${tenantId}] Fetching leads via EspoCRM:`, url);
 
     const response = await espoFetch(url);
 
@@ -347,7 +529,12 @@ router.get('/', async (req, res) => {
   const pool = getPool();
 
   try {
-    const tenantId = req.ctx?.tenant || req.user?.tenantId || 'macrea';
+    // SECURITY: tenantId UNIQUEMENT depuis JWT
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(401).json({ ok: false, error: 'MISSING_TENANT' });
+    }
+
     const { page = 1, limit = 20, channel } = req.query;
 
     const offset = (Number(page) - 1) * Number(limit);
@@ -420,7 +607,12 @@ router.get('/:id/stats', async (req, res) => {
   const pool = getPool();
 
   try {
-    const tenantId = req.ctx?.tenant || req.user?.tenantId || 'macrea';
+    // SECURITY: tenantId UNIQUEMENT depuis JWT
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(401).json({ ok: false, error: 'MISSING_TENANT' });
+    }
+
     const { id } = req.params;
 
     // 1. Fetch campaign
@@ -535,7 +727,11 @@ router.get('/stats/global', async (req, res) => {
   const pool = getPool();
 
   try {
-    const tenantId = req.ctx?.tenant || req.user?.tenantId || 'macrea';
+    // SECURITY: tenantId UNIQUEMENT depuis JWT
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(401).json({ ok: false, error: 'MISSING_TENANT' });
+    }
 
     const result = await pool.query(
       `SELECT
