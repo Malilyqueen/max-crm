@@ -5255,6 +5255,32 @@ ${ULTRA_PRIORITY_RULES}
 
     saveMessage(sessionId, assistantMessage);
 
+    // 🔐 CONSENT GATE FIX - Injecter message consent dans historique si présent
+    if (pendingConsent) {
+      // IDEMPOTENCE: Vérifier qu'on n'a pas déjà créé un message consent pour ce consentId
+      const conversation = loadConversation(sessionId);
+      const existingConsentMessage = conversation?.messages?.find(
+        msg => msg.type === 'consent' && msg.consentId === pendingConsent.consentId
+      );
+
+      if (!existingConsentMessage) {
+        const consentMessage = {
+          role: 'system',
+          type: 'consent',
+          content: '[Demande de consentement utilisateur en attente - Ce message est pour le frontend uniquement]',
+          consentId: pendingConsent.consentId,
+          operation: pendingConsent.operation,
+          expiresIn: pendingConsent.expiresIn,
+          timestamp: new Date().toISOString()
+        };
+
+        saveMessage(sessionId, consentMessage);
+        console.log('[ChatRoute] ✅ Message consent injecté dans historique:', pendingConsent.consentId);
+      } else {
+        console.log('[ChatRoute] ⏭️ Message consent déjà existant (skip doublon):', pendingConsent.consentId);
+      }
+    }
+
     // ✅ Activité: M.A.X. a répondu
     activity.push({
       sessionId,

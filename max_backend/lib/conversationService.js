@@ -140,7 +140,13 @@ export function getContextMessages(sessionId) {
     console.log(`[ConversationService] Limite de ${MAX_HISTORY_MESSAGES} messages appliquée : ${recentMessages.length} → ${finalMessages.length}`);
   }
 
-  return finalMessages.map(m => ({ role: m.role, content: m.content }));
+  // 🔐 Filtrer messages consent (frontend-only) avant envoi à OpenAI
+  const messagesForAI = finalMessages.filter(m => m.type !== 'consent');
+  if (messagesForAI.length < finalMessages.length) {
+    console.log(`[ConversationService] ${finalMessages.length - messagesForAI.length} message(s) consent filtré(s) (frontend-only)`);
+  }
+
+  return messagesForAI.map(m => ({ role: m.role, content: m.content }));
 }
 
 /**
