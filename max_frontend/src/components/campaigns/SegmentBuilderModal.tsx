@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { X, Users, Tag, TrendingUp, Search, Plus, Trash2, Loader2, AlertCircle } from 'lucide-react';
 import { apiClient } from '../../api/client';
+import { SyncTagsButton } from '../common/SyncTagsButton';
 import type { LeadStatus } from '../../types/crm';
 
 interface SegmentCriteria {
@@ -193,15 +194,26 @@ export function SegmentBuilderModal({ isOpen, onClose, onConfirm }: SegmentBuild
 
                 {/* Tags */}
                 <div>
-                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-3">
-                    <Tag className="w-4 h-4" />
-                    Tags
-                    {selectedTags.length > 0 && (
-                      <span className="ml-2 px-2 py-0.5 text-xs bg-violet-100 text-violet-700 rounded-full">
-                        {selectedTags.length} sélectionné{selectedTags.length > 1 ? 's' : ''}
-                      </span>
-                    )}
-                  </label>
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                      <Tag className="w-4 h-4" />
+                      Tags
+                      {selectedTags.length > 0 && (
+                        <span className="ml-2 px-2 py-0.5 text-xs bg-violet-100 text-violet-700 rounded-full">
+                          {selectedTags.length} sélectionné{selectedTags.length > 1 ? 's' : ''}
+                        </span>
+                      )}
+                    </label>
+                    <SyncTagsButton 
+                      size="sm" 
+                      onSyncComplete={(success) => {
+                        if (success) {
+                          // Recharger les tags après une synchronisation réussie
+                          loadTags();
+                        }
+                      }}
+                    />
+                  </div>
 
                   {/* Barre de recherche tags */}
                   <div className="relative mb-3">
@@ -239,9 +251,18 @@ export function SegmentBuilderModal({ isOpen, onClose, onConfirm }: SegmentBuild
                     <div className="py-6 text-center border-2 border-dashed border-gray-200 rounded-lg">
                       <Tag className="w-8 h-8 text-gray-300 mx-auto mb-2" />
                       <p className="text-gray-500 text-sm mb-2">Aucun tag dans votre CRM</p>
-                      <p className="text-gray-400 text-xs">
-                        Ajoutez des tags à vos leads pour pouvoir segmenter vos campagnes
+                      <p className="text-gray-400 text-xs mb-4">
+                        Ajoutez des tags à vos leads dans EspoCRM puis synchronisez
                       </p>
+                      <SyncTagsButton 
+                        variant="primary"
+                        size="sm"
+                        onSyncComplete={(success) => {
+                          if (success) {
+                            loadTags();
+                          }
+                        }}
+                      />
                     </div>
                   )}
 

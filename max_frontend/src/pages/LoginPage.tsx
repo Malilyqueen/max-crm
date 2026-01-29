@@ -13,14 +13,26 @@ export const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [formError, setFormError] = useState('');
+  const [sessionExpired, setSessionExpired] = useState(false);
 
   const { login, isLoading, error, isAuthenticated, clearError } = useAuthStore();
   const navigate = useNavigate();
 
+  // Détecter si session expirée depuis URL
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('expired') === 'true') {
+      setSessionExpired(true);
+    }
+  }, []);
+
   // Rediriger si déjà authentifié
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/', { replace: true });
+      // Récupérer la page de redirection sauvegardée
+      const redirectPath = sessionStorage.getItem('redirectAfterLogin');
+      sessionStorage.removeItem('redirectAfterLogin');
+      navigate(redirectPath || '/', { replace: true });
     }
   }, [isAuthenticated, navigate]);
 
@@ -74,6 +86,13 @@ export const LoginPage: React.FC = () => {
 
           {/* Formulaire */}
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Message session expirée */}
+            {sessionExpired && !displayError && (
+              <div className="bg-orange-50 border border-orange-200 text-orange-800 px-4 py-3 rounded-lg text-sm">
+                ⏱️ Votre session a expiré. Veuillez vous reconnecter.
+              </div>
+            )}
+
             {/* Erreur globale */}
             {displayError && (
               <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg text-sm">

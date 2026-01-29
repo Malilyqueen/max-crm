@@ -66,19 +66,20 @@ apiClient.interceptors.response.use(
       message: error.message
     });
 
-    // Gérer erreur 401 (token expiré ou invalide)
-    if (error.response?.status === 401) {
-      console.error('[API] 🚫 401 Unauthorized - Token invalide ou expiré');
-      console.error('[API] 🚫 Response data:', error.response?.data);
-
-      // TEMPORAIRE : Ne pas rediriger automatiquement pour debug
-      // Supprimer token et rediriger vers login
-      // localStorage.removeItem('auth-storage');
-
+    // Gérer erreur 401/403 (token expiré ou invalide)
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      console.error('[API] 🚫 Session expirée - Redirection vers login');
+      
+      // Nettoyer l'authentification
+      const authStore = useAuthStore.getState();
+      authStore.logout();
+      
       // Rediriger uniquement si pas déjà sur /login
-      // if (window.location.pathname !== '/login') {
-      //   window.location.href = '/login';
-      // }
+      if (window.location.pathname !== '/login') {
+        // Sauvegarder la page actuelle pour revenir après login
+        sessionStorage.setItem('redirectAfterLogin', window.location.pathname);
+        window.location.href = '/login?expired=true';
+      }
     }
 
     return Promise.reject(error);

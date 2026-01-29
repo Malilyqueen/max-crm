@@ -12,7 +12,7 @@ import express from 'express';
 import { espoFetch, safeUpdateLead } from '../lib/espoClient.js';
 import { authMiddleware } from '../middleware/authMiddleware.js';
 import { logMaxAction } from '../lib/maxLogger.js';
-import { getTagsFromCache, updateLeadInCache } from '../lib/leadsCacheSync.js';
+import { getTagsFromCache, updateLeadInCache, syncLeadsCache } from '../lib/leadsCacheSync.js';
 
 const router = express.Router();
 
@@ -938,6 +938,44 @@ router.get('/metadata/lead-statuses', async (req, res) => {
 });
 
 /**
+ * POST /api/crm/sync-tags
+ * Synchroniser manuellement le cache leads_cache avec EspoCRM
+ * Endpoint UX pour les utilisateurs (bouton "Synchroniser les tags")
+ */
+router.post('/sync-tags', async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    
+    console.log(`[CRM] 🔄 Sync tags manuel par utilisateur - tenant: ${tenantId}`);
+    
+    // Lancer la synchronisation
+    const result = await syncLeadsCache(tenantId);
+    
+    if (!result.ok) {
+      return res.status(500).json({
+        success: false,
+        error: 'Échec de la synchronisation',
+        details: result.error
+      });
+    }
+    
+    res.json({
+      success: true,
+      synced: result.synced || 0,
+      timestamp: new Date().toISOString(),
+      message: `${result.synced || 0} leads synchronisés avec succès`
+    });
+    
+  } catch (error) {
+    console.error('[CRM] Erreur sync tags:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
  * GET /api/crm/tags
  * Récupérer tous les tags uniques utilisés par les leads du tenant
  * Utilisé pour le segment builder des campagnes
@@ -1062,7 +1100,9 @@ router.post('/request-activation', async (req, res) => {
 
     // AUTO-PROVISIONING: Donner accès au CRM partagé
     // Utilise le même EspoCRM que macrea avec isolation par cTenantId
-    const sharedCrmUrl = process.env.ESPO_BASE_URL || 'http://127.0.0.1:8081/espocrm/api/v1';
+    const fs = require('fs');
+    const IS_DOCKER = fs.existsSync('/bitnami');
+    const sharedCrmUrl = process.env.ESPO_BASE_URL || (IS_DOCKER ? 'http://espocrm:8080/espocrm/api/v1' : 'http://localhost:8081/espocrm/api/v1');
     const sharedCrmApiKey = process.env.ESPO_API_KEY || '';
 
     // Mettre à jour le tenant en DB

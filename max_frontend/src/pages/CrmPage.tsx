@@ -13,6 +13,7 @@ import { useCrmStore } from '../stores/useCrmStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import { LeadsListEnhanced } from '../components/crm/LeadsListEnhanced';
 import { LeadsFilters } from '../components/crm/LeadsFilters';
+import { SyncTagsButton } from '../components/common/SyncTagsButton';
 import { LeadDetail } from '../components/crm/LeadDetail';
 import { CreateCrmGate } from '../components/CreateCrmGate';
 import { BulkOutreachModal } from '../components/crm/BulkOutreachModal';
@@ -118,6 +119,16 @@ export function CrmPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Bouton sync tags */}
+          <SyncTagsButton 
+            onSyncComplete={(success) => {
+              if (success) {
+                // Recharger les leads après une synchronisation réussie
+                loadLeads(page);
+              }
+            }}
+          />
+          
           {/* Bouton action de masse */}
           <button
             onClick={() => setShowBulkModal(true)}
