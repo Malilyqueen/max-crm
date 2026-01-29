@@ -11,11 +11,18 @@
 import express from 'express';
 import { espoFetch, safeUpdateLead } from '../lib/espoClient.js';
 import { authMiddleware } from '../middleware/authMiddleware.js';
+import { resolveTenant } from '../core/resolveTenant.js';
 import { logMaxAction } from '../lib/maxLogger.js';
 import { getTagsFromCache, updateLeadInCache, syncLeadsCache } from '../lib/leadsCacheSync.js';
 import { supabase } from '../lib/supabaseClient.js';
 
 const router = express.Router();
+
+// Auth + resolveTenant pour toutes les routes CRM (sauf activation)
+router.use((req, res, next) => {
+  if (req.path === '/request-activation') return next();
+  return authMiddleware(req, res, () => resolveTenant()(req, res, next));
+});
 
 // ═══════════════════════════════════════════════════════════════════
 // CONFIGURATION MULTI-TENANT
