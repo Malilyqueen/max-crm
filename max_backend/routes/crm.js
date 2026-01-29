@@ -252,6 +252,7 @@ router.get('/leads', async (req, res) => {
       .filter(Boolean);
 
     if (missingTagsIds.length > 0) {
+      console.log(`[CRM] 🏷️ Fallback cache tags: ${missingTagsIds.length} leads sans tags`);
       const { data: cacheRows, error: cacheError } = await supabase
         .from('leads_cache')
         .select('espo_id,tags')
@@ -262,6 +263,7 @@ router.get('/leads', async (req, res) => {
       if (cacheError) {
         console.warn('[CRM] ⚠️ Fallback cache tags error:', cacheError.message);
       } else if (cacheRows && cacheRows.length > 0) {
+        console.log(`[CRM] 🏷️ Fallback cache tags récupérés: ${cacheRows.length}`);
         const tagsById = new Map(cacheRows.map(r => [r.espo_id, Array.isArray(r.tags) ? r.tags : []]));
         leads = leads.map(l => {
           const cachedTags = tagsById.get(l.id);
@@ -269,6 +271,8 @@ router.get('/leads', async (req, res) => {
             ? { ...l, tags: cachedTags }
             : l;
         });
+      } else {
+        console.log('[CRM] 🏷️ Fallback cache tags: aucun tag trouvé en cache');
       }
     }
     const total = data.total || 0;
