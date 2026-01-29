@@ -79,10 +79,29 @@ router.use(tenantGuardMiddleware);
  * Mapper un lead EspoCRM vers le format frontend attendu
  */
 function mapEspoLeadToFrontend(espoLead) {
-  // Fusionner tagsIA et maxTags (sans doublons)
+  // Fusionner tagsIA, maxTags et tags (sans doublons)
   const tagsIA = Array.isArray(espoLead.tagsIA) ? espoLead.tagsIA : [];
-  const maxTags = Array.isArray(espoLead.maxTags) ? espoLead.maxTags : [];
-  const allTags = [...new Set([...tagsIA, ...maxTags])];
+  let maxTags = [];
+  if (Array.isArray(espoLead.maxTags)) {
+    maxTags = espoLead.maxTags;
+  } else if (typeof espoLead.maxTags === 'string') {
+    maxTags = espoLead.maxTags
+      .split(/[\s,]+/)
+      .map(tag => tag.trim())
+      .filter(tag => tag.length > 0);
+  }
+
+  let baseTags = [];
+  if (Array.isArray(espoLead.tags)) {
+    baseTags = espoLead.tags;
+  } else if (typeof espoLead.tags === 'string') {
+    baseTags = espoLead.tags
+      .split(/[\s,]+/)
+      .map(tag => tag.trim())
+      .filter(tag => tag.length > 0);
+  }
+
+  const allTags = [...new Set([...tagsIA, ...maxTags, ...baseTags])];
 
   return {
     id: espoLead.id,
