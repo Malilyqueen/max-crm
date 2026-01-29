@@ -837,10 +837,21 @@ router.post('/leads/:id/tags', async (req, res) => {
       });
     }
 
-    // Récupérer les tags actuels du lead (fusion maxTags + tagsIA)
+    // Récupérer les tags actuels du lead (fusion maxTags + tagsIA + tags)
     const currentTagsIA = Array.isArray(lead.tagsIA) ? lead.tagsIA : [];
-    const currentMaxTags = Array.isArray(lead.maxTags) ? lead.maxTags : [];
-    const existingTags = [...new Set([...currentTagsIA, ...currentMaxTags])];
+    let currentMaxTags = [];
+    if (Array.isArray(lead.maxTags)) {
+      currentMaxTags = lead.maxTags;
+    } else if (typeof lead.maxTags === 'string') {
+      currentMaxTags = lead.maxTags.split(/[\s,]+/).map(t => t.trim()).filter(Boolean);
+    }
+    let currentTags = [];
+    if (Array.isArray(lead.tags)) {
+      currentTags = lead.tags;
+    } else if (typeof lead.tags === 'string') {
+      currentTags = lead.tags.split(/[\s,]+/).map(t => t.trim()).filter(Boolean);
+    }
+    const existingTags = [...new Set([...currentTagsIA, ...currentMaxTags, ...currentTags])];
 
     // Fusionner avec les nouveaux tags (éviter doublons)
     const existingNormalized = existingTags.map(normalizeTagSlug);
@@ -849,9 +860,10 @@ router.post('/leads/:id/tags', async (req, res) => {
 
     console.log(`[CRM] Tags - Existants: ${existingTags.length}, Nouveaux: ${newTags.length}, Total: ${updatedTags.length}`);
 
-    // Mettre à jour EspoCRM (utilise maxTags pour compatibilité)
+    // Mettre à jour EspoCRM (maxTags + tagsIA pour compatibilité)
     const updateData = {
-      maxTags: updatedTags
+      maxTags: updatedTags,
+      tagsIA: updatedTags
     };
 
     const updatedLead = await espoFetch(`/Lead/${id}`, {
@@ -861,7 +873,7 @@ router.post('/leads/:id/tags', async (req, res) => {
 
     // Mettre à jour le cache Supabase (source officielle pour Campaign/SegmentBuilder)
     try {
-      await updateLeadInCache(tenantId, { ...lead, maxTags: updatedTags });
+      await updateLeadInCache(tenantId, { ...lead, maxTags: updatedTags, tagsIA: updatedTags });
       console.log(`[CRM] ✅ Cache Supabase mis à jour pour lead ${id}`);
     } catch (cacheError) {
       console.warn(`[CRM] ⚠️ Erreur mise à jour cache:`, cacheError.message);
