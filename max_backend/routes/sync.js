@@ -10,6 +10,7 @@
 
 import express from 'express';
 import { syncLeadsCache, getCacheStats } from '../lib/leadsCacheSync.js';
+import { supabase } from '../lib/supabaseClient.js';
 import { authMiddleware } from '../middleware/authMiddleware.js';
 import { resolveTenant } from '../core/resolveTenant.js';
 
@@ -33,6 +34,7 @@ router.post('/leads-cache', authMiddleware, resolveTenant, async (req, res) => {
     const tenantId = req.tenantId;
     const tenantConfig = req.tenant;
     const asyncRequested = Boolean(req.body?.async);
+    const resetRequested = Boolean(req.body?.reset);
 
     // FAIL-CLOSED: Refuser si pas de tenant identifié
     if (!tenantId) {
@@ -43,12 +45,29 @@ router.post('/leads-cache', authMiddleware, resolveTenant, async (req, res) => {
       });
     }
 
-    console.log(`[Sync] 🔄 Sync leads_cache tenant-only: ${tenantId}${asyncRequested ? ' (async)' : ''}`);
+    console.log(`[Sync] 🔄 Sync leads_cache tenant-only: ${tenantId}${asyncRequested ? ' (async)' : ''}${resetRequested ? ' (reset)' : ''}`);
+
+    const resetCache = async () => {
+      const crmEnv = process.env.CRM_ENV || 'prod';
+      const { error } = await supabase
+        .from('leads_cache')
+        .delete()
+        .eq('tenant_id', tenantId)
+        .eq('crm_env', crmEnv);
+      if (error) {
+        console.error('[Sync] ❌ Reset cache failed:', error);
+      } else {
+        console.log(`[Sync] 🧹 Cache vidé pour tenant ${tenantId} (env: ${crmEnv})`);
+      }
+    };
 
     if (asyncRequested) {
       // Lancer en background et répondre immédiatement pour éviter timeout UI
       setImmediate(async () => {
         try {
+          if (resetRequested) {
+            await resetCache();
+          }
           const result = await syncLeadsCache(tenantId, tenantConfig);
           if (!result.ok) {
             console.error('[Sync] ❌ Async sync failed:', result.error || result);
@@ -65,6 +84,10 @@ router.post('/leads-cache', authMiddleware, resolveTenant, async (req, res) => {
         message: 'Sync lancée',
         synced: null
       });
+    }
+
+    if (resetRequested) {
+      await resetCache();
     }
 
     const result = await syncLeadsCache(tenantId, tenantConfig);
