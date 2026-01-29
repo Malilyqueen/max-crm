@@ -32,6 +32,7 @@ router.post('/leads-cache', authMiddleware, resolveTenant, async (req, res) => {
   try {
     const tenantId = req.tenantId;
     const tenantConfig = req.tenant;
+    const asyncRequested = Boolean(req.body?.async);
 
     // FAIL-CLOSED: Refuser si pas de tenant identifié
     if (!tenantId) {
@@ -42,7 +43,29 @@ router.post('/leads-cache', authMiddleware, resolveTenant, async (req, res) => {
       });
     }
 
-    console.log(`[Sync] 🔄 Sync leads_cache tenant-only: ${tenantId}`);
+    console.log(`[Sync] 🔄 Sync leads_cache tenant-only: ${tenantId}${asyncRequested ? ' (async)' : ''}`);
+
+    if (asyncRequested) {
+      // Lancer en background et répondre immédiatement pour éviter timeout UI
+      setImmediate(async () => {
+        try {
+          const result = await syncLeadsCache(tenantId, tenantConfig);
+          if (!result.ok) {
+            console.error('[Sync] ❌ Async sync failed:', result.error || result);
+          } else {
+            console.log(`[Sync] ✅ Async sync complete: ${result.synced} contacts`);
+          }
+        } catch (error) {
+          console.error('[Sync] ❌ Async sync error:', error);
+        }
+      });
+
+      return res.json({
+        ok: true,
+        message: 'Sync lancée',
+        synced: null
+      });
+    }
 
     const result = await syncLeadsCache(tenantId, tenantConfig);
 
