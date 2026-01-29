@@ -170,9 +170,11 @@ Règles:
 
     // Parser la réponse JSON
     let analysis;
+    let responseText = ''; // accessible dans le catch
+
     try {
       // Nettoyer la réponse (parfois l'IA ajoute des backticks)
-      const responseText = response.text || response.content || '';
+      responseText = response.text || response.content || '';
       const cleanedResponse = responseText
         .replace(/```json\n?/g, '')
         .replace(/```\n?/g, '')
@@ -181,13 +183,20 @@ Règles:
       analysis = JSON.parse(cleanedResponse);
     } catch (parseError) {
       console.error('[EmailAnalyzer] Erreur parsing JSON:', parseError);
-      console.error('[EmailAnalyzer] Réponse brute:', responseText || response);
+
+      // Log safe (preview) pour éviter les pavés
+      const raw = responseText || (typeof response === 'string' ? response : JSON.stringify(response));
+      const preview = raw.length > 1200 ? raw.slice(0, 1200) + '…[truncated]' : raw;
+
+      console.error('[EmailAnalyzer] Réponse brute (preview):', preview);
 
       // Fallback: retourner une analyse basique
       return {
         success: true,
         secteur: Object.keys(keywordHints)[0] || 'Non déterminé',
-        tags: Object.keys(keywordHints).slice(0, 3).map(k => k.charAt(0).toUpperCase() + k.slice(1)),
+        tags: Object.keys(keywordHints)
+          .slice(0, 3)
+          .map(k => k.charAt(0).toUpperCase() + k.slice(1)),
         services_interesses: ['Branding', 'Marketing Digital'],
         description_courte: `Lead du domaine ${domain}`,
         confiance: 'basse',
