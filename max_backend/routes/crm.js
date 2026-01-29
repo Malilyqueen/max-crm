@@ -12,7 +12,7 @@ import express from 'express';
 import { espoFetch, safeUpdateLead } from '../lib/espoClient.js';
 import { authMiddleware } from '../middleware/authMiddleware.js';
 import { logMaxAction } from '../lib/maxLogger.js';
-import { getTagsFromCache } from '../lib/leadsCacheSync.js';
+import { getTagsFromCache, updateLeadInCache } from '../lib/leadsCacheSync.js';
 
 const router = express.Router();
 
@@ -752,6 +752,147 @@ router.post('/leads/:id/notes', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Erreur lors de l\'ajout de la note dans EspoCRM',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * Normalise un tag pour éviter les doublons
+ * @param {string} tag - Tag brut
+ * @returns {string} - Tag normalisé (slug)
+ */
+function normalizeTagSlug(tag) {
+  if (!tag || typeof tag !== 'string') return '';
+  return tag.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+/**
+ * POST /api/crm/leads/:id/tags
+ * Ajouter/créer un tag sur un lead
+ * SÉCURITÉ: Vérifie que le lead appartient au tenant
+ * SOURCE: Unifié avec GET /api/crm/tags (PROD-only via leads_cache)
+ */
+router.post('/leads/:id/tags', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { tags } = req.body;
+    const tenantId = req.tenantId;
+
+    console.log(`[CRM] POST /leads/${id}/tags - tenant: ${tenantId}`);
+
+    if (!tags || !Array.isArray(tags) || tags.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Au moins un tag est requis (tableau non vide)'
+      });
+    }
+
+    // Normaliser les tags (éviter doublons)
+    const normalizedTags = tags.map(normalizeTagSlug).filter(t => t.length > 0);
+    
+    if (normalizedTags.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Aucun tag valide fourni'
+      });
+    }
+
+    // Vérifier que le lead existe et appartient au tenant
+    const lead = await espoFetch(`/Lead/${id}`);
+    if (!lead) {
+      return res.status(404).json({
+        success: false,
+        error: 'Lead non trouvé dans EspoCRM'
+      });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // SÉCURITÉ: Vérifier que le lead appartient au tenant
+    // ═══════════════════════════════════════════════════════════════════
+    if (req.tenantFilter && lead.cTenantId !== req.tenantFilter) {
+      console.error(`[CRM] 🚫 ACCÈS REFUSÉ: Lead ${id} n'appartient pas à ${req.tenantFilter}`);
+      return res.status(404).json({
+        success: false,
+        error: 'Lead non trouvé'
+      });
+    }
+
+    // Récupérer les tags actuels du lead (fusion maxTags + tagsIA)
+    const currentTagsIA = Array.isArray(lead.tagsIA) ? lead.tagsIA : [];
+    const currentMaxTags = Array.isArray(lead.maxTags) ? lead.maxTags : [];
+    const existingTags = [...new Set([...currentTagsIA, ...currentMaxTags])];
+
+    // Fusionner avec les nouveaux tags (éviter doublons)
+    const existingNormalized = existingTags.map(normalizeTagSlug);
+    const newTags = normalizedTags.filter(tag => !existingNormalized.includes(tag));
+    const updatedTags = [...existingTags, ...newTags];
+
+    console.log(`[CRM] Tags - Existants: ${existingTags.length}, Nouveaux: ${newTags.length}, Total: ${updatedTags.length}`);
+
+    // Mettre à jour EspoCRM (utilise maxTags pour compatibilité)
+    const updateData = {
+      maxTags: updatedTags
+    };
+
+    const updatedLead = await espoFetch(`/Lead/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updateData)
+    });
+
+    // Mettre à jour le cache Supabase (source officielle pour Campaign/SegmentBuilder)
+    try {
+      await updateLeadInCache(tenantId, { ...lead, maxTags: updatedTags });
+      console.log(`[CRM] ✅ Cache Supabase mis à jour pour lead ${id}`);
+    } catch (cacheError) {
+      console.warn(`[CRM] ⚠️ Erreur mise à jour cache:`, cacheError.message);
+      // Non-bloquant : l'update EspoCRM a réussi
+    }
+
+    // Logger l'action dans Supabase (non-bloquant)
+    logMaxAction({
+      action_type: 'tags_added',
+      action_category: 'crm',
+      tenant_id: req.tenantId,
+      user_id: req.user?.id,
+      entity_type: 'Lead',
+      entity_id: id,
+      description: `Tags ajoutés: ${newTags.join(', ')}`,
+      input_data: { added_tags: newTags, total_tags: updatedTags.length },
+      output_data: { success: true, lead_tags: updatedTags },
+      success: true,
+      metadata: { source: 'crm_ui', route: 'POST /api/crm/leads/:id/tags' }
+    }).catch(err => console.warn('[CRM] Logging Supabase échoué:', err.message));
+
+    res.json({
+      ok: true,
+      leadId: id,
+      tags: updatedTags,
+      addedTags: newTags,
+      totalTags: updatedTags.length
+    });
+
+  } catch (error) {
+    console.error('[CRM] Erreur ajout tags EspoCRM:', error);
+
+    // Logger l'échec dans Supabase (non-bloquant)
+    logMaxAction({
+      action_type: 'tags_added',
+      action_category: 'crm',
+      tenant_id: req.tenantId,
+      user_id: req.user?.id,
+      entity_type: 'Lead',
+      entity_id: id,
+      description: `Échec ajout tags`,
+      input_data: { requested_tags: req.body?.tags },
+      success: false,
+      error_message: error.message,
+      metadata: { source: 'crm_ui', route: 'POST /api/crm/leads/:id/tags' }
+    }).catch(err => console.warn('[CRM] Logging Supabase échoué:', err.message));
+
+    res.status(500).json({
+      success: false,
+      error: 'Erreur lors de l\'ajout des tags dans EspoCRM',
       details: error.message
     });
   }

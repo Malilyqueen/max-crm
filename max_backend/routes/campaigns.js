@@ -421,13 +421,15 @@ async function fetchLeadsBySegment(segment, tenantId) {
     // STRATÉGIE: Tags → Supabase cache (évite 403 EspoCRM sur arrayAnyOf)
     // ═══════════════════════════════════════════════════════════════════
     if (segment.tags && segment.tags.length > 0) {
-      console.log(`🏷️ Filtre tags via Supabase cache: ${segment.tags.join(', ')}`);
+      const crmEnv = process.env.CRM_ENV || 'prod';
+      console.log(`🏷️ Filtre tags via Supabase cache: ${segment.tags.join(', ')} (env: ${crmEnv})`);
 
-      // Construire la requête Supabase
+      // Construire la requête Supabase avec filtrage environnement
       let query = supabase
         .from('leads_cache')
         .select('espo_id, first_name, last_name, email, phone, status, tags')
         .eq('tenant_id', tenantId)
+        .eq('crm_env', crmEnv)  // ✅ SÉCURITÉ: Filtrage par environnement
         .overlaps('tags', segment.tags);  // Filtre tags (OR logic)
 
       // Ajouter filtres status si présents

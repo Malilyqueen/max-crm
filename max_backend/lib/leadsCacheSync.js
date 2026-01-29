@@ -173,6 +173,10 @@ function transformLeadForCache(espoLead, tenantId) {
     // Tags (fusion tagsIA + maxTags depuis EspoCRM)
     tags: allTags,
 
+    // Environnement CRM (prod, dev, local)
+    // ✅ SÉCURITÉ: Permet filtrage PROD-only dans campaigns
+    crm_env: process.env.CRM_ENV || 'prod',
+
     // Timestamps (nouveau schéma)
     last_activity_at: modifiedAt,
     created_at: createdAt,
@@ -251,13 +255,16 @@ export async function getCacheStats(tenantId) {
  */
 export async function getTagsFromCache(tenantId, search = null) {
   try {
-    console.log(`[LeadsCache] 🏷️ Récupération tags pour tenant: ${tenantId}`);
+    const crmEnv = process.env.CRM_ENV || 'prod';
+    console.log(`[LeadsCache] 🏷️ Récupération tags pour tenant: ${tenantId} (env: ${crmEnv})`);
 
     // Récupérer tous les leads du tenant avec leurs tags
+    // SÉCURITÉ: Filtre crm_env pour séparer environnements
     const { data, error } = await supabase
       .from('leads_cache')
       .select('tags')
-      .eq('tenant_id', tenantId);
+      .eq('tenant_id', tenantId)
+      .eq('crm_env', crmEnv);  // ✅ Filtrage par environnement
 
     if (error) {
       console.error(`[LeadsCache] ❌ Erreur récupération tags:`, error);
