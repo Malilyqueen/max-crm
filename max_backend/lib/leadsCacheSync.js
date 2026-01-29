@@ -102,7 +102,23 @@ async function fetchAllLeadsFromEspo(tenantId, tenantConfig) {
 
   while (hasMore) {
     try {
-      const url = `/Lead?maxSize=${pageSize}&offset=${offset}&orderBy=createdAt&order=desc${whereClause}`;
+      const selectFields = [
+        'id',
+        'firstName',
+        'lastName',
+        'name',
+        'emailAddress',
+        'phoneNumber',
+        'accountName',
+        'status',
+        'score',
+        'source',
+        'tagsIA',
+        'maxTags',
+        'createdAt',
+        'modifiedAt'
+      ].join(',');
+      const url = `/Lead?maxSize=${pageSize}&offset=${offset}&orderBy=createdAt&order=desc&select=${selectFields}${whereClause}`;
       const response = await espoFetch(url);
 
       if (response && response.list) {
@@ -144,7 +160,7 @@ function transformLeadForCache(espoLead, tenantId) {
   const createdAt = espoLead.createdAt;
   const modifiedAt = espoLead.modifiedAt || espoLead.createdAt;
 
-  // Fusionner tagsIA et maxTags (sans doublons)
+  // Fusionner tagsIA, maxTags et tags (fallback) sans doublons
   const tagsIA = Array.isArray(espoLead.tagsIA) ? espoLead.tagsIA : [];
   
   // MaxTags peut être string "tag1,tag2" ou array - normaliser en array
@@ -161,7 +177,18 @@ function transformLeadForCache(espoLead, tenantId) {
     }
   }
   
-  const allTags = [...new Set([...tagsIA, ...maxTags])].filter(t => t && typeof t === 'string');
+  let baseTags = [];
+  if (Array.isArray(espoLead.tags)) {
+    baseTags = espoLead.tags;
+  } else if (typeof espoLead.tags === 'string') {
+    baseTags = espoLead.tags
+      .split(/[\s,]+/)
+      .map(tag => tag.trim())
+      .filter(tag => tag.length > 0);
+  }
+
+  const allTags = [...new Set([...tagsIA, ...maxTags, ...baseTags])]
+    .filter(t => t && typeof t === 'string');
 
   return {
     // Clé primaire composite (unique par tenant)
