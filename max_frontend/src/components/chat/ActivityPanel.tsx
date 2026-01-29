@@ -5,12 +5,17 @@
 
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Target, RefreshCw, FileEdit, TrendingUp, Zap } from 'lucide-react';
+import {
+  X, Target, RefreshCw, FileEdit, TrendingUp, Zap,
+  Search, Check, CheckCircle, UserPlus, Brain,
+  MessageCircle, MessageSquare, Settings, XCircle,
+  AlertTriangle, Activity as ActivityIcon
+} from 'lucide-react';
 import { useThemeColors } from '../../hooks/useThemeColors';
 
 export interface Activity {
   id: string;
-  icon: 'target' | 'refresh' | 'edit' | 'chart' | 'zap';
+  icon: string; // Accepte n'importe quelle icône
   message: string;
   timestamp: number;
 }
@@ -21,12 +26,27 @@ interface ActivityPanelProps {
   onClose: () => void;
 }
 
-const iconMap = {
+// Map des icônes disponibles
+const iconMap: Record<string, React.ComponentType<{ className?: string; style?: React.CSSProperties }>> = {
+  // Icônes originales
   target: Target,
   refresh: RefreshCw,
   edit: FileEdit,
   chart: TrendingUp,
-  zap: Zap
+  zap: Zap,
+  // Nouvelles icônes pour les activités MAX
+  search: Search,
+  check: Check,
+  'check-circle': CheckCircle,
+  'user-plus': UserPlus,
+  brain: Brain,
+  'message-circle': MessageCircle,
+  'message-square': MessageSquare,
+  settings: Settings,
+  x: XCircle,
+  'x-circle': XCircle,
+  'alert-triangle': AlertTriangle,
+  activity: ActivityIcon
 };
 
 export const ActivityPanel: React.FC<ActivityPanelProps> = ({ activities, isOpen, onClose }) => {
@@ -95,7 +115,8 @@ export const ActivityPanel: React.FC<ActivityPanelProps> = ({ activities, isOpen
                 </div>
               ) : (
                 activities.map((activity, index) => {
-                  const Icon = iconMap[activity.icon];
+                  // Fallback vers Zap si l'icône n'existe pas
+                  const Icon = iconMap[activity.icon] || Zap;
                   return (
                     <motion.div
                       key={activity.id}

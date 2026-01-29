@@ -34,7 +34,7 @@ import { getButtonsForState } from '../lib/actionMapper.js';
 import { detectOperationMode, storeLeadContext, getActiveLeadContext, clearImportContext } from '../lib/sessionContext.js';
 import { batchUpsertLeads, upsertLead, validateMinimalLead, findExistingLead } from '../lib/leadUpsert.js';
 import { formatEnrichedLead, generateUpdateDiff, FIELD_MAPPING } from '../lib/fieldMapping.js';
-import { espoFetch, espoAdminFetch } from '../lib/espoClient.js';
+import { espoFetch, espoAdminFetch, injectTenantId, isTenantFilterActive, buildTenantFilter } from '../lib/espoClient.js';
 import { addFieldToAllLayouts } from '../lib/layoutManager.js';
 import { espoRebuild, espoClearCache } from '../lib/phpExecutorAuto.js';
 import { logMaxActivity } from '../lib/activityLogger.js';
@@ -350,6 +350,13 @@ async function executeToolCall(toolName, args, sessionId) {
     case 'query_espo_leads': {
       const { filters = {}, limit = 50, sortBy = 'createdAt', sortOrder = 'desc' } = args;
 
+      // 📊 Activité: Recherche CRM
+      activity.push({
+        sessionId,
+        icon: 'search',
+        message: `🔍 Recherche leads dans le CRM...`
+      });
+
       try {
         // Construire la requête EspoCRM
         const params = new URLSearchParams({
@@ -382,6 +389,13 @@ async function executeToolCall(toolName, args, sessionId) {
           details: `Listage de ${response.list.length} lead(s) sur ${response.total} total`
         });
 
+        // ✅ Activité: Résultats trouvés
+        activity.push({
+          sessionId,
+          icon: 'check',
+          message: `✅ ${response.list.length} lead(s) trouvé(s) sur ${response.total}`
+        });
+
         return {
           success: true,
           total: response.total,
@@ -398,6 +412,7 @@ async function executeToolCall(toolName, args, sessionId) {
         };
       } catch (error) {
         console.error('[query_espo_leads] Erreur:', error);
+        activity.push({ sessionId, icon: 'x', message: `❌ Erreur recherche: ${error.message}` });
         return {
           success: false,
           error: error.message
@@ -407,6 +422,13 @@ async function executeToolCall(toolName, args, sessionId) {
 
     case 'update_leads_in_espo': {
       const { leadIds, updates, mode = 'update_only', leadData: directLeadData } = args;
+
+      // 📝 Activité: Opération CRM
+      activity.push({
+        sessionId,
+        icon: 'edit',
+        message: mode === 'force_create' ? `📝 Création de lead(s) dans le CRM...` : `📝 Mise à jour de lead(s)...`
+      });
 
       try {
         // Mode force_create : créer de nouveaux leads depuis les données du fichier uploadé OU directLeadData
@@ -514,7 +536,7 @@ async function executeToolCall(toolName, args, sessionId) {
               };
 
               // Formatter les données pour EspoCRM
-              const leadPayload = {
+              let leadPayload = {
                 firstName: directLeadData.firstName || directLeadData.prenom || '',
                 lastName: directLeadData.lastName || directLeadData.nom || directLeadData.name || 'N/A',
                 accountName: directLeadData.accountName || directLeadData.company || directLeadData.entreprise || '',
@@ -528,6 +550,17 @@ async function executeToolCall(toolName, args, sessionId) {
                 source: normalizeSource(directLeadData.source)
               };
 
+              // ═══════════════════════════════════════════════════════════════════
+              // SÉCURITÉ MULTI-TENANT: Injecter cTenantId automatiquement
+              // ═══════════════════════════════════════════════════════════════════
+              const tenantId = conversation.tenantId;
+              if (tenantId) {
+                leadPayload = injectTenantId(leadPayload, tenantId);
+                console.log(`[update_leads_in_espo] 🔒 Injection cTenantId=${tenantId} pour isolation multi-tenant`);
+              } else {
+                console.warn('[update_leads_in_espo] ⚠️ Pas de tenantId dans conversation - lead créé sans isolation!');
+              }
+
               console.log('[update_leads_in_espo] Payload EspoCRM:', JSON.stringify(leadPayload, null, 2));
 
               // Créer le lead via POST
@@ -537,6 +570,13 @@ async function executeToolCall(toolName, args, sessionId) {
               });
 
               console.log(`[update_leads_in_espo] ✅ Lead créé avec succès - ID: ${created.id}`);
+
+              // ✅ Activité: Lead créé
+              activity.push({
+                sessionId,
+                icon: 'user-plus',
+                message: `✅ Lead créé: ${leadPayload.lastName || leadPayload.accountName || 'Nouveau lead'}`
+              });
 
               return {
                 success: true,
@@ -551,6 +591,7 @@ async function executeToolCall(toolName, args, sessionId) {
                 }]
               };
             } catch (error) {
+              activity.push({ sessionId, icon: 'x', message: `❌ Erreur création lead: ${error.message}` });
               console.error('[update_leads_in_espo] ❌ Erreur création lead direct:');
               console.error('  - Message:', error.message);
               console.error('  - Status:', error.status || 'N/A');
@@ -601,10 +642,16 @@ async function executeToolCall(toolName, args, sessionId) {
             return cleaned || '';
           };
 
+          // SÉCURITÉ MULTI-TENANT: Récupérer tenantId pour l'injection
+          const tenantIdForFile = conversation.tenantId;
+          if (tenantIdForFile) {
+            console.log(`[update_leads_in_espo] 🔒 Mode FILE CREATE: injection cTenantId=${tenantIdForFile}`);
+          }
+
           for (const row of fileData) {
             try {
               // Mapper les données du fichier vers le format EspoCRM Lead
-              const leadData = {
+              let leadData = {
                 firstName: row.prenom || row.firstName || '',
                 lastName: row.nom || row.nom_entreprise || row.lastName || row.name || 'N/A',
                 accountName: row.nom_entreprise || row.company || row.accountName || row.entreprise || '',
@@ -615,6 +662,11 @@ async function executeToolCall(toolName, args, sessionId) {
                 status: 'New',
                 source: 'Web Site'  // Valeur EspoCRM standard
               };
+
+              // SÉCURITÉ MULTI-TENANT: Injecter cTenantId
+              if (tenantIdForFile) {
+                leadData = injectTenantId(leadData, tenantIdForFile);
+              }
 
               // Vérifier si le lead existe déjà (par email ou nom d'entreprise)
               let existingLead = null;
@@ -1077,6 +1129,13 @@ ${updatedSummary}${moreUpdates}${errorDetails}
     case 'auto_enrich_missing_leads': {
       const { dryRun = false } = args;
 
+      // 🧠 Activité: Enrichissement IA
+      activity.push({
+        sessionId,
+        icon: 'brain',
+        message: dryRun ? `🔍 Analyse des leads à enrichir...` : `🧠 Enrichissement IA des leads en cours...`
+      });
+
       try {
         console.log('[auto_enrich_missing_leads] 🚀 Démarrage auto-enrichissement...');
 
@@ -1405,6 +1464,129 @@ ${successList}${moreSuccess}
           success: false,
           error: error.message,
           hint: 'Vérifiez que les credentials admin sont configurés dans ESPO_USERNAME/ESPO_PASSWORD'
+        };
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // 🔧 ADD_ENUM_OPTION - Ajouter une option à un champ enum existant
+    // ═══════════════════════════════════════════════════════════════════
+    case 'add_enum_option': {
+      const { entity = 'Lead', fieldName, newOption, newOptions } = args;
+
+      // Validation des paramètres
+      if (!fieldName) {
+        return {
+          success: false,
+          error: 'Paramètre "fieldName" manquant. Spécifiez le champ enum à modifier.'
+        };
+      }
+
+      const optionsToAdd = newOptions || (newOption ? [newOption] : []);
+      if (optionsToAdd.length === 0) {
+        return {
+          success: false,
+          error: 'Paramètre "newOption" ou "newOptions" manquant. Spécifiez la/les valeur(s) à ajouter.'
+        };
+      }
+
+      // 🔧 Activité: Modification enum
+      activity.push({
+        sessionId,
+        icon: 'settings',
+        message: `🔧 Ajout option(s) "${optionsToAdd.join(', ')}" à ${fieldName}...`
+      });
+
+      try {
+        console.log(`[add_enum_option] 🔧 Ajout de ${optionsToAdd.join(', ')} à ${entity}.${fieldName}`);
+
+        // 1. Récupérer la définition actuelle du champ
+        let currentDef;
+        try {
+          currentDef = await espoAdminFetch(`/Admin/fieldManager/${entity}/${fieldName}`, {
+            method: 'GET'
+          });
+          console.log(`[add_enum_option] Définition actuelle:`, JSON.stringify(currentDef, null, 2));
+        } catch (fetchError) {
+          // Si le champ n'existe pas, on ne peut pas ajouter d'options
+          return {
+            success: false,
+            error: `Le champ "${fieldName}" n'existe pas sur l'entité ${entity}. Utilisez create_custom_field pour le créer d'abord.`,
+            hint: `create_custom_field({entity: "${entity}", fieldName: "${fieldName}", type: "enum", options: ${JSON.stringify(optionsToAdd)}})`
+          };
+        }
+
+        // 2. Vérifier que c'est bien un champ enum ou multiEnum
+        if (currentDef.type !== 'enum' && currentDef.type !== 'multiEnum') {
+          return {
+            success: false,
+            error: `Le champ "${fieldName}" est de type "${currentDef.type}", pas un enum. Impossible d'ajouter des options.`
+          };
+        }
+
+        // 3. Fusionner les nouvelles options avec les existantes (sans doublons)
+        const existingOptions = currentDef.options || [];
+        const alreadyExist = optionsToAdd.filter(opt => existingOptions.includes(opt));
+        const toAdd = optionsToAdd.filter(opt => !existingOptions.includes(opt));
+
+        if (toAdd.length === 0) {
+          console.log(`[add_enum_option] ✅ Toutes les options existent déjà: ${alreadyExist.join(', ')}`);
+          return {
+            success: true,
+            message: `Les options ${alreadyExist.join(', ')} existent déjà dans ${entity}.${fieldName}`,
+            alreadyExisted: alreadyExist,
+            added: [],
+            currentOptions: existingOptions
+          };
+        }
+
+        const updatedOptions = [...existingOptions, ...toAdd];
+
+        // 4. Mettre à jour le champ avec les nouvelles options
+        const updatedDef = {
+          ...currentDef,
+          options: updatedOptions
+        };
+
+        await espoAdminFetch(`/Admin/fieldManager/${entity}/${fieldName}`, {
+          method: 'PUT',
+          body: JSON.stringify(updatedDef)
+        });
+
+        console.log(`[add_enum_option] ✅ Options ajoutées: ${toAdd.join(', ')}`);
+
+        // 5. Rebuild EspoCRM pour appliquer les changements
+        try {
+          await espoAdminFetch('/Admin/rebuild', { method: 'POST' });
+          console.log(`[add_enum_option] ✅ EspoCRM rebuilt`);
+        } catch (rebuildError) {
+          console.warn(`[add_enum_option] ⚠️ Rebuild warning:`, rebuildError.message);
+        }
+
+        // ✅ Activité: Options ajoutées
+        activity.push({
+          sessionId,
+          icon: 'check',
+          message: `✅ Options ajoutées: ${toAdd.join(', ')}`
+        });
+
+        return {
+          success: true,
+          entity,
+          fieldName,
+          message: `✅ Options ajoutées à ${entity}.${fieldName}: ${toAdd.join(', ')}`,
+          added: toAdd,
+          alreadyExisted: alreadyExist,
+          currentOptions: updatedOptions
+        };
+
+      } catch (error) {
+        console.error('[add_enum_option] ❌ Erreur:', error);
+        activity.push({ sessionId, icon: 'x', message: `❌ Erreur modification enum: ${error.message}` });
+        return {
+          success: false,
+          error: error.message,
+          hint: 'Vérifiez les credentials admin ESPO_USERNAME/ESPO_PASSWORD'
         };
       }
     }
@@ -2964,6 +3146,13 @@ ${successList}${moreSuccess}
     case 'send_whatsapp_message': {
       const { leadId, message, delayMinutes = 0 } = args;
 
+      // 📱 Activité: Envoi WhatsApp
+      activity.push({
+        sessionId,
+        icon: 'message-circle',
+        message: `📱 Préparation envoi WhatsApp...`
+      });
+
       try {
         console.log(`[send_whatsapp_message] Envoi WhatsApp pour lead ${leadId}`);
 
@@ -3017,6 +3206,15 @@ ${successList}${moreSuccess}
           mode: 'assist'
         });
 
+        // ✅ Activité: WhatsApp envoyé
+        activity.push({
+          sessionId,
+          icon: 'check',
+          message: delayMinutes > 0
+            ? `📱 WhatsApp programmé pour ${lead.name} (dans ${delayMinutes}min)`
+            : `✅ WhatsApp envoyé à ${lead.name}`
+        });
+
         return {
           success: true,
           leadId: lead.id,
@@ -3031,6 +3229,7 @@ ${successList}${moreSuccess}
 
       } catch (error) {
         console.error('[send_whatsapp_message] Erreur:', error);
+        activity.push({ sessionId, icon: 'x', message: `❌ Erreur WhatsApp: ${error.message}` });
         return {
           success: false,
           error: error.message
@@ -3088,7 +3287,7 @@ ${successList}${moreSuccess}
                 messageId: result.idMessage,
                 phoneNumber: cleanNumber
               },
-              tenantId: tenant || 'macrea'
+              tenantId: conversation.tenantId
             });
             console.log(`[send_whatsapp_greenapi] 📝 Activité loggée pour lead ${leadId}`);
           } catch (logError) {
@@ -3124,7 +3323,7 @@ ${successList}${moreSuccess}
                 provider: 'green-api',
                 error: error.message
               },
-              tenantId: tenant || 'macrea'
+              tenantId: conversation.tenantId
             });
           } catch (logError) {
             // Silently fail - logging d'échec est purement informatif
@@ -3376,7 +3575,10 @@ ${successList}${moreSuccess}
 
       try {
         // Déterminer le tenant_id (depuis session ou fallback)
-        const tenantId = conversation.tenantId || 'macrea';
+        const tenantId = conversation.tenantId;
+        if (!tenantId) {
+          return { success: false, error: 'MISSING_TENANT: tenantId absent de la conversation' };
+        }
 
         const result = await createTenantGoal({
           tenant_id: tenantId,
@@ -3420,7 +3622,10 @@ ${successList}${moreSuccess}
       const { goal_id, ...updates } = args;
 
       try {
-        const tenantId = conversation.tenantId || 'macrea';
+        const tenantId = conversation.tenantId;
+        if (!tenantId) {
+          return { success: false, error: 'MISSING_TENANT: tenantId absent de la conversation' };
+        }
 
         const result = await updateTenantGoal(goal_id, tenantId, updates);
 
@@ -3452,7 +3657,10 @@ ${successList}${moreSuccess}
       const { goal_id, reason } = args;
 
       try {
-        const tenantId = conversation.tenantId || 'macrea';
+        const tenantId = conversation.tenantId;
+        if (!tenantId) {
+          return { success: false, error: 'MISSING_TENANT: tenantId absent de la conversation' };
+        }
 
         const result = await archiveTenantGoal(goal_id, tenantId, reason);
 
@@ -3489,7 +3697,10 @@ ${successList}${moreSuccess}
       } = args;
 
       try {
-        const tenantId = conversation.tenantId || 'macrea';
+        const tenantId = conversation.tenantId;
+        if (!tenantId) {
+          return { success: false, error: 'MISSING_TENANT: tenantId absent de la conversation' };
+        }
 
         // Charger le contexte complet (identité + événements + objectifs)
         const maxContext = await getMaxContext(tenantId, { recentActionsLimit: 100 });
@@ -3579,7 +3790,10 @@ ${successList}${moreSuccess}
       const { profile_key, profile_value, category, priority = 80 } = args;
 
       try {
-        const tenantId = conversation.tenantId || 'macrea';
+        const tenantId = conversation.tenantId;
+        if (!tenantId) {
+          return { success: false, error: 'MISSING_TENANT: tenantId absent de la conversation' };
+        }
 
         const result = await setTenantMemory({
           tenant_id: tenantId,
@@ -3624,7 +3838,10 @@ ${successList}${moreSuccess}
       const { profile_key, profile_value } = args;
 
       try {
-        const tenantId = conversation.tenantId || 'macrea';
+        const tenantId = conversation.tenantId;
+        if (!tenantId) {
+          return { success: false, error: 'MISSING_TENANT: tenantId absent de la conversation' };
+        }
 
         // Vérifier si la préférence existe
         const existing = await getTenantMemory(tenantId, profile_key, 'global');
@@ -3683,7 +3900,10 @@ ${successList}${moreSuccess}
       const { profile_key } = args;
 
       try {
-        const tenantId = conversation.tenantId || 'macrea';
+        const tenantId = conversation.tenantId;
+        if (!tenantId) {
+          return { success: false, error: 'MISSING_TENANT: tenantId absent de la conversation' };
+        }
 
         // Récupérer la préférence existante
         const existing = await getTenantMemory(tenantId, profile_key, 'global');
@@ -3744,7 +3964,10 @@ ${successList}${moreSuccess}
     case 'store_long_term_note': {
       try {
         const { note_title, note_content, note_category, priority = 60 } = args;
-        const tenantId = conversation.tenantId || 'macrea';
+        const tenantId = conversation.tenantId;
+        if (!tenantId) {
+          return { success: false, error: 'MISSING_TENANT: tenantId absent de la conversation' };
+        }
 
         // Utiliser tenant_memory avec memory_type='note'
         const result = await setTenantMemory({
@@ -3783,7 +4006,10 @@ ${successList}${moreSuccess}
     case 'archive_long_term_note': {
       try {
         const { note_title } = args;
-        const tenantId = conversation.tenantId || 'macrea';
+        const tenantId = conversation.tenantId;
+        if (!tenantId) {
+          return { success: false, error: 'MISSING_TENANT: tenantId absent de la conversation' };
+        }
 
         // Récupérer la note existante
         const existing = await getTenantMemory(tenantId, note_title, 'global');
@@ -3893,6 +4119,321 @@ ${successList}${moreSuccess}
       }
     }
 
+    // ============================================================
+    // TEMPLATE CREATION - MAX peut créer des brouillons de templates
+    // ============================================================
+    case 'create_template_draft': {
+      try {
+        const { channel, name, subject, content, category = 'general' } = args;
+
+        console.log(`[create_template_draft] 📝 Création brouillon: ${name} (${channel})`);
+
+        // Validation
+        if (!channel || !['email', 'sms', 'whatsapp'].includes(channel)) {
+          return {
+            success: false,
+            error: 'Canal invalide. Doit être: email, sms ou whatsapp'
+          };
+        }
+
+        if (!name || !content) {
+          return {
+            success: false,
+            error: 'Nom et contenu sont requis'
+          };
+        }
+
+        if (channel === 'email' && !subject) {
+          return {
+            success: false,
+            error: 'Le sujet est requis pour les emails'
+          };
+        }
+
+        // Récupérer tenantId depuis la session ou la conversation
+        const tenantId = conversation.tenantId || 'macrea';
+
+        // Appeler l'endpoint /api/templates/draft-from-chat
+        // Note: On fait l'appel directement à Supabase pour éviter les problèmes de circularité
+        const { createClient } = await import('@supabase/supabase-js');
+        const supabase = createClient(
+          process.env.SUPABASE_URL,
+          process.env.SUPABASE_SERVICE_KEY
+        );
+
+        const { data, error } = await supabase
+          .from('message_templates')
+          .insert({
+            tenant_id: tenantId,
+            channel,
+            name,
+            category,
+            subject: channel === 'email' ? subject : null,
+            content,
+            status: 'draft',
+            created_by: 'max'
+          })
+          .select()
+          .single();
+
+        if (error) {
+          console.error('[create_template_draft] Erreur Supabase:', error);
+          return {
+            success: false,
+            error: `Erreur création template: ${error.message}`
+          };
+        }
+
+        console.log(`[create_template_draft] ✅ Template créé: ${data.id}`);
+
+        // Log l'activité
+        logMaxActivity({
+          type: 'template_created',
+          entity: 'MessageTemplate',
+          entityId: data.id,
+          details: `Brouillon ${channel} créé: "${name}"`
+        });
+
+        const channelLabel = {
+          email: 'Email',
+          sms: 'SMS',
+          whatsapp: 'WhatsApp'
+        }[channel];
+
+        return {
+          success: true,
+          template_id: data.id,
+          channel: channelLabel,
+          name: data.name,
+          status: 'draft',
+          variables: data.variables || [],
+          message: `Brouillon ${channelLabel} créé avec succès !`,
+          instructions: [
+            `Le template "${name}" est visible dans Pilote Automatique > Modèles de Templates`,
+            `Il est en statut "Brouillon" - tu dois l'activer avant de l'utiliser`,
+            `Pour le modifier, dis-moi : "MAX, modifie le template ${data.id.substring(0, 8)}"`
+          ]
+        };
+
+      } catch (error) {
+        console.error('[create_template_draft] Erreur:', error);
+        return {
+          success: false,
+          error: error.message
+        };
+      }
+    }
+
+    // ============================================================
+    // UPDATE TEMPLATE - MAX peut modifier des templates existants
+    // ============================================================
+    case 'update_template': {
+      try {
+        const { template_id, name, subject, content, category } = args;
+
+        // Récupérer tenantId depuis la session ou la conversation
+        const tenantId = conversation.tenantId || 'macrea';
+
+        console.log(`[update_template] ✏️ Modification template: ${template_id} (tenant: ${tenantId})`);
+
+        if (!template_id) {
+          return {
+            success: false,
+            error: 'template_id requis'
+          };
+        }
+
+        // Créer client Supabase avec service key
+        const { createClient } = await import('@supabase/supabase-js');
+        const supabaseClient = createClient(
+          process.env.SUPABASE_URL,
+          process.env.SUPABASE_SERVICE_KEY
+        );
+
+        // Chercher le template (par ID complet ou partiel)
+        let query = supabaseClient
+          .from('message_templates')
+          .select('*')
+          .eq('tenant_id', tenantId);
+
+        // Si l'ID fait 8 caractères, chercher par préfixe
+        if (template_id.length === 8) {
+          query = query.ilike('id', `${template_id}%`);
+        } else {
+          query = query.eq('id', template_id);
+        }
+
+        const { data: templates, error: findError } = await query;
+
+        if (findError || !templates || templates.length === 0) {
+          console.error('[update_template] Template non trouvé:', template_id);
+          return {
+            success: false,
+            error: `Template "${template_id}" non trouvé`
+          };
+        }
+
+        const template = templates[0];
+
+        // Construire les mises à jour
+        const updates = {};
+        if (name) updates.name = name;
+        if (subject && template.channel === 'email') updates.subject = subject;
+        if (content) {
+          updates.content = content;
+          // Extraire les variables du nouveau contenu
+          const variableRegex = /\{\{(\w+)\}\}/g;
+          const variables = [];
+          let match;
+          while ((match = variableRegex.exec(content)) !== null) {
+            if (!variables.includes(match[1])) {
+              variables.push(match[1]);
+            }
+          }
+          updates.variables = variables;
+        }
+        if (category) updates.category = category;
+
+        if (Object.keys(updates).length === 0) {
+          return {
+            success: false,
+            error: 'Aucune modification spécifiée'
+          };
+        }
+
+        // Mettre à jour
+        const { data: updated, error: updateError } = await supabaseClient
+          .from('message_templates')
+          .update(updates)
+          .eq('id', template.id)
+          .eq('tenant_id', tenantId)
+          .select()
+          .single();
+
+        if (updateError) {
+          console.error('[update_template] Erreur Supabase:', updateError);
+          return {
+            success: false,
+            error: `Erreur mise à jour: ${updateError.message}`
+          };
+        }
+
+        console.log(`[update_template] ✅ Template modifié: ${updated.id}`);
+
+        // Log l'activité
+        logMaxActivity({
+          type: 'template_updated',
+          entity: 'MessageTemplate',
+          entityId: updated.id,
+          changes: updates,
+          tenantId
+        });
+
+        return {
+          success: true,
+          template_id: updated.id,
+          template_name: updated.name,
+          channel: updated.channel,
+          status: updated.status,
+          changes_applied: Object.keys(updates),
+          message: `Template "${updated.name}" modifié avec succès`,
+          instructions: [
+            `Le template a été mis à jour.`,
+            updated.status === 'draft'
+              ? `Il est toujours en brouillon - activez-le quand vous êtes prêt.`
+              : `Le template est actif et prêt à être utilisé.`
+          ]
+        };
+
+      } catch (error) {
+        console.error('[update_template] Erreur:', error);
+        return {
+          success: false,
+          error: error.message
+        };
+      }
+    }
+
+    // ============================================================
+    // LIST TEMPLATES - Lister les templates de messages
+    // ============================================================
+    case 'list_templates': {
+      try {
+        const { channel, status, search } = args;
+
+        // Récupérer tenantId depuis la session ou la conversation
+        const tenantId = conversation.tenantId || 'macrea';
+
+        console.log(`[list_templates] 📋 Liste templates (tenant: ${tenantId})`);
+
+        // Créer client Supabase avec service key
+        const { createClient } = await import('@supabase/supabase-js');
+        const supabaseClient = createClient(
+          process.env.SUPABASE_URL,
+          process.env.SUPABASE_SERVICE_KEY
+        );
+
+        // Construire la requête
+        let query = supabaseClient
+          .from('message_templates')
+          .select('id, name, channel, status, category, created_by, created_at')
+          .eq('tenant_id', tenantId)
+          .neq('status', 'archived')
+          .order('created_at', { ascending: false });
+
+        // Filtres optionnels
+        if (channel) query = query.eq('channel', channel);
+        if (status) query = query.eq('status', status);
+
+        const { data: templates, error: queryError } = await query;
+
+        if (queryError) {
+          console.error('[list_templates] Erreur Supabase:', queryError);
+          return {
+            success: false,
+            error: `Erreur récupération templates: ${queryError.message}`
+          };
+        }
+
+        // Filtrer par recherche si spécifié
+        let filteredTemplates = templates || [];
+        if (search) {
+          const searchLower = search.toLowerCase();
+          filteredTemplates = filteredTemplates.filter(t =>
+            t.name.toLowerCase().includes(searchLower)
+          );
+        }
+
+        console.log(`[list_templates] ✅ ${filteredTemplates.length} templates trouvés`);
+
+        // Formater pour MAX
+        const templateList = filteredTemplates.map(t => ({
+          id: t.id,
+          id_short: t.id.substring(0, 8),
+          name: t.name,
+          channel: t.channel,
+          status: t.status,
+          category: t.category,
+          created_by: t.created_by
+        }));
+
+        return {
+          success: true,
+          count: templateList.length,
+          templates: templateList,
+          message: `${templateList.length} template(s) trouvé(s)`,
+          hint: 'Pour modifier un template, utilisez son ID (complet ou les 8 premiers caractères)'
+        };
+
+      } catch (error) {
+        console.error('[list_templates] Erreur:', error);
+        return {
+          success: false,
+          error: error.message
+        };
+      }
+    }
+
     default:
       throw new Error(`Tool inconnu: ${toolName}`);
   }
@@ -3915,19 +4456,29 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ ok: false, error: 'Message requis' });
     }
 
+    // SÉCURITÉ MULTI-TENANT: Récupérer tenantId depuis JWT
+    const tenantId = req.tenantId || req.user?.tenantId;
+
     // Créer ou utiliser session existante
     let sessionId = clientSessionId;
     let conversation = clientSessionId ? loadConversation(clientSessionId) : null;
 
     if (!sessionId || !conversation) {
-      sessionId = createSession(mode);
+      // Passer le tenantId lors de la création de session
+      sessionId = createSession(mode, { tenantId });
       conversation = loadConversation(sessionId);
-      console.log(`[ChatRoute] Nouvelle session créée: ${sessionId} (mode: ${mode})`);
+      console.log(`[ChatRoute] Nouvelle session créée: ${sessionId} (mode: ${mode}, tenant: ${tenantId || 'NONE'})`);
     } else if (conversation.mode !== mode) {
       // Mettre à jour le mode si changé
       updateSessionMode(sessionId, mode);
       conversation.mode = mode;
       console.log(`[ChatRoute] Mode mis à jour: ${sessionId} -> ${mode}`);
+    }
+
+    // SÉCURITÉ: Injecter tenantId dans conversation si manquant (sessions legacy)
+    if (tenantId && !conversation.tenantId) {
+      conversation.tenantId = tenantId;
+      console.log(`[ChatRoute] 🔒 TenantId injecté dans session existante: ${tenantId}`);
     }
 
     // Sauvegarder message utilisateur
@@ -3938,6 +4489,13 @@ router.post('/', async (req, res) => {
     };
 
     saveMessage(sessionId, userMessage);
+
+    // 💬 Activité: Message reçu, M.A.X. analyse
+    activity.push({
+      sessionId,
+      icon: 'brain',
+      message: `🧠 M.A.X. analyse votre demande...`
+    });
 
     // Vérifier si résumé nécessaire (async, ne bloque pas la réponse)
     summarizeIfNeeded(sessionId).catch(err =>
@@ -4116,8 +4674,11 @@ ${JSON.stringify(entityData, null, 2)}
     } */
 
     // Phase 2B+ - Récupérer le DOUBLE contexte mémoire Supabase (non-bloquant)
-    // Multi-tenant : utiliser le tenant_id du JWT (fallback 'macrea' pour dev uniquement)
-    const TENANT_ID = req.user?.tenantId || 'macrea';
+    // SECURITY: tenantId UNIQUEMENT depuis JWT
+    const TENANT_ID = req.tenantId;
+    if (!TENANT_ID) {
+      return res.status(401).json({ ok: false, error: 'MISSING_TENANT' });
+    }
     let supabaseContext = '';
 
     try {
@@ -4460,7 +5021,7 @@ ${ULTRA_PRIORITY_RULES}
               type: toolResult.operation.type,
               description: toolResult.operation.description,
               details: toolResult.operation.details,
-              tenantId: req.tenantId || 'macrea-admin'
+              tenantId: req.tenantId
             });
 
             console.log('[ChatRoute] ✅ Consent créé:', consentRequest.consentId);
@@ -4564,6 +5125,13 @@ ${ULTRA_PRIORITY_RULES}
     };
 
     saveMessage(sessionId, assistantMessage);
+
+    // ✅ Activité: M.A.X. a répondu
+    activity.push({
+      sessionId,
+      icon: 'message-square',
+      message: `✅ M.A.X. a répondu (${result.usage?.total_tokens || 0} tokens)`
+    });
 
     // Phase 2B - Logger l'interaction dans Supabase (non-bloquant)
     logMaxAction({
@@ -4686,9 +5254,17 @@ ${ULTRA_PRIORITY_RULES}
       });
     }
 
+    // SÉCURITÉ: Ne jamais exposer les détails techniques aux clients
+    // Les erreurs API key, etc. sont loggées côté serveur mais pas exposées
+    const safeErrorMessage = error.message?.includes('API key') ||
+                             error.message?.includes('authentication') ||
+                             error.message?.includes('401')
+      ? 'Service IA temporairement indisponible. Réessayez dans quelques instants.'
+      : (error.message || 'Erreur lors du traitement du message');
+
     res.status(500).json({
       ok: false,
-      error: error.message || 'Erreur lors du traitement du message'
+      error: safeErrorMessage
     });
   }
 });
@@ -4828,19 +5404,27 @@ router.post('/upload', upload.single('file'), async (req, res) => {
 
     console.log(`[ChatRoute] Upload fichier: ${originalname} (${filename})`);
 
+    // SÉCURITÉ MULTI-TENANT: Récupérer tenantId depuis JWT
+    const tenantId = req.tenantId || req.user?.tenantId;
+
     // Créer ou utiliser session existante
     let sessionId = clientSessionId;
     let conversation = clientSessionId ? loadConversation(clientSessionId) : null;
 
     if (!sessionId || !conversation) {
-      sessionId = createSession(mode);
+      sessionId = createSession(mode, { tenantId });
       conversation = loadConversation(sessionId);
-      console.log(`[ChatRoute] Nouvelle session créée: ${sessionId} (mode: ${mode})`);
+      console.log(`[ChatRoute] Nouvelle session créée: ${sessionId} (mode: ${mode}, tenant: ${tenantId || 'NONE'})`);
     } else if (conversation.mode !== mode) {
       // Mettre à jour le mode si changé
       updateSessionMode(sessionId, mode);
       conversation.mode = mode;
       console.log(`[ChatRoute] Mode mis à jour: ${sessionId} -> ${mode}`);
+    }
+
+    // SÉCURITÉ: Injecter tenantId dans conversation si manquant (sessions legacy)
+    if (tenantId && !conversation.tenantId) {
+      conversation.tenantId = tenantId;
     }
 
     // 📎 Activité: Fichier reçu

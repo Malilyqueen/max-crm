@@ -37,24 +37,49 @@ export const MAX_TOOLS = [
     type: 'function',
     function: {
       name: 'update_leads_in_espo',
-      description: '🎯 TOOL PRINCIPAL POUR IMPORT CSV - UTILISATIONS: 1) force_create: CRÉER de nouveaux leads depuis un fichier CSV uploadé (⚠️ UTILISER SYSTÉMATIQUEMENT ce mode quand l\'utilisateur dit "importe", "crée ces leads", "ajoute ces leads" ou "ajoute au CRM" ET qu\'un fichier CSV est uploadé - PAS BESOIN de leadIds ni updates, juste {mode: "force_create"}). 2) update_only: mettre à jour des leads existants (avec leadIds). 3) upsert: match intelligent. Retourne rapport détaillé (created/updated/failed).',
+      description: '🎯 TOOL PRINCIPAL POUR CRÉATION/IMPORT DE LEADS - UTILISATIONS: 1) force_create + leadData: CRÉER UN LEAD depuis données conversationnelles (quand l\'utilisateur dit "intègre un prospect", "crée un lead" avec nom/email/téléphone). 2) force_create seul: CRÉER depuis fichier CSV uploadé. 3) update_only: mettre à jour leads existants. Retourne rapport détaillé (created/updated/failed).',
       parameters: {
         type: 'object',
         properties: {
           leadIds: {
             type: 'array',
             items: { type: 'string' },
-            description: 'IDs des leads à mettre à jour (depuis query_espo_leads ou contexte mémorisé). IGNORER ce paramètre en mode force_create (création depuis fichier).'
+            description: 'IDs des leads à mettre à jour (mode update_only uniquement).'
           },
           updates: {
             type: 'object',
-            description: 'Champs à modifier en mode update_only. IGNORER ce paramètre en mode force_create (les données viennent du fichier uploadé).'
+            description: 'Champs à modifier en mode update_only.'
           },
           mode: {
             type: 'string',
             enum: ['update_only', 'upsert_with_confirmation', 'force_create'],
-            description: 'force_create = CRÉER de nouveaux leads depuis fichier CSV uploadé (UTILISER SYSTÉMATIQUEMENT quand l\'utilisateur demande import/création et qu\'un fichier est présent). update_only = mettre à jour leads existants. upsert_with_confirmation = demander avant création.',
+            description: 'force_create = CRÉER leads (avec leadData pour création conversationnelle, ou depuis fichier CSV si pas de leadData). update_only = mettre à jour leads existants.',
             default: 'update_only'
+          },
+          leadData: {
+            type: 'object',
+            description: '🚨 OBLIGATOIRE pour création conversationnelle: Données du lead à créer. Utiliser les champs EspoCRM: firstName, lastName (ou name), email (ou emailAddress), phone (ou phoneNumber), company (ou accountName), etc.',
+            properties: {
+              name: { type: 'string', description: 'Nom complet (alternative à firstName/lastName)' },
+              firstName: { type: 'string', description: 'Prénom' },
+              lastName: { type: 'string', description: 'Nom de famille' },
+              email: { type: 'string', description: 'Email (alias emailAddress)' },
+              emailAddress: { type: 'string', description: 'Email' },
+              phone: { type: 'string', description: 'Téléphone (alias phoneNumber)' },
+              phoneNumber: { type: 'string', description: 'Téléphone' },
+              company: { type: 'string', description: 'Entreprise (alias accountName)' },
+              accountName: { type: 'string', description: 'Entreprise' },
+              source: { type: 'string', description: 'Source du lead' },
+              status: { type: 'string', description: 'Statut (New, Assigned, In Process, etc.)' },
+              industry: { type: 'string', description: 'Secteur d\'activité (champ standard EspoCRM)' },
+              secteurActivite: {
+                type: 'string',
+                description: 'Secteur d\'activité du lead (valeur LIBRE - MAX peut créer de nouvelles valeurs si nécessaire via add_enum_option). Exemples: Tech, Services, Industrie, Commerce, Finance, Consulting, Immobilier, Santé, etc.'
+              },
+              description: { type: 'string', description: 'Notes/Description' },
+              maxTags: { type: 'array', items: { type: 'string' }, description: 'Tags personnalisés (array de strings)' },
+              canalPrefere: { type: 'string', description: 'Canal préféré de contact' }
+            }
           }
         },
         required: []
@@ -174,6 +199,50 @@ export const MAX_TOOLS = [
           }
         },
         required: ['fieldName', 'label', 'type']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'add_enum_option',
+      description: `🔧 AJOUTER UNE OPTION À UN ENUM EXISTANT - Utiliser quand une valeur n'existe pas dans un champ enum/multiEnum.
+
+UTILISATIONS:
+- Quand EspoCRM rejette une valeur enum inexistante
+- Quand MAX doit créer une nouvelle catégorie (ex: "Consulting" pour secteurActivite)
+- Pour étendre dynamiquement les listes déroulantes
+
+EXEMPLES:
+- Ajouter "Consulting" à secteurActivite
+- Ajouter "Immobilier" à industry
+- Ajouter "WhatsApp Business" à canalPrefere
+
+⚠️ AUTONOMIE MAX: Ce tool permet à MAX de ne JAMAIS être bloqué par des enums restrictifs.
+MAX peut décider d'ajouter une nouvelle valeur si elle est pertinente pour le business.`,
+      parameters: {
+        type: 'object',
+        properties: {
+          entity: {
+            type: 'string',
+            description: 'Entity EspoCRM (Lead, Contact, Account, etc.)',
+            default: 'Lead'
+          },
+          fieldName: {
+            type: 'string',
+            description: 'Nom du champ enum à modifier (ex: "secteurActivite", "industry", "status")'
+          },
+          newOption: {
+            type: 'string',
+            description: 'Nouvelle valeur à ajouter à l\'enum (ex: "Consulting", "Immobilier")'
+          },
+          newOptions: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Liste de nouvelles valeurs à ajouter (alternative à newOption pour ajout multiple)'
+          }
+        },
+        required: ['fieldName']
       }
     }
   },
@@ -1420,6 +1489,146 @@ Le playbook retourne:
           }
         },
         required: ['issue']
+      }
+    }
+  },
+
+  // ============================================================
+  // TEMPLATE CREATION - MAX peut créer des brouillons de templates
+  // ============================================================
+  {
+    type: 'function',
+    function: {
+      name: 'create_template_draft',
+      description: `📝 CRÉER UN BROUILLON DE TEMPLATE (Email/SMS/WhatsApp) - Utiliser quand l'utilisateur demande:
+- "crée un email de relance"
+- "génère un template WhatsApp pour les RDV"
+- "fais-moi un SMS de rappel"
+- "prépare un message de bienvenue"
+
+Le template est créé en status='draft' et visible dans Pilote Automatique > Modèles de Templates.
+L'utilisateur devra l'activer manuellement avant utilisation.
+
+IMPORTANT: Génère un contenu professionnel avec des variables {{firstName}}, {{company}}, etc.`,
+      parameters: {
+        type: 'object',
+        properties: {
+          channel: {
+            type: 'string',
+            enum: ['email', 'sms', 'whatsapp'],
+            description: 'Canal de communication'
+          },
+          name: {
+            type: 'string',
+            description: 'Nom du template (court et descriptif). Ex: "Relance Lead J+3", "Confirmation RDV"'
+          },
+          subject: {
+            type: 'string',
+            description: 'Sujet de l\'email (OBLIGATOIRE pour channel=email). Peut contenir des variables {{...}}'
+          },
+          content: {
+            type: 'string',
+            description: 'Contenu du message. Utiliser des variables {{firstName}}, {{lastName}}, {{company}}, {{email}}, {{phone}}, {{appointmentDate}}, {{appointmentTime}}, {{salesRep}}, etc.'
+          },
+          category: {
+            type: 'string',
+            enum: ['vente', 'support', 'marketing', 'facturation', 'securite', 'general'],
+            description: 'Catégorie du template',
+            default: 'general'
+          }
+        },
+        required: ['channel', 'name', 'content']
+      }
+    }
+  },
+
+  // ==========================================================================
+  // UPDATE TEMPLATE - Modifier un template de message (WhatsApp/Email/SMS)
+  // ==========================================================================
+  {
+    type: 'function',
+    function: {
+      name: 'update_template',
+      description: `✏️ MODIFIER UN TEMPLATE DE MESSAGE WhatsApp/Email/SMS
+
+⚠️ CE TOOL EST POUR LES TEMPLATES DE MESSAGES M.A.X. (table message_templates)
+   PAS pour les templates EspoCRM !
+
+UTILISER OBLIGATOIREMENT quand l'utilisateur demande de modifier un template créé par MAX:
+- "modifie le template a43b7aef"
+- "change le contenu du template Relance Devis"
+- "mets à jour le template WhatsApp"
+- "ajoute un emoji au template"
+- "améliore ce template de relance"
+
+L'ID peut être complet (UUID) ou les 8 premiers caractères comme "a43b7aef".
+Le template sera mis à jour dans la base de données Supabase.`,
+      parameters: {
+        type: 'object',
+        properties: {
+          template_id: {
+            type: 'string',
+            description: 'ID du template de message à modifier. Peut être l\'UUID complet ou les 8 premiers caractères (ex: "a43b7aef")'
+          },
+          name: {
+            type: 'string',
+            description: 'Nouveau nom du template (optionnel)'
+          },
+          subject: {
+            type: 'string',
+            description: 'Nouveau sujet - uniquement pour les templates EMAIL'
+          },
+          content: {
+            type: 'string',
+            description: 'Nouveau contenu du message WhatsApp/Email/SMS. Utiliser {{firstName}}, {{company}}, etc. pour les variables.'
+          },
+          category: {
+            type: 'string',
+            enum: ['vente', 'support', 'marketing', 'facturation', 'securite', 'general'],
+            description: 'Nouvelle catégorie du template'
+          }
+        },
+        required: ['template_id']
+      }
+    }
+  },
+
+  // ==========================================================================
+  // LIST TEMPLATES - Lister les templates de messages disponibles
+  // ==========================================================================
+  {
+    type: 'function',
+    function: {
+      name: 'list_templates',
+      description: `📋 LISTER LES TEMPLATES DE MESSAGES (WhatsApp/Email/SMS)
+
+UTILISER quand l'utilisateur demande:
+- "montre-moi les templates"
+- "quels templates existent"
+- "liste les modèles de messages"
+- "trouve le template de relance"
+- AVANT de modifier un template si l'ID n'est pas connu
+
+Retourne la liste des templates avec leur ID, nom, canal et statut.`,
+      parameters: {
+        type: 'object',
+        properties: {
+          channel: {
+            type: 'string',
+            enum: ['email', 'sms', 'whatsapp'],
+            description: 'Filtrer par canal (optionnel)'
+          },
+          status: {
+            type: 'string',
+            enum: ['draft', 'active', 'archived'],
+            description: 'Filtrer par statut (optionnel)'
+          },
+          search: {
+            type: 'string',
+            description: 'Rechercher par nom (optionnel)'
+          }
+        },
+        required: []
       }
     }
   }

@@ -1,9 +1,10 @@
 /**
  * components/chat/ChatInput.tsx
  * Input chat avec support upload fichier - Style futuriste premium
+ * Auto-resize textarea pour voir tout le texte saisi
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Paperclip, Send } from 'lucide-react';
 import { useThemeColors } from '../../hooks/useThemeColors';
@@ -15,6 +16,10 @@ interface ChatInputProps {
   isStreaming?: boolean;
 }
 
+// Constantes pour le dimensionnement
+const MIN_HEIGHT = 52;  // Hauteur minimum (1 ligne)
+const MAX_HEIGHT = 200; // Hauteur maximum avant scroll interne
+
 export const ChatInput: React.FC<ChatInputProps> = ({
   onSendMessage,
   onUploadFile,
@@ -23,12 +28,40 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 }) => {
   const [message, setMessage] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const colors = useThemeColors();
+
+  // Auto-resize du textarea basé sur le contenu
+  const adjustTextareaHeight = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    // Reset à la hauteur minimum pour mesurer le scrollHeight réel
+    textarea.style.height = `${MIN_HEIGHT}px`;
+
+    // Calculer la nouvelle hauteur basée sur le contenu
+    const scrollHeight = textarea.scrollHeight;
+    const newHeight = Math.min(Math.max(scrollHeight, MIN_HEIGHT), MAX_HEIGHT);
+
+    textarea.style.height = `${newHeight}px`;
+
+    // Activer le scroll si on dépasse la hauteur max
+    textarea.style.overflowY = scrollHeight > MAX_HEIGHT ? 'auto' : 'hidden';
+  }, []);
+
+  // Ajuster la hauteur quand le message change
+  useEffect(() => {
+    adjustTextareaHeight();
+  }, [message, adjustTextareaHeight]);
 
   const handleSend = () => {
     if (message.trim() && !isLoading && !isStreaming) {
       onSendMessage(message.trim());
       setMessage('');
+      // Reset la hauteur après envoi
+      if (textareaRef.current) {
+        textareaRef.current.style.height = `${MIN_HEIGHT}px`;
+      }
     }
   };
 
@@ -94,18 +127,20 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           className="hidden"
         />
 
-        {/* Textarea message */}
+        {/* Textarea message - Auto-resize */}
         <textarea
+          ref={textareaRef}
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={handleKeyDown}
           disabled={disabled}
           placeholder="Pose ta question à M.A.X..."
-          rows={1}
           className="flex-1 resize-none rounded-xl px-5 py-3 focus:outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all placeholder:opacity-50"
           style={{
-            minHeight: '52px',
-            maxHeight: '120px',
+            minHeight: `${MIN_HEIGHT}px`,
+            maxHeight: `${MAX_HEIGHT}px`,
+            height: `${MIN_HEIGHT}px`,
+            overflowY: 'hidden',
             background: colors.background,
             color: colors.textPrimary,
             borderWidth: '1px',
