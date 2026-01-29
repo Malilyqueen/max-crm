@@ -71,9 +71,11 @@ function createConsentRequest(operation) {
     console.log(`[ConsentManager] Consent created: ${consentId} (expires in 5min)`);
 
     return {
-        consentId,
+        id: consentId,  // ✅ Alias 'id' pour compatibilité backend
+        consentId,      // ✅ Gardé pour rétro-compat
         operation: operation.description,
-        expiresIn: CONSENT_EXPIRY_MS / 1000 // seconds
+        expiresIn: CONSENT_EXPIRY_MS / 1000, // seconds
+        expiresAt     // ✅ Timestamp absolu pour frontend
     };
 }
 
