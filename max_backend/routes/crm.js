@@ -13,6 +13,7 @@ import { espoFetch, safeUpdateLead } from '../lib/espoClient.js';
 import { authMiddleware } from '../middleware/authMiddleware.js';
 import { logMaxAction } from '../lib/maxLogger.js';
 import { getTagsFromCache, updateLeadInCache, syncLeadsCache } from '../lib/leadsCacheSync.js';
+import { supabase } from '../lib/supabaseClient.js';
 
 const router = express.Router();
 
@@ -234,7 +235,35 @@ router.get('/leads', async (req, res) => {
     const data = await espoFetch(`/Lead?${params.toString()}`);
 
     // Mapper les leads
-    const leads = (data.list || []).map(mapEspoLeadToFrontend);
+    let leads = (data.list || []).map(mapEspoLeadToFrontend);
+
+    // Fallback tags: enrichir depuis Supabase si tags vides
+    const crmEnv = process.env.CRM_ENV || 'prod';
+    const missingTagsIds = leads
+      .filter(l => !l.tags || l.tags.length === 0)
+      .map(l => l.id)
+      .filter(Boolean);
+
+    if (missingTagsIds.length > 0) {
+      const { data: cacheRows, error: cacheError } = await supabase
+        .from('leads_cache')
+        .select('espo_id,tags')
+        .eq('tenant_id', tenantId)
+        .eq('crm_env', crmEnv)
+        .in('espo_id', missingTagsIds);
+
+      if (cacheError) {
+        console.warn('[CRM] ⚠️ Fallback cache tags error:', cacheError.message);
+      } else if (cacheRows && cacheRows.length > 0) {
+        const tagsById = new Map(cacheRows.map(r => [r.espo_id, Array.isArray(r.tags) ? r.tags : []]));
+        leads = leads.map(l => {
+          const cachedTags = tagsById.get(l.id);
+          return cachedTags && cachedTags.length > 0
+            ? { ...l, tags: cachedTags }
+            : l;
+        });
+      }
+    }
     const total = data.total || 0;
 
     res.json({
