@@ -34,7 +34,7 @@ export function SyncTagsButton({
     setErrorMessage('');
     
     try {
-      const response = await apiClient.post('/crm/cache/sync-tags') as { 
+      const response = await apiClient.post('/crm/sync-manual') as { 
         success: boolean; 
         synced: number; 
         message: string 
