@@ -551,6 +551,35 @@ async function executeToolCall(toolName, args, sessionId) {
               };
 
               // ═══════════════════════════════════════════════════════════════════
+              // CHAMPS PERSONNALISÉS ESPOCRM - Envoi direct des valeurs enum
+              // NOTE: MAX doit appeler add_enum_option AVANT pour préparer les enums
+              // On envoie les valeurs directement - si invalides, EspoCRM rejettera
+              // ═══════════════════════════════════════════════════════════════════
+              const customEnumFields = ['secteurActivite', 'canalPrefere'];
+
+              for (const fieldName of customEnumFields) {
+                const value = directLeadData[fieldName];
+                if (value && typeof value === 'string' && value.trim()) {
+                  // Ajouter directement au payload - MAX a normalement appelé add_enum_option avant
+                  leadPayload[fieldName] = value.trim();
+                  console.log(`[update_leads_in_espo] ✅ Champ enum ajouté: ${fieldName}=${value}`);
+                }
+              }
+
+              // Champ maxTags - de type "text" dans EspoCRM, envoyer comme string (pas array)
+              if (directLeadData.maxTags && Array.isArray(directLeadData.maxTags)) {
+                const cleanTags = directLeadData.maxTags.filter(t => t && typeof t === 'string');
+                if (cleanTags.length > 0) {
+                  // Convertir en string séparée par virgules (pas array - EspoCRM crash sinon)
+                  leadPayload.maxTags = cleanTags.join(', ');
+                  console.log(`[update_leads_in_espo] ✅ Tags ajoutés: ${cleanTags.join(', ')}`);
+                }
+              } else if (directLeadData.maxTags && typeof directLeadData.maxTags === 'string') {
+                leadPayload.maxTags = directLeadData.maxTags;
+                console.log(`[update_leads_in_espo] ✅ Tags ajoutés: ${directLeadData.maxTags}`);
+              }
+
+              // ═══════════════════════════════════════════════════════════════════
               // SÉCURITÉ MULTI-TENANT: Injecter cTenantId automatiquement
               // ═══════════════════════════════════════════════════════════════════
               const tenantId = conversation.tenantId;
@@ -2073,6 +2102,70 @@ ${successList}${moreSuccess}
           error: error.message,
           entity,
           fieldName
+        };
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // 🔐 REQUEST_CONSENT - Demande de consentement utilisateur
+    // ═══════════════════════════════════════════════════════════════════
+    case 'request_consent': {
+      const { type, description, details } = args;
+
+      // Validation des paramètres
+      if (!type || !description || !details) {
+        return {
+          success: false,
+          error: 'Paramètres manquants: type, description, et details sont requis'
+        };
+      }
+
+      const validTypes = ['layout_modification', 'field_creation', 'metadata_modification', 'bulk_delete', 'bulk_update'];
+      if (!validTypes.includes(type)) {
+        return {
+          success: false,
+          error: `Type invalide: ${type}. Types valides: ${validTypes.join(', ')}`
+        };
+      }
+
+      try {
+        console.log(`[request_consent] Création demande de consentement type=${type}`);
+        console.log(`[request_consent] Description: ${description}`);
+        console.log(`[request_consent] Details:`, details);
+
+        // Importer le consentManager
+        const { createConsentRequest } = await import('../lib/consentManager.js');
+
+        // Créer la demande de consentement
+        const consentRequest = createConsentRequest({
+          type,
+          description,
+          details
+        });
+
+        console.log(`[request_consent] ✅ Consentement créé: ${consentRequest.id}`);
+
+        // Retourner le consentement pour que le frontend affiche la ConsentCard
+        return {
+          success: true,
+          requiresConsent: true,
+          consent: consentRequest,
+          message: `Cette opération nécessite ton autorisation. [CONSENT_CARD:${consentRequest.id}]`,
+          // Structure pour le frontend
+          consentCard: {
+            consentId: consentRequest.id,
+            type: type,
+            description: description,
+            details: details,
+            expiresAt: consentRequest.expiresAt
+          }
+        };
+
+      } catch (error) {
+        console.error('[request_consent] Erreur:', error);
+        return {
+          success: false,
+          error: error.message
         };
       }
     }
@@ -5009,6 +5102,42 @@ ${ULTRA_PRIORITY_RULES}
 
         try {
           const toolResult = await executeToolCall(toolName, args, sessionId);
+
+          // 🔐 CONSENT: Détecter appel direct à request_consent
+          if (toolName === 'request_consent' && toolResult.success && toolResult.requiresConsent && toolResult.consent) {
+            console.log('[ChatRoute] 🔐 Tool request_consent appelé - Création ConsentCard');
+            console.log('[ChatRoute] 📋 Consent:', toolResult.consent);
+
+            // Stocker les infos pour affichage ConsentCard
+            pendingConsent = {
+              consentId: toolResult.consent.id,
+              operation: {
+                type: args.type,
+                description: args.description,
+                details: args.details
+              },
+              originalTool: toolName,
+              originalArgs: args,
+              toolCallId: toolCall.id,
+              expiresIn: toolResult.consent.expiresIn || 300
+            };
+
+            // Ajouter résultat pour M.A.X.
+            toolResults.push({
+              tool_call_id: toolCall.id,
+              role: 'tool',
+              name: toolName,
+              content: JSON.stringify({
+                success: true,
+                consentCreated: true,
+                consentId: toolResult.consent.id,
+                message: toolResult.message
+              })
+            });
+
+            // Arrêter l'exécution des autres tools - attendre validation utilisateur
+            break;
+          }
 
           // 🔐 CONSENT GATE: Détecter blocage 412 (CONSENT_REQUIRED)
           if (toolResult.httpCode === 412 && toolResult.requiresConsent && toolResult.operation) {

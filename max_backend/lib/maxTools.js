@@ -1494,6 +1494,73 @@ Le playbook retourne:
   },
 
   // ============================================================
+  // CONSENT SYSTEM - Demande de consentement pour opérations sensibles
+  // ============================================================
+  {
+    type: 'function',
+    function: {
+      name: 'request_consent',
+      description: `🔐 DEMANDER CONSENTEMENT UTILISATEUR - OBLIGATOIRE avant toute opération sensible sur le CRM.
+
+⚠️ TU DOIS UTILISER CET OUTIL POUR:
+- Modifications de layouts (ajout/retrait de champs dans les vues)
+- Création de champs custom
+- Modification de métadonnées EspoCRM
+- Suppression massive de données
+- Modification de la structure du CRM
+
+WORKFLOW:
+1. Tu appelles request_consent avec type, description, details
+2. Le frontend affiche une carte de consentement interactive
+3. L'utilisateur approuve ou rejette
+4. Si approuvé, le système exécute automatiquement l'opération
+
+TYPES DE CONSENTEMENT:
+- layout_modification: Modifier layouts (list, detail, edit)
+- field_creation: Créer un nouveau champ custom
+- metadata_modification: Modifier métadonnées EspoCRM
+- bulk_delete: Suppression massive de données
+- bulk_update: Mise à jour massive de données
+
+EXEMPLE:
+User: "Ajoute le champ maxTags aux fiches Lead"
+M.A.X.: → Appelle request_consent({
+  type: "layout_modification",
+  description: "Ajouter le champ maxTags aux layouts Lead",
+  details: { entity: "Lead", fieldName: "maxTags", layoutTypes: ["detail", "list"] }
+})
+→ "Cette opération nécessite ton autorisation. [ConsentCard s'affiche]"`,
+      parameters: {
+        type: 'object',
+        properties: {
+          type: {
+            type: 'string',
+            enum: ['layout_modification', 'field_creation', 'metadata_modification', 'bulk_delete', 'bulk_update'],
+            description: 'Type d\'opération sensible nécessitant consentement'
+          },
+          description: {
+            type: 'string',
+            description: 'Description claire de l\'opération pour l\'utilisateur (ex: "Ajouter le champ secteur aux layouts Lead")'
+          },
+          details: {
+            type: 'object',
+            description: 'Détails techniques de l\'opération à exécuter après approbation',
+            properties: {
+              entity: { type: 'string', description: 'Entité concernée (Lead, Contact, Account...)' },
+              fieldName: { type: 'string', description: 'Nom du champ concerné' },
+              layoutTypes: { type: 'array', items: { type: 'string' }, description: 'Types de layouts à modifier (detail, list, edit)' },
+              fieldDefinition: { type: 'object', description: 'Définition du champ pour field_creation' },
+              lead_ids: { type: 'array', items: { type: 'string' }, description: 'IDs des leads pour bulk operations' },
+              updates: { type: 'object', description: 'Champs à modifier pour bulk_update' }
+            }
+          }
+        },
+        required: ['type', 'description', 'details']
+      }
+    }
+  },
+
+  // ============================================================
   // TEMPLATE CREATION - MAX peut créer des brouillons de templates
   // ============================================================
   {
