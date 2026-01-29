@@ -938,11 +938,11 @@ router.get('/metadata/lead-statuses', async (req, res) => {
 });
 
 /**
- * POST /api/crm/sync-tags
+ * POST /api/crm/cache/sync-tags  
  * Synchroniser manuellement le cache leads_cache avec EspoCRM
  * Endpoint UX pour les utilisateurs (bouton "Synchroniser les tags")
  */
-router.post('/sync-tags', async (req, res) => {
+router.post('/cache/sync-tags', authMiddleware, async (req, res) => {
   try {
     const tenantId = req.tenantId;
     
