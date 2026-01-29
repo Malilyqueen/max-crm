@@ -20,6 +20,11 @@ config.local.json
 **/*secret*
 **/*token*
 !**/test-token*
+*api-key*.txt
+*apikey*.txt
+espocrm_id.txt
+Espo_crm_key.txt
+qr-response.json
 
 # ============================================================================
 # NODE & DEPENDENCIES
@@ -42,6 +47,15 @@ out/
 .cache/
 .vite/
 .parcel-cache/
+
+# Archives de déploiement
+*.tar.gz
+*.zip
+!node_modules/.cache/**/*.tar.gz
+phase*.tar.gz
+*deployment*.tar.gz
+frontend-*.tar.gz
+backend-*.tar.gz
 
 # ============================================================================
 # LOGS & TEMP FILES
@@ -70,6 +84,21 @@ max_activity.jsonl
 *.swo
 *~
 
+# Backups de code
+*_backup
+*_back.js
+*-back.js
+*.backup_*
+server*.backup.*
+server*back.*
+**/prompts_backup/
+**/*backup*/
+
+# Fichiers temporaires projet
+nul
+qr-greenapi.html
+dMacrea*/
+
 # ============================================================================
 # DATABASES & DATA
 # ============================================================================
@@ -84,6 +113,20 @@ clients/
 data/
 uploads/
 storage/
+tmp/
+
+# Fichiers texte brouillons
+chat-mail.txt
+code-*.txt
+Laucher.txt
+langagemax.txt
+extentsion.txt
+prompt.txt
+CORRECTIF_PROMPT.txt
+avoir.txt
+routes.txt
+Fiche_technique_*.txt
+DEPLOY_MANUAL_STEPS.txt
 
 # ============================================================================
 # IDE & EDITORS
