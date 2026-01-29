@@ -1723,9 +1723,17 @@ ${successList}${moreSuccess}
             }
 
             // 3. PATCH partiel du lead
+            // Transformer maxTags array → string (varchar limitation EspoCRM)
+            const patchData = { ...fields };
+            if (patchData.maxTags && Array.isArray(patchData.maxTags)) {
+              patchData.maxTags = patchData.maxTags.join(' ');
+            }
+            // NE PAS envoyer tags (multiEnum strict avec options prédéfinies)
+            // maxTags (varchar) permet tags libres, utilisé par Tour de Contrôle
+            
             const updated = await espoFetch(`/Lead/${leadId}`, {
               method: 'PATCH',
-              body: JSON.stringify(fields)
+              body: JSON.stringify(patchData)
             });
 
             // 4. VÉRIFICATION POST-OPÉRATION (Self-Healing)
@@ -1741,8 +1749,25 @@ ${successList}${moreSuccess}
               const actualValue = verified[fieldName];
 
               // Normaliser les valeurs pour comparaison
-              const expected = expectedValue === null || expectedValue === undefined ? '' : String(expectedValue);
-              const actual = actualValue === null || actualValue === undefined ? '' : String(actualValue);
+              let expected, actual;
+              
+              // Pour maxTags: normaliser array vs string séparée par espace/virgule
+              if (fieldName === 'maxTags') {
+                const expectedTags = Array.isArray(expectedValue) 
+                  ? expectedValue 
+                  : String(expectedValue || '').split(/[\s,]+/).filter(Boolean);
+                const actualTags = Array.isArray(actualValue)
+                  ? actualValue
+                  : String(actualValue || '').split(/[\s,]+/).filter(Boolean);
+                
+                // Comparer les tags triés (ordre peut varier)
+                expected = expectedTags.sort().join(',');
+                actual = actualTags.sort().join(',');
+              } else {
+                // Normalisation standard pour autres champs
+                expected = expectedValue === null || expectedValue === undefined ? '' : String(expectedValue);
+                actual = actualValue === null || actualValue === undefined ? '' : String(actualValue);
+              }
 
               if (expected !== actual) {
                 failures.push({
@@ -1796,6 +1821,16 @@ ${successList}${moreSuccess}
               });
 
               console.log(`[update_lead_fields] ✅ Lead ${leadData.name} mis à jour avec succès (vérifié)`);
+              
+              // Mettre à jour le cache Supabase pour Tour de Contrôle
+              try {
+                const { updateLeadInCache } = await import('../lib/leadsCacheSync.js');
+                await updateLeadInCache(req.tenantId, verified);
+                console.log(`[update_lead_fields] 💾 Cache Supabase mis à jour pour lead ${leadId}`);
+              } catch (cacheError) {
+                console.warn(`[update_lead_fields] ⚠️ Erreur cache Supabase:`, cacheError.message);
+                // Non-bloquant: le lead est bien mis à jour dans EspoCRM
+              }
             }
 
           } catch (error) {

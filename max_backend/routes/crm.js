@@ -900,10 +900,11 @@ router.post('/leads/:id/tags', async (req, res) => {
 
     console.log(`[CRM] Tags - Existants: ${existingTags.length}, Nouveaux: ${newTags.length}, Total: ${updatedTags.length}`);
 
-    // Mettre à jour EspoCRM (maxTags + tagsIA pour compatibilité)
+    // Mettre à jour EspoCRM 
+    // - maxTags: varchar (string space-separated) ✅ Tags libres
+    // - tags: multiEnum avec options prédéfinies → NE PAS envoyer (trop restrictif)
     const updateData = {
-      maxTags: updatedTags,
-      tagsIA: updatedTags
+      maxTags: updatedTags.join(' ')
     };
 
     const updatedLead = await espoFetch(`/Lead/${id}`, {
@@ -913,7 +914,7 @@ router.post('/leads/:id/tags', async (req, res) => {
 
     // Mettre à jour le cache Supabase (source officielle pour Campaign/SegmentBuilder)
     try {
-      await updateLeadInCache(tenantId, { ...lead, maxTags: updatedTags, tagsIA: updatedTags });
+      await updateLeadInCache(tenantId, { ...lead, tags: updatedTags, maxTags: updatedTags.join(' ') });
       console.log(`[CRM] ✅ Cache Supabase mis à jour pour lead ${id}`);
     } catch (cacheError) {
       console.warn(`[CRM] ⚠️ Erreur mise à jour cache:`, cacheError.message);
