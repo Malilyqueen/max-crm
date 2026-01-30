@@ -153,6 +153,17 @@ router.use(requireTenantWithCrm);
  * Mapper un lead EspoCRM vers le format frontend
  */
 function mapEspoLeadToFrontend(espoLead) {
+  const tagsIA = Array.isArray(espoLead.tagsIA) ? espoLead.tagsIA : [];
+  let maxTags = [];
+  if (typeof espoLead.maxTags === 'string' && espoLead.maxTags.length > 0) {
+    maxTags = espoLead.maxTags
+      .split(/[\s,]+/)
+      .map((t) => t.trim())
+      .filter((t) => t.length > 0);
+  }
+  const baseTags = Array.isArray(espoLead.tags) ? espoLead.tags : [];
+  const allTags = [...new Set([...tagsIA, ...maxTags, ...baseTags])];
+
   return {
     id: espoLead.id,
     firstName: espoLead.firstName || '',
@@ -167,7 +178,7 @@ function mapEspoLeadToFrontend(espoLead) {
     createdAt: espoLead.createdAt || new Date().toISOString(),
     updatedAt: espoLead.modifiedAt || espoLead.createdAt || new Date().toISOString(),
     notes: espoLead.description || '',
-    tags: espoLead.tagsIA || espoLead.tags || [],
+    tags: allTags,
     score: espoLead.scoreIA || espoLead.score || 0,
     // V1 Starter - 3 nouveaux champs
     industry: espoLead.industry || '',
