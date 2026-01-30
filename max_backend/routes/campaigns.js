@@ -318,7 +318,7 @@ router.post('/send-bulk', async (req, res) => {
             break;
         }
 
-        if (sendResult && sendResult.ok) {
+        if (sendResult && (sendResult.ok || sendResult.success)) {
           results.sent++;
           console.log(`✅ Envoyé à ${lead.id}`);
         } else {
