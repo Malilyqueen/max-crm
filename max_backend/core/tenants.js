@@ -1,19 +1,30 @@
 // core/tenants.js
 // Configuration multi-tenant avec credentials EspoCRM par tenant
+//
+// ═══════════════════════════════════════════════════════════════════
+// SÉCURITÉ PROD: Aucun fallback localhost - variables .env obligatoires
+// ═══════════════════════════════════════════════════════════════════
+
+// Vérification au chargement du module
+const ESPO_BASE_URL = process.env.ESPO_BASE_URL;
+if (!ESPO_BASE_URL) {
+  console.error('[TENANTS] FATAL: ESPO_BASE_URL non défini');
+  // Ne pas crash immédiatement pour permettre le chargement du BOOT GUARD
+}
 
 export const TENANTS = {
-  // Tenant local développement XAMPP
+  // Tenant principal (local dev ou prod selon ESPO_BASE_URL)
   "macrea": {
     id: "macrea",
-    name: "MaCréa Local Dev",
+    name: "MaCréa",
     apiKey: "macrea_local_dev_key",
     standard: true,
     extensions: ["logistique", "ecommerce", "coach"],
     flags: { isAdmin: true },
 
-    // Configuration EspoCRM pour développement local XAMPP
+    // Configuration EspoCRM - PAS DE FALLBACK
     espo: {
-      baseUrl: process.env.ESPO_BASE_URL || "http://127.0.0.1:8081/espocrm/api/v1",
+      baseUrl: process.env.ESPO_BASE_URL, // OBLIGATOIRE - crash si manquant
       apiKey: process.env.ESPO_API_KEY || "",
       admin: {
         username: process.env.ESPO_USERNAME || "admin",
@@ -31,9 +42,9 @@ export const TENANTS = {
     extensions: ["logistique", "ecommerce", "coach"],
     flags: { isAdmin: true },
 
-    // Configuration EspoCRM pour ce tenant
+    // Configuration EspoCRM - PAS DE FALLBACK
     espo: {
-      baseUrl: process.env.ESPO_BASE_URL || "http://espocrm:80/api/v1",
+      baseUrl: process.env.ESPO_BASE_URL, // OBLIGATOIRE - même URL que macrea
       apiKey: process.env.ESPO_API_KEY || "",
       // Credentials admin pour self-healing (création champs, layouts, rebuild)
       admin: {

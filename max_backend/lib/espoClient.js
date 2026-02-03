@@ -17,11 +17,21 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 config({ path: resolve(__dirname, '..', '.env') });
 
-const ESPO_BASE   = process.env.ESPO_BASE_URL || 'http://127.0.0.1:8081/api/v1';
+// ═══════════════════════════════════════════════════════════════════
+// SÉCURITÉ PROD: Aucun fallback localhost - crash explicite si manquant
+// ═══════════════════════════════════════════════════════════════════
+const ESPO_BASE = process.env.ESPO_BASE_URL;
+if (!ESPO_BASE) {
+  throw new Error('[ESPO_CLIENT] FATAL: ESPO_BASE_URL non défini. Configurez cette variable dans .env');
+}
+
 const ESPO_TOKEN  = process.env.ESPO_TOKEN   || ''; // Authorization: Bearer
 const ESPO_APIKEY = process.env.ESPO_API_KEY || ''; // X-Api-Key
 const ESPO_USER   = process.env.ESPO_USERNAME || '';
 const ESPO_PASS   = process.env.ESPO_PASSWORD || '';
+
+// Log de la config (sans secrets)
+console.log(`[ESPO_CLIENT] Configured ESPO_BASE_URL: ${ESPO_BASE}`);
 
 // ═══════════════════════════════════════════════════════════════════
 // CONFIGURATION MULTI-TENANT

@@ -27,8 +27,127 @@ if (missing.length > 0) {
 
 console.log('✅ Variables .env validées');
 
+// ============================================================
+// BOOT GUARD: Verrou de sécurité Production
+// Empêche tout mélange localhost/prod
+// ============================================================
+import fs from 'fs';
+import path from 'path';
+
+const IS_PRODUCTION = process.env.NODE_ENV === 'production' || process.env.CRM_ENV === 'prod';
+
+function bootGuard() {
+  const errors = [];
+
+  // 1. Vérifier que ESPO_BASE_URL ne pointe pas vers localhost en prod
+  const espoUrl = process.env.ESPO_BASE_URL || '';
+  if (IS_PRODUCTION) {
+    if (espoUrl.includes('localhost') || espoUrl.includes('127.0.0.1')) {
+      errors.push(`ESPO_BASE_URL pointe vers localhost en prod: ${espoUrl}`);
+    }
+  }
+
+  // 2. Vérifier les chemins Windows en prod
+  const pathsToCheck = [
+    { name: 'TASKS_DIR', value: process.env.TASKS_DIR },
+    { name: 'TASK_REGISTRY_PATH', value: process.env.TASK_REGISTRY_PATH },
+  ];
+
+  if (IS_PRODUCTION) {
+    pathsToCheck.forEach(({ name, value }) => {
+      if (value && (value.includes('D:\\') || value.includes('C:\\') || value.includes('D:/'))) {
+        errors.push(`${name} contient un chemin Windows en prod: ${value}`);
+      }
+    });
+  }
+
+  // 3. Forcer ALLOW_RESET=false en prod
+  if (IS_PRODUCTION && process.env.ALLOW_RESET === 'true') {
+    console.warn('[BOOT GUARD] ⚠️  ALLOW_RESET=true détecté en prod - forcé à false');
+    process.env.ALLOW_RESET = 'false';
+  }
+
+  // 4. Vérifier/créer le dossier /app/data en prod
+  if (IS_PRODUCTION) {
+    const dataDir = '/app/data';
+    if (!fs.existsSync(dataDir)) {
+      try {
+        fs.mkdirSync(dataDir, { recursive: true });
+        console.log(`[BOOT GUARD] 📁 Dossier ${dataDir} créé`);
+      } catch (e) {
+        errors.push(`Impossible de créer ${dataDir}: ${e.message}`);
+      }
+    }
+
+    // Créer sous-dossiers nécessaires
+    const subDirs = ['tasks_autogen', 'logs', 'conversations'];
+    subDirs.forEach(sub => {
+      const fullPath = path.join(dataDir, sub);
+      if (!fs.existsSync(fullPath)) {
+        try {
+          fs.mkdirSync(fullPath, { recursive: true });
+          console.log(`[BOOT GUARD] 📁 Dossier ${fullPath} créé`);
+        } catch (e) {
+          console.warn(`[BOOT GUARD] ⚠️  Impossible de créer ${fullPath}: ${e.message}`);
+        }
+      }
+    });
+  }
+
+  // Si erreurs critiques en prod, crash immédiat
+  if (errors.length > 0) {
+    console.error('\n🚨 BOOT GUARD: Configuration invalide pour la production\n');
+    errors.forEach(err => console.error(`   ❌ ${err}`));
+    console.error('\n');
+    process.exit(1);
+  }
+}
+
+// Exécuter le BOOT GUARD
+bootGuard();
+
+// ============================================================
+// LOGS DE BOOT (preuve de configuration)
+// ============================================================
+console.log('\n╔════════════════════════════════════════════════════════════╗');
+console.log('║                    M.A.X. BACKEND BOOT                      ║');
+console.log('╠════════════════════════════════════════════════════════════╣');
+console.log(`║ NODE_ENV:        ${(process.env.NODE_ENV || 'development').padEnd(40)}║`);
+console.log(`║ CRM_ENV:         ${(process.env.CRM_ENV || 'dev').padEnd(40)}║`);
+console.log(`║ ESPO_BASE_URL:   ${(process.env.ESPO_BASE_URL || 'NOT SET').padEnd(40)}║`);
+console.log(`║ PORT:            ${(process.env.PORT || '3005').padEnd(40)}║`);
+
+// Vérifier existence des paths
+const tasksDir = process.env.TASKS_DIR || '/app/data/tasks_autogen';
+const taskRegistry = process.env.TASK_REGISTRY_PATH || '/app/data/task_registry.json';
+const tasksDirExists = fs.existsSync(tasksDir);
+const taskRegistryDir = path.dirname(taskRegistry);
+const taskRegistryDirExists = fs.existsSync(taskRegistryDir);
+
+console.log(`║ TASKS_DIR:       ${tasksDir.substring(0, 35).padEnd(40)}║`);
+console.log(`║   └─ exists:     ${String(tasksDirExists).padEnd(40)}║`);
+console.log(`║ TASK_REGISTRY:   ${taskRegistry.substring(0, 35).padEnd(40)}║`);
+console.log(`║   └─ dir exists: ${String(taskRegistryDirExists).padEnd(40)}║`);
+console.log(`║ ALLOW_RESET:     ${(process.env.ALLOW_RESET || 'false').padEnd(40)}║`);
+console.log('╚════════════════════════════════════════════════════════════╝\n');
+
 import express from 'express';
 import cors from 'cors';
+import {
+  globalLimiter,
+  authLimiter,
+  sensitiveLimiter,
+  aiLimiter,
+  webhookLimiter,
+  getRateLimitStats
+} from './middleware/rateLimiter.js';
+import {
+  initSentry,
+  sentryRequestMiddleware,
+  sentryErrorMiddleware,
+  testSentry,
+  getSentryStatus
+} from './middleware/sentry.js';
 import { checkModeWrite } from './middleware/checkMode.js';
 import headers from './middleware/headers.js';
 // GPT-4o-mini | Fenêtre glissante 72h + limite 100 messages | Newsletter COMPACT
@@ -193,6 +312,11 @@ try {
   console.warn('   Puis ajoutez dans .env: CREDENTIALS_ENCRYPTION_KEY=<votre_clé>');
 }
 
+// ============================================================
+// SENTRY - Error Tracking (optionnel mais recommandé en prod)
+// ============================================================
+await initSentry();
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true })); // ⚡ Support Twilio webhooks (application/x-www-form-urlencoded)
 // Allow custom headers for UI
@@ -223,8 +347,25 @@ app.use(cors({
   credentials: true
 }));
 
-// Route Auth (publique, pas d'auth requise pour login)
-app.use('/api/auth', authRouter);
+// ============================================================
+// SENTRY REQUEST MIDDLEWARE - Ajoute request_id et contexte
+// ============================================================
+app.use(sentryRequestMiddleware);
+
+// ============================================================
+// RATE LIMITING - Protection contre les abus
+// "Un système qui refuse de servir (429) vaut mieux qu'un système qui tombe."
+// ============================================================
+// Global: 100 req/min par IP (sauf health/ping)
+app.use((req, res, next) => {
+  if (req.path === '/api/health' || req.path === '/api/ping' || req.path === '/api/boot-info') {
+    return next();
+  }
+  return globalLimiter(req, res, next);
+});
+
+// Route Auth (publique, pas d'auth requise pour login) + rate limit strict
+app.use('/api/auth', authLimiter, authRouter);
 
 // Route Chat MVP1 (protégé par auth JWT, AVANT headers middleware)
 app.use('/api/chat-mvp1', chatMvp1Router);
@@ -248,19 +389,19 @@ app.use('/api/crm-public', authMiddleware, resolveTenant(), crmPublicRouter);
 app.use('/api/max/actions', maxActionsRouter);
 app.use('/api/max/crea', maxCreaRouter);
 app.use('/api/max/bubble', bubbleRouter);
-app.use('/api/ai', aiRouter);
-app.use('/api/chat', chatRouter);
+app.use('/api/ai', aiLimiter, aiRouter); // 🛡️ Rate limit AI: 20 req/min par tenant
+app.use('/api/chat', aiLimiter, chatRouter); // 🛡️ Rate limit AI: 20 req/min par tenant
 app.use('/api/chat', consentTestRouter); // 🧪 Test consentement E2E
 app.use('/api/tools', toolsRouter); // 🧪 Test direct tools (bypass LLM)
 app.use('/api/safe-actions', safeActionsRouter);
 app.use('/api/layout', layoutRouter);
 app.use('/api/billing', billingRouter);
-app.use('/api/whatsapp', whatsappWebhookRouter); // Webhook entrant WhatsApp (Twilio)
+app.use('/api/whatsapp', sensitiveLimiter, whatsappWebhookRouter); // 🛡️ Rate limit sensible: 30 req/min par tenant
 app.use('/api/whatsapp', whatsappMessagesRouter); // API CRUD messages WhatsApp
 app.use('/api/whatsapp/billing', whatsappBillingRouter); // 💰 WhatsApp Billing (abonnement + recharges)
-app.use('/webhooks/greenapi', greenApiWebhookRouter); // 📲 Webhook entrant Green-API WhatsApp (AVANT headers middleware)
-app.use('/webhooks/twilio-sms', twilioSmsWebhookRouter); // 📱 Webhook entrant + status Twilio SMS (AVANT headers middleware)
-app.use('/webhooks/mailjet', mailjetWebhookRouter); // 📧 Webhook entrant Mailjet Email (AVANT headers middleware)
+app.use('/webhooks/greenapi', webhookLimiter, greenApiWebhookRouter); // 🛡️ Rate limit webhook: 60 req/min par IP
+app.use('/webhooks/twilio-sms', webhookLimiter, twilioSmsWebhookRouter); // 🛡️ Rate limit webhook: 60 req/min par IP
+app.use('/webhooks/mailjet', webhookLimiter, mailjetWebhookRouter); // 🛡️ Rate limit webhook: 60 req/min par IP
 app.use('/api/tenant/goals', tenantGoalsRouter); // Routes tenant goals (mémoire longue durée)
 app.use('/api/test', testWhatsappStubRouter); // 🧪 Endpoint de test WhatsApp stub (sans dépendre de Twilio Live)
 app.use('/api/action-layer', actionsApiRouter); // 🎯 Action Layer - Endpoints pour tester les actions CRM manuellement (AVANT headers middleware)
@@ -270,6 +411,13 @@ app.use('/api/consent', consentRouter); // 🔒 Système de consentement pour op
 
 // Sanity ping (AVANT headers middleware pour Cloudflare healthcheck)
 app.get('/api/ping', (req, res) => res.json({ ok: true, pong: true }));
+
+// Sentry status/test (publics - AVANT headers middleware)
+app.get('/api/sentry/status', (req, res) => res.json(getSentryStatus()));
+app.get('/api/sentry/test', (req, res) => {
+  const result = testSentry();
+  res.json({ ...result, status: getSentryStatus() });
+});
 
 // Servir les fichiers uploadés du support (pièces jointes)
 app.use('/uploads/support', express.static('uploads/support'));
@@ -303,7 +451,7 @@ app.use('/api/max', maxRouter);
 // ============================================================================
 // 🔄 ROUTE SYNC - AVANT resolveRouter qui a authMiddleware global
 // ============================================================================
-app.use('/api/sync', syncRouter); // 🔄 Sync EspoCRM → Supabase leads_cache
+app.use('/api/sync', sensitiveLimiter, syncRouter); // 🛡️ Rate limit sensible: 30 req/min par tenant
 
 app.use('/api', resolveRouter);
 
@@ -317,12 +465,12 @@ app.use('/api', resolveTenant(), agentRouter);
 app.use('/api/brain', resolveTenant(), brainRouter);
 app.use('/api/logs', logsRouter);
 app.use('/api/events', resolveTenant(), eventsRouter); // Routes events multi-canal (auth + tenant)
-app.use('/api/campaigns', resolveTenant(), campaignsRouter); // Routes campaigns bulk send (auth + tenant)
+app.use('/api/campaigns', sensitiveLimiter, resolveTenant(), campaignsRouter); // 🛡️ Rate limit sensible: 30 req/min (bulk send)
 app.use('/api/templates', resolveTenant(), templatesRouter); // Routes templates CRUD + MAX draft (auth + tenant)
 app.use('/api/automations', resolveTenant(), automationsRouter); // Routes automations CRUD (auth + tenant)
 app.use('/api/max/recommendations', resolveTenant(), recommendationsRouter); // Routes recommandations intelligentes MAX (auth + tenant)
-app.use('/api/import', authMiddleware, resolveTenant(), importBatchRouter); // 📦 Import async batch (10k+ leads)
-app.use('/api/batch-jobs', batchJobsRouter); // 📦 Unified batch job engine (import + bulk_update)
+app.use('/api/import', sensitiveLimiter, authMiddleware, resolveTenant(), importBatchRouter); // 🛡️ Rate limit sensible: 30 req/min (batch import)
+app.use('/api/batch-jobs', sensitiveLimiter, batchJobsRouter); // 🛡️ Rate limit sensible: 30 req/min (batch jobs)
 app.use('/api/support', authMiddleware, resolveTenant(), supportRouter); // Routes support lite MVP (auth + tenant)
 // IMPORTANT: Routes spécifiques AVANT routes générales
 app.use('/api/settings/sms', authMiddleware, resolveTenant(), smsSettingsRouter); // Routes SMS settings (auth + tenant)
@@ -442,6 +590,38 @@ const PORT = process.env.PORT || 3005;
     console.error('[BATCH_ENGINE] ❌ Erreur requeue stale jobs:', error.message);
   }
 })();
+
+// ============================================================
+// GLOBAL ERROR HANDLER - Capture toutes les erreurs non gérées
+// DOIT être le DERNIER middleware
+// ============================================================
+app.use(sentryErrorMiddleware);
+
+app.use((err, req, res, next) => {
+  const statusCode = err.statusCode || err.status || 500;
+  const requestId = req.requestId || 'N/A';
+
+  console.error(`[GLOBAL_ERROR] ${requestId} - ${err.message}`);
+
+  res.status(statusCode).json({
+    ok: false,
+    error: statusCode >= 500 ? 'Internal Server Error' : err.message,
+    code: err.code || 'UNKNOWN_ERROR',
+    request_id: requestId,
+  });
+});
+
+// ============================================================
+// 404 HANDLER
+// ============================================================
+app.use((req, res) => {
+  res.status(404).json({
+    ok: false,
+    error: 'Not Found',
+    path: req.path,
+    request_id: req.requestId,
+  });
+});
 
 app.listen(PORT, '0.0.0.0', async () => {
   console.log(`M.A.X. server P1 listening on http://127.0.0.1:${PORT}`);
