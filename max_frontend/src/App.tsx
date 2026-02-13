@@ -28,6 +28,7 @@ const SettingsPage = lazy(() => import('./pages/SettingsPage').then(m => ({ defa
 const SupportPage = lazy(() => import('./pages/SupportPage').then(m => ({ default: m.SupportPage })));
 const TicketDetailPage = lazy(() => import('./pages/TicketDetailPage').then(m => ({ default: m.TicketDetailPage })));
 const AdminSupportPage = lazy(() => import('./pages/AdminSupportPage').then(m => ({ default: m.AdminSupportPage })));
+const AdminWhatsAppPage = lazy(() => import('./pages/AdminWhatsAppPage').then(m => ({ default: m.AdminWhatsAppPage })));
 const CampaignDetailPage = lazy(() => import('./pages/CampaignDetailPage').then(m => ({ default: m.CampaignDetailPage })));
 const CrmSetupPage = lazy(() => import('./pages/CrmSetupPage').then(m => ({ default: m.CrmSetupPage })));
 const JobsPage = lazy(() => import('./pages/JobsPage').then(m => ({ default: m.JobsPage })));
@@ -124,6 +125,13 @@ export default function App() {
               <AdminRoute>
                 <Suspense fallback={<PageLoader />}>
                   <AdminSupportPage />
+                </Suspense>
+              </AdminRoute>
+            } />
+            <Route path="/admin/whatsapp" element={
+              <AdminRoute>
+                <Suspense fallback={<PageLoader />}>
+                  <AdminWhatsAppPage />
                 </Suspense>
               </AdminRoute>
             } />

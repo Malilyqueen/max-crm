@@ -1,7 +1,7 @@
 import 'dotenv/config';
 
 // ============================================================
-// VALIDATION .ENV OBLIGATOIRE
+// VALIDATION .ENV OBLIGATOIRE — v5 (debug console.log + UUID fix)
 // ============================================================
 const REQUIRED_ENV = [
   'ESPO_BASE_URL',
@@ -222,9 +222,15 @@ import whatsappBillingRouter from './routes/whatsapp-billing.js';
 import templatesRouter from './routes/templates.js';
 import automationsRouter from './routes/automations.js';
 import recommendationsRouter from './routes/recommendations.js';
+import agentDecisionsRouter from './routes/agent-decisions.js'; // 🧩 Boîte Noire: décisions agent
 import importBatchRouter from './routes/import-batch.js'; // 📦 Import async batch (10k+ leads)
 import batchJobsRouter from './routes/batch-jobs.js'; // 📦 Unified batch job engine (import + bulk_update)
 import syncRouter from './routes/sync.js'; // 🔄 Sync EspoCRM → Supabase
+import brandKitRouter from './routes/brand-kit.js';
+import unsubscribeRouter from './routes/unsubscribe.js';
+import whatsappPresetsRouter from './routes/whatsapp-presets.js';
+import whatsappTenantRouter from './routes/whatsapp-tenant.js'; // 📱 WhatsApp tenant client API (request, qr, status)
+import adminWhatsappRouter from './routes/admin-whatsapp.js'; // 🔧 Admin WhatsApp provisioning
 
 process.on('unhandledRejection', (reason)=> console.error('[FATAL] UnhandledRejection:', reason));
 process.on('uncaughtException', (err)=> { console.error('[FATAL] UncaughtException:', err); process.exit(1); });
@@ -390,7 +396,12 @@ app.use('/api/max/actions', maxActionsRouter);
 app.use('/api/max/crea', maxCreaRouter);
 app.use('/api/max/bubble', bubbleRouter);
 app.use('/api/ai', aiLimiter, aiRouter); // 🛡️ Rate limit AI: 20 req/min par tenant
-app.use('/api/chat', aiLimiter, chatRouter); // 🛡️ Rate limit AI: 20 req/min par tenant
+// 🛡️ Chat routes - AI limiter sauf pour /activities (polling léger)
+app.use('/api/chat', (req, res, next) => {
+  // Skip AI rate limit pour polling activities (read-only, pas d'appel IA)
+  if (req.path === '/activities') return next();
+  return aiLimiter(req, res, next);
+}, chatRouter);
 app.use('/api/chat', consentTestRouter); // 🧪 Test consentement E2E
 app.use('/api/tools', toolsRouter); // 🧪 Test direct tools (bypass LLM)
 app.use('/api/safe-actions', safeActionsRouter);
@@ -398,7 +409,7 @@ app.use('/api/layout', layoutRouter);
 app.use('/api/billing', billingRouter);
 app.use('/api/whatsapp', sensitiveLimiter, whatsappWebhookRouter); // 🛡️ Rate limit sensible: 30 req/min par tenant
 app.use('/api/whatsapp', whatsappMessagesRouter); // API CRUD messages WhatsApp
-app.use('/api/whatsapp/billing', whatsappBillingRouter); // 💰 WhatsApp Billing (abonnement + recharges)
+app.use('/api/whatsapp/billing', authMiddleware, resolveTenant(), whatsappBillingRouter); // 💰 WhatsApp Billing (abonnement + recharges)
 app.use('/webhooks/greenapi', webhookLimiter, greenApiWebhookRouter); // 🛡️ Rate limit webhook: 60 req/min par IP
 app.use('/webhooks/twilio-sms', webhookLimiter, twilioSmsWebhookRouter); // 🛡️ Rate limit webhook: 60 req/min par IP
 app.use('/webhooks/mailjet', webhookLimiter, mailjetWebhookRouter); // 🛡️ Rate limit webhook: 60 req/min par IP
@@ -406,8 +417,11 @@ app.use('/api/tenant/goals', tenantGoalsRouter); // Routes tenant goals (mémoir
 app.use('/api/test', testWhatsappStubRouter); // 🧪 Endpoint de test WhatsApp stub (sans dépendre de Twilio Live)
 app.use('/api/action-layer', actionsApiRouter); // 🎯 Action Layer - Endpoints pour tester les actions CRM manuellement (AVANT headers middleware)
 app.use('/api/wa/instance', waInstanceRouter); // 📱 Green-API WhatsApp Instance Management (AVANT headers middleware)
-app.use('/api/wa/qr', waQrRouter); // 💬 WhatsApp Pro QR-Only Flow (JWT + WhatsApp gate)
+app.use('/api/wa/qr', waQrRouter); // 💬 WhatsApp Pro QR-Only Flow (JWT + WhatsApp gate) [LEGACY]
+app.use('/api/whatsapp/tenant', whatsappTenantRouter); // 📱 WhatsApp tenant client API (request, qr, status, disable)
+app.use('/api/admin/whatsapp', adminWhatsappRouter); // 🔧 Admin WhatsApp provisioning (provision, logout, reassign)
 app.use('/api/consent', consentRouter); // 🔒 Système de consentement pour opérations sensibles (AVANT headers middleware)
+app.use('/api/unsubscribe', sensitiveLimiter, unsubscribeRouter); // 🔓 Public unsubscribe (no auth, RFC 8058 One-Click)
 
 // Sanity ping (AVANT headers middleware pour Cloudflare healthcheck)
 app.get('/api/ping', (req, res) => res.json({ ok: true, pong: true }));
@@ -469,6 +483,7 @@ app.use('/api/campaigns', sensitiveLimiter, resolveTenant(), campaignsRouter); /
 app.use('/api/templates', resolveTenant(), templatesRouter); // Routes templates CRUD + MAX draft (auth + tenant)
 app.use('/api/automations', resolveTenant(), automationsRouter); // Routes automations CRUD (auth + tenant)
 app.use('/api/max/recommendations', resolveTenant(), recommendationsRouter); // Routes recommandations intelligentes MAX (auth + tenant)
+app.use('/api/max/agent-decisions', resolveTenant(), agentDecisionsRouter); // 🧩 Boîte Noire: journal décisions agent
 app.use('/api/import', sensitiveLimiter, authMiddleware, resolveTenant(), importBatchRouter); // 🛡️ Rate limit sensible: 30 req/min (batch import)
 app.use('/api/batch-jobs', sensitiveLimiter, batchJobsRouter); // 🛡️ Rate limit sensible: 30 req/min (batch jobs)
 app.use('/api/support', authMiddleware, resolveTenant(), supportRouter); // Routes support lite MVP (auth + tenant)
@@ -477,6 +492,8 @@ app.use('/api/settings/sms', authMiddleware, resolveTenant(), smsSettingsRouter)
 app.use('/api/settings', authMiddleware, resolveTenant(), settingsRouter); // Routes settings self-service (auth + tenant)
 app.use('/api/settings', authMiddleware, resolveTenant(), settingsTestRouter); // Routes settings test connection (auth + tenant)
 app.use('/api/email', authMiddleware, resolveTenant(), emailDomainsRouter); // Routes email domain validation (auth + tenant)
+app.use('/api/brand-kit', authMiddleware, resolveTenant(), brandKitRouter); // Brand Kit par tenant (auth + tenant)
+app.use('/api/whatsapp/actions', resolveTenant(), whatsappPresetsRouter); // WhatsApp action presets: poll, file (auth + tenant)
 // Ensure JSON type for all /api/*
 app.use('/api', (req,res,next)=>{ res.type('application/json'); next(); });
 
@@ -588,6 +605,21 @@ const PORT = process.env.PORT || 3005;
     await requeueStaleJobs();
   } catch (error) {
     console.error('[BATCH_ENGINE] ❌ Erreur requeue stale jobs:', error.message);
+  }
+
+  // Workflow CRON - scan workflows time_based toutes les 6h
+  try {
+    const { runWorkflowCron } = await import('./lib/workflowEngine.js');
+    setInterval(() => {
+      runWorkflowCron().catch(err => console.error('[WORKFLOW_CRON] ❌ Erreur:', err.message));
+    }, 6 * 60 * 60 * 1000); // 6h
+    // Premier scan 5 min après démarrage
+    setTimeout(() => {
+      runWorkflowCron().catch(err => console.error('[WORKFLOW_CRON] ❌ Erreur premier scan:', err.message));
+    }, 5 * 60 * 1000); // 5min
+    console.log('[WORKFLOW_CRON] ✅ Planifié: scan toutes les 6h, premier dans 5min');
+  } catch (error) {
+    console.error('[WORKFLOW_CRON] ❌ Erreur initialisation:', error.message);
   }
 })();
 

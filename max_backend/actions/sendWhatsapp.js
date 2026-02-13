@@ -11,7 +11,7 @@
  * - Consomme 1 message APRÈS envoi réussi
  */
 
-import { sendWhatsApp, sendWhatsAppWithCredentials } from '../lib/whatsappHelper.js';
+import { sendWhatsApp, sendWhatsAppWithCredentials, sendWhatsAppPollWithCredentials, sendWhatsAppFileWithCredentials } from '../lib/whatsappHelper.js';
 import { logMessageEvent } from '../lib/messageEventLogger.js';
 import { decryptCredentials } from '../lib/encryption.js';
 import { isWhatsappEnabled } from '../middleware/whatsappGate.js';
@@ -58,31 +58,41 @@ async function consumeWhatsappMessage(tenantId) {
  */
 async function getGreenApiCredentials(tenantId, db) {
   try {
-    // 1. Priorité: Lire depuis Settings API (DB)
+    // Lire provider avec vérification statut + expiration
     const result = await db.query(
-      `SELECT encrypted_config FROM tenant_provider_configs
+      `SELECT encrypted_config, whatsapp_status, expires_at FROM tenant_provider_configs
        WHERE tenant_id = $1 AND provider_type = 'greenapi_whatsapp' AND is_active = true
        LIMIT 1`,
       [tenantId]
     );
 
-    if (result.rows.length > 0) {
-      const encryptedConfig = result.rows[0].encrypted_config;
-      const credentials = decryptCredentials(encryptedConfig, tenantId);
-
-      console.log('[sendWhatsapp] ✅ Credentials depuis Settings API (chiffrés)');
-      return {
-        instanceId: credentials.instanceId,
-        token: credentials.token,
-        source: 'settings'
-      };
+    if (result.rows.length === 0) {
+      console.error('[sendWhatsapp] ❌ Aucun provider WhatsApp actif pour tenant:', tenantId);
+      return null;
     }
 
-    // 2. SUPPRIMÉ: Fallback wa-instances.json (faille sécurité - partage credentials entre tenants)
-    // Désactivé pour isolation per-tenant stricte
-    console.error('[sendWhatsapp] ❌ Aucune configuration Green-API trouvée pour tenant:', tenantId);
-    console.error('[sendWhatsapp] 💡 Configurez WhatsApp dans Settings > Providers > WhatsApp');
-    return null;
+    const { encrypted_config, whatsapp_status, expires_at } = result.rows[0];
+
+    // Protection: vérifier status == connected
+    if (whatsapp_status !== 'connected') {
+      console.error(`[sendWhatsapp] ⛔ Envoi bloqué: whatsapp_status = ${whatsapp_status} (tenant: ${tenantId})`);
+      return null;
+    }
+
+    // Protection: vérifier expiration
+    if (expires_at && new Date(expires_at) < new Date()) {
+      console.error(`[sendWhatsapp] ⛔ Envoi bloqué: instance expirée le ${expires_at} (tenant: ${tenantId})`);
+      return null;
+    }
+
+    const credentials = decryptCredentials(encrypted_config, tenantId);
+
+    console.log('[sendWhatsapp] ✅ Credentials validées (status: connected, non expiré)');
+    return {
+      instanceId: credentials.instanceId,
+      token: credentials.token,
+      source: 'settings'
+    };
 
   } catch (error) {
     console.error('[sendWhatsapp] ❌ Erreur récupération credentials:', error.message);
@@ -104,6 +114,28 @@ async function getGreenApiCredentials(tenantId, db) {
 export async function sendWhatsapp({ to, message, tenantId, leadId, campaignId, db }) {
   try {
     console.log('[sendWhatsapp] Envoi vers:', to, '| Tenant:', tenantId);
+
+    // 0. KILL SWITCH: Vérifier si les envois sont désactivés globalement
+    const { checkKillSwitch } = await import('../lib/killSwitch.js');
+    const killCheck = checkKillSwitch('whatsapp');
+    if (killCheck.blocked) {
+      console.warn(`[sendWhatsapp] 🛑 KILL SWITCH: envoi WhatsApp bloqué`);
+      return { ok: false, error: killCheck.reason, message: killCheck.message };
+    }
+
+    // 0b. OPT-OUT: Vérifier si le contact a demandé à ne plus recevoir de WhatsApp
+    const cleanPhone = to.replace(/[\+\s\-\(\)]/g, '');
+    const { data: optOut } = await supabase
+      .from('whatsapp_optouts')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .eq('phone_number', cleanPhone)
+      .maybeSingle();
+
+    if (optOut) {
+      console.log(`[sendWhatsapp] 🚫 BLOQUÉ: ${cleanPhone} a demandé opt-out (tenant: ${tenantId})`);
+      return { ok: false, error: 'OPTED_OUT', message: 'Ce contact a demandé à ne plus recevoir de WhatsApp' };
+    }
 
     // 1. Vérifier si WhatsApp est activé pour ce tenant (feature flag)
     if (!await isWhatsappEnabled(tenantId, db)) {
@@ -200,5 +232,155 @@ export async function sendWhatsapp({ to, message, tenantId, leadId, campaignId, 
       error: error.message,
       billingBlocked: isBillingBlock
     };
+  }
+}
+
+/**
+ * Envoie un sondage WhatsApp (même pipeline sécurité que sendWhatsapp)
+ */
+export async function sendWhatsappPoll({ to, question, options, multipleAnswers = false, tenantId, leadId, db }) {
+  try {
+    console.log('[sendWhatsappPoll] Envoi sondage vers:', to, '| Tenant:', tenantId);
+
+    // Kill switch
+    const { checkKillSwitch } = await import('../lib/killSwitch.js');
+    const killCheck = checkKillSwitch('whatsapp');
+    if (killCheck.blocked) {
+      return { ok: false, error: killCheck.reason, message: killCheck.message };
+    }
+
+    // Opt-out check
+    const cleanPhone = to.replace(/[\+\s\-\(\)]/g, '');
+    const { data: optOut } = await supabase
+      .from('whatsapp_optouts')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .eq('phone_number', cleanPhone)
+      .maybeSingle();
+
+    if (optOut) {
+      return { ok: false, error: 'OPTED_OUT', message: 'Ce contact a demandé opt-out' };
+    }
+
+    // Feature flag
+    if (!await isWhatsappEnabled(tenantId, db)) {
+      throw new Error('WhatsApp non activé pour votre compte.');
+    }
+
+    // Credentials
+    const credentials = await getGreenApiCredentials(tenantId, db);
+    if (!credentials) {
+      throw new Error('Aucune configuration Green-API trouvée.');
+    }
+
+    // Envoi
+    const result = await sendWhatsAppPollWithCredentials(to, question, options, multipleAnswers, credentials.instanceId, credentials.token);
+
+    if (!result || !result.idMessage) {
+      throw new Error('Échec envoi sondage Green-API');
+    }
+
+    // Logger
+    await logMessageEvent({
+      channel: 'whatsapp',
+      provider: 'greenapi',
+      direction: 'out',
+      tenantId,
+      leadId,
+      phoneNumber: to,
+      providerMessageId: result.idMessage,
+      status: 'sent',
+      messageSnippet: `📊 Sondage: ${question.substring(0, 180)}`,
+      rawPayload: { type: 'poll', question, options, ...result },
+      timestamp: new Date().toISOString()
+    });
+
+    console.log(`[sendWhatsappPoll] ✅ Sondage envoyé, idMessage:`, result.idMessage);
+
+    return {
+      ok: true,
+      messageId: result.idMessage,
+      provider: 'greenapi',
+      type: 'poll'
+    };
+
+  } catch (error) {
+    console.error('[sendWhatsappPoll] ❌ Erreur:', error);
+    return { ok: false, error: error.message };
+  }
+}
+
+/**
+ * Envoie un fichier WhatsApp (même pipeline sécurité que sendWhatsapp)
+ */
+export async function sendWhatsappFile({ to, urlFile, fileName, caption, tenantId, leadId, db }) {
+  try {
+    console.log('[sendWhatsappFile] Envoi fichier vers:', to, '| Tenant:', tenantId);
+
+    // Kill switch
+    const { checkKillSwitch } = await import('../lib/killSwitch.js');
+    const killCheck = checkKillSwitch('whatsapp');
+    if (killCheck.blocked) {
+      return { ok: false, error: killCheck.reason, message: killCheck.message };
+    }
+
+    // Opt-out check
+    const cleanPhone = to.replace(/[\+\s\-\(\)]/g, '');
+    const { data: optOut } = await supabase
+      .from('whatsapp_optouts')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .eq('phone_number', cleanPhone)
+      .maybeSingle();
+
+    if (optOut) {
+      return { ok: false, error: 'OPTED_OUT', message: 'Ce contact a demandé opt-out' };
+    }
+
+    // Feature flag
+    if (!await isWhatsappEnabled(tenantId, db)) {
+      throw new Error('WhatsApp non activé pour votre compte.');
+    }
+
+    // Credentials
+    const credentials = await getGreenApiCredentials(tenantId, db);
+    if (!credentials) {
+      throw new Error('Aucune configuration Green-API trouvée.');
+    }
+
+    // Envoi
+    const result = await sendWhatsAppFileWithCredentials(to, urlFile, fileName, caption, credentials.instanceId, credentials.token);
+
+    if (!result || !result.idMessage) {
+      throw new Error('Échec envoi fichier Green-API');
+    }
+
+    // Logger
+    await logMessageEvent({
+      channel: 'whatsapp',
+      provider: 'greenapi',
+      direction: 'out',
+      tenantId,
+      leadId,
+      phoneNumber: to,
+      providerMessageId: result.idMessage,
+      status: 'sent',
+      messageSnippet: `📎 Fichier: ${fileName}${caption ? ' — ' + caption.substring(0, 150) : ''}`,
+      rawPayload: { type: 'file', urlFile, fileName, ...result },
+      timestamp: new Date().toISOString()
+    });
+
+    console.log(`[sendWhatsappFile] ✅ Fichier envoyé, idMessage:`, result.idMessage);
+
+    return {
+      ok: true,
+      messageId: result.idMessage,
+      provider: 'greenapi',
+      type: 'file'
+    };
+
+  } catch (error) {
+    console.error('[sendWhatsappFile] ❌ Erreur:', error);
+    return { ok: false, error: error.message };
   }
 }
